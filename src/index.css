@@ -2,95 +2,151 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* VehicleGuard Pro Design System - Clean, Professional, Corporate */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    /* Core Brand Colors - Professional Blue Palette */
+    --primary: 214 84% 56%;          /* Corporate Blue */
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 214 100% 96%;   /* Light Blue Background */
+    --primary-dark: 214 84% 46%;     /* Darker Blue for Hover */
+    
+    /* Background System */
+    --background: 0 0% 100%;         /* Pure White */
+    --background-secondary: 220 14% 96%; /* Light Gray Background */
+    --background-tertiary: 210 20% 98%; /* Subtle Gray */
+    --foreground: 215 25% 27%;       /* Dark Blue-Gray Text */
+    
+    /* Card System */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 25% 27%;
+    --card-border: 220 13% 91%;
+    
+    /* Interactive Elements */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 215 25% 27%;
+    --secondary-hover: 220 14% 92%;
+    
+    /* Neutral Grays */
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
+    --muted-dark: 215 25% 37%;
+    
+    /* Accent Colors */
+    --accent: 220 14% 96%;
+    --accent-foreground: 215 25% 27%;
+    --accent-success: 142 76% 36%;   /* Success Green */
+    --accent-warning: 38 92% 50%;    /* Warning Orange */
+    --accent-danger: 0 84% 60%;      /* Danger Red */
+    
+    /* Status Colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 76% 96%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 96%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 84% 96%;
+    
+    /* Form Elements */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --input-focus: 214 84% 56%;
+    --ring: 214 84% 56%;
+    
+    /* Interactive States */
+    --hover: 220 14% 92%;
+    --hover-accent: 214 84% 66%;
+    --active: 214 84% 46%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 84% 56%), hsl(214 84% 66%));
+    --gradient-secondary: linear-gradient(135deg, hsl(220 14% 96%), hsl(210 20% 98%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(215 25% 27% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(215 25% 27% / 0.1), 0 2px 4px -1px hsl(215 25% 27% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(215 25% 27% / 0.1), 0 4px 6px -2px hsl(215 25% 27% / 0.05);
+    --shadow-primary: 0 4px 14px 0 hsl(214 84% 56% / 0.15);
+    
+    /* Animations */
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
+    /* Border Radius */
+    --radius: 0.75rem;
+    --radius-sm: 0.5rem;
+    --radius-lg: 1rem;
+    
+    /* Sidebar System */
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 214 84% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 92%;
+    --sidebar-accent-foreground: 215 25% 27%;
     --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 214 84% 56%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Dark Mode - Professional Dark Theme */
+    --background: 215 28% 17%;
+    --background-secondary: 215 28% 15%;
+    --background-tertiary: 215 28% 19%;
     --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
+    
+    --card: 215 28% 17%;
     --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
+    --card-border: 215 28% 25%;
+    
+    --popover: 215 28% 17%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
+    
+    --primary: 214 84% 56%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 214 84% 26%;
+    --primary-dark: 214 84% 66%;
+    
+    --secondary: 215 28% 25%;
     --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
+    --secondary-hover: 215 28% 28%;
+    
+    --muted: 215 28% 25%;
+    --muted-foreground: 215 20% 65%;
+    --muted-dark: 215 20% 55%;
+    
+    --accent: 215 28% 25%;
     --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
+    
+    --destructive: 0 62% 50%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --destructive-light: 0 62% 25%;
+    
+    --border: 215 28% 25%;
+    --input: 215 28% 25%;
+    --input-focus: 214 84% 56%;
+    --ring: 214 84% 56%;
+    
+    --hover: 215 28% 28%;
+    --hover-accent: 214 84% 66%;
+    --active: 214 84% 46%;
+    
+    --sidebar-background: 215 28% 15%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 214 84% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 215 28% 25%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 28% 25%;
+    --sidebar-ring: 214 84% 56%;
   }
 }
 
@@ -100,6 +156,25 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-medium;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+  }
+  
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
   }
 }
