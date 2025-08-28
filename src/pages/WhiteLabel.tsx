@@ -311,23 +311,25 @@ const WhiteLabelPage = () => {
                       {config.enabled && (
                         <div className="space-y-4">
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Ambiente</Label>
-                              <Select
-                                value={config.environment || "sandbox"}
-                                onValueChange={(value) => 
-                                  handleIntegrationChange(provider, 'environment', value)
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="sandbox">Sandbox (Teste)</SelectItem>
-                                  <SelectItem value="production">Produção</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+                            {'environment' in config && (
+                              <div className="space-y-2">
+                                <Label>Ambiente</Label>
+                                <Select
+                                  value={config.environment || "sandbox"}
+                                  onValueChange={(value) => 
+                                    handleIntegrationChange(provider, 'environment', value)
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="sandbox">Sandbox (Teste)</SelectItem>
+                                    <SelectItem value="production">Produção</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                             <div className="space-y-2">
                               <Label>Chave da API</Label>
                               <Input
