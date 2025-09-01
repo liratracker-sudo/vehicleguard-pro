@@ -114,40 +114,58 @@ export type Database = {
       }
       contracts: {
         Row: {
+          autentique_document_id: string | null
           client_id: string
           company_id: string
+          contract_type: string | null
           created_at: string
+          document_url: string | null
           end_date: string | null
           id: string
           monthly_value: number
           plan_id: string
+          signature_status: string | null
+          signed_at: string | null
           start_date: string
           status: string | null
           updated_at: string
+          vehicle_id: string | null
         }
         Insert: {
+          autentique_document_id?: string | null
           client_id: string
           company_id: string
+          contract_type?: string | null
           created_at?: string
+          document_url?: string | null
           end_date?: string | null
           id?: string
           monthly_value: number
           plan_id: string
+          signature_status?: string | null
+          signed_at?: string | null
           start_date?: string
           status?: string | null
           updated_at?: string
+          vehicle_id?: string | null
         }
         Update: {
+          autentique_document_id?: string | null
           client_id?: string
           company_id?: string
+          contract_type?: string | null
           created_at?: string
+          document_url?: string | null
           end_date?: string | null
           id?: string
           monthly_value?: number
           plan_id?: string
+          signature_status?: string | null
+          signed_at?: string | null
           start_date?: string
           status?: string | null
           updated_at?: string
+          vehicle_id?: string | null
         }
         Relationships: [
           {
@@ -243,6 +261,105 @@ export type Database = {
           },
         ]
       }
+      message_templates: {
+        Row: {
+          company_id: string
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          subject: string | null
+          template_type: string
+          updated_at: string
+          variables: Json | null
+        }
+        Insert: {
+          company_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject?: string | null
+          template_type: string
+          updated_at?: string
+          variables?: Json | null
+        }
+        Update: {
+          company_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject?: string | null
+          template_type?: string
+          updated_at?: string
+          variables?: Json | null
+        }
+        Relationships: []
+      }
+      payment_transactions: {
+        Row: {
+          amount: number
+          barcode: string | null
+          client_id: string
+          company_id: string
+          contract_id: string | null
+          created_at: string
+          due_date: string | null
+          external_id: string | null
+          id: string
+          invoice_id: string | null
+          paid_at: string | null
+          payment_gateway: string | null
+          payment_url: string | null
+          pix_code: string | null
+          status: string
+          transaction_type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          barcode?: string | null
+          client_id: string
+          company_id: string
+          contract_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          external_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          paid_at?: string | null
+          payment_gateway?: string | null
+          payment_url?: string | null
+          pix_code?: string | null
+          status?: string
+          transaction_type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          barcode?: string | null
+          client_id?: string
+          company_id?: string
+          contract_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          external_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          paid_at?: string | null
+          payment_gateway?: string | null
+          payment_url?: string | null
+          pix_code?: string | null
+          status?: string
+          transaction_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       plans: {
         Row: {
           billing_cycle: string | null
@@ -336,6 +453,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vehicles: {
+        Row: {
+          brand: string
+          chassis: string | null
+          client_id: string
+          color: string
+          company_id: string
+          created_at: string
+          id: string
+          installation_date: string | null
+          is_active: boolean
+          license_plate: string
+          model: string
+          notes: string | null
+          tracker_device_id: string | null
+          tracker_status: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          brand: string
+          chassis?: string | null
+          client_id: string
+          color: string
+          company_id: string
+          created_at?: string
+          id?: string
+          installation_date?: string | null
+          is_active?: boolean
+          license_plate: string
+          model: string
+          notes?: string | null
+          tracker_device_id?: string | null
+          tracker_status?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          brand?: string
+          chassis?: string | null
+          client_id?: string
+          color?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          installation_date?: string | null
+          is_active?: boolean
+          license_plate?: string
+          model?: string
+          notes?: string | null
+          tracker_device_id?: string | null
+          tracker_status?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      whatsapp_logs: {
+        Row: {
+          client_id: string | null
+          company_id: string
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          external_message_id: string | null
+          id: string
+          message_content: string
+          message_type: string
+          phone_number: string
+          read_at: string | null
+          sent_at: string
+          status: string
+          template_name: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          company_id: string
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          external_message_id?: string | null
+          id?: string
+          message_content: string
+          message_type: string
+          phone_number: string
+          read_at?: string | null
+          sent_at?: string
+          status?: string
+          template_name?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          company_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          external_message_id?: string | null
+          id?: string
+          message_content?: string
+          message_type?: string
+          phone_number?: string
+          read_at?: string | null
+          sent_at?: string
+          status?: string
+          template_name?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

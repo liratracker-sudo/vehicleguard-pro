@@ -21,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { ClientForm } from "@/components/clients/ClientForm"
 
 const clients = [
   {
@@ -114,10 +116,20 @@ const ClientsPage = () => {
               Gerencie seus clientes e contratos de rastreamento
             </p>
           </div>
-          <Button className="shrink-0">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Cliente
-          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="shrink-0">
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Cliente
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <ClientForm
+                onSuccess={() => window.location.reload()}
+                onCancel={() => {}}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Stats Cards */}

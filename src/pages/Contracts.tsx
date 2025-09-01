@@ -1,9 +1,192 @@
+import { useState, useEffect } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, FileText, Download, Send } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { ContractForm } from "@/components/contracts/ContractForm"
+import { supabase } from "@/integrations/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 
 const ContractsPage = () => {
+  const [contracts, setContracts] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [showForm, setShowForm] = useState(false)
+  const [editingContract, setEditingContract] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+
+  const loadContracts = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile) return
+
+      const { data, error } = await supabase
+        .from('contracts')
+        .select(`
+          *,
+          clients (name, phone),
+          vehicles (license_plate, model, brand),
+          plans (name)
+        `)
+        .eq('company_id', profile.company_id)
+
+      if (error) throw error
+
+      setContracts(data || [])
+    } catch (error) {
+      console.error('Error loading contracts:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar contratos",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadContracts()
+  }, [])
+
+  const filteredContracts = contracts.filter(contract =>
+    contract.clients?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.plans?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.vehicles?.license_plate.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-success/20 text-success border-success/30">Ativo</Badge>
+      case 'expired':
+        return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Vencido</Badge>
+      case 'suspended':
+        return <Badge className="bg-warning/20 text-warning border-warning/30">Suspenso</Badge>
+      default:
+        return <Badge variant="outline">Desconhecido</Badge>
+    }
+  }
+
+  const getSignatureBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline">Pendente</Badge>
+      case 'sent':
+        return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Enviado</Badge>
+      case 'signed':
+        return <Badge className="bg-success/20 text-success border-success/30">Assinado</Badge>
+      case 'cancelled':
+        return <Badge variant="destructive">Cancelado</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const handleEdit = (contractId: string) => {
+    setEditingContract(contractId)
+    setShowForm(true)
+  }
+
+  const handleDelete = async (contractId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este contrato?')) return
+
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .delete()
+        .eq('id', contractId)
+
+      if (error) throw error
+
+      toast({
+        title: "Contrato excluído",
+        description: "Contrato removido com sucesso"
+      })
+
+      loadContracts()
+    } catch (error) {
+      console.error('Error deleting contract:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir contrato",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const sendForSignature = async (contractId: string) => {
+    try {
+      // Integration with Autentique API would go here
+      await supabase
+        .from('contracts')
+        .update({ signature_status: 'sent' })
+        .eq('id', contractId)
+
+      toast({
+        title: "Enviado para assinatura",
+        description: "Contrato enviado via Autentique"
+      })
+
+      loadContracts()
+    } catch (error) {
+      console.error('Error sending for signature:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao enviar contrato",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleFormSuccess = () => {
+    setShowForm(false)
+    setEditingContract(null)
+    loadContracts()
+  }
+
+  const stats = {
+    active: contracts.filter(c => c.status === 'active').length,
+    pending: contracts.filter(c => c.signature_status === 'pending' || c.signature_status === 'sent').length,
+    expiring: contracts.filter(c => {
+      if (!c.end_date) return false
+      const endDate = new Date(c.end_date)
+      const thirtyDaysFromNow = new Date()
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+      return endDate <= thirtyDaysFromNow && endDate > new Date()
+    }).length
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -14,10 +197,21 @@ const ContractsPage = () => {
               Gestão de contratos digitais e assinaturas eletrônicas
             </p>
           </div>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Contrato
-          </Button>
+          <Dialog open={showForm} onOpenChange={setShowForm}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {setEditingContract(null); setShowForm(true)}}>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Contrato
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <ContractForm
+                contractId={editingContract || undefined}
+                onSuccess={handleFormSuccess}
+                onCancel={() => setShowForm(false)}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -27,8 +221,8 @@ const ContractsPage = () => {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,156</div>
-              <p className="text-xs text-muted-foreground">+9% vs mês anterior</p>
+              <div className="text-2xl font-bold">{stats.active}</div>
+              <p className="text-xs text-muted-foreground">Contratos vigentes</p>
             </CardContent>
           </Card>
           <Card>
@@ -37,7 +231,7 @@ const ContractsPage = () => {
               <Send className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">23</div>
+              <div className="text-2xl font-bold">{stats.pending}</div>
               <p className="text-xs text-muted-foreground">Aguardando cliente</p>
             </CardContent>
           </Card>
@@ -47,7 +241,7 @@ const ContractsPage = () => {
               <Download className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">45</div>
+              <div className="text-2xl font-bold">{stats.expiring}</div>
               <p className="text-xs text-muted-foreground">Próximos 30 dias</p>
             </CardContent>
           </Card>
@@ -55,11 +249,131 @@ const ContractsPage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Em desenvolvimento</CardTitle>
+            <CardTitle>Lista de Contratos</CardTitle>
             <CardDescription>
-              Funcionalidade de contratos será implementada em breve
+              Visualize e gerencie todos os contratos digitais
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por cliente, plano ou veículo..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button variant="outline">
+                <Filter className="w-4 h-4 mr-2" />
+                Filtros
+              </Button>
+            </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Plano/Veículo</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Vigência</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Assinatura</TableHead>
+                    <TableHead className="w-[70px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        Carregando...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredContracts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        Nenhum contrato encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredContracts.map((contract) => (
+                      <TableRow key={contract.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{contract.clients?.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {contract.clients?.phone}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{contract.plans?.name}</div>
+                            {contract.vehicles && (
+                              <div className="text-sm text-muted-foreground">
+                                {contract.vehicles.license_plate}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>R$ {contract.monthly_value.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {new Date(contract.start_date).toLocaleDateString()}
+                            {contract.end_date && (
+                              <>
+                                <br />
+                                <span className="text-muted-foreground">
+                                  até {new Date(contract.end_date).toLocaleDateString()}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(contract.status)}</TableCell>
+                        <TableCell>{getSignatureBadge(contract.signature_status)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Ver detalhes
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(contract.id)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              {(contract.signature_status === 'pending' || contract.signature_status === 'cancelled') && (
+                                <DropdownMenuItem onClick={() => sendForSignature(contract.id)}>
+                                  <Send className="mr-2 h-4 w-4" />
+                                  Enviar para assinatura
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem 
+                                onClick={() => handleDelete(contract.id)}
+                                className="text-destructive"
+                              >
+                                <Trash className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
         </Card>
       </div>
     </AppLayout>

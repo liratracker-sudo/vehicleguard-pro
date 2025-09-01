@@ -5,19 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  CreditCard, 
-  DollarSign, 
-  AlertCircle, 
-  Download, 
-  Send, 
-  QrCode,
-  FileText,
-  Calendar,
-  Search,
-  Filter,
-  Plus
-} from "lucide-react"
+import { CreditCard, DollarSign, AlertCircle, TrendingUp, Filter, Search, MoreHorizontal, Download, Send, Settings, FileText, Users, Clock, Eye, Edit, Trash, QrCode, Plus, Calendar } from "lucide-react"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { PaymentForm } from "@/components/billing/PaymentForm"
 import {
   Table,
   TableBody,
@@ -149,10 +139,20 @@ const BillingPage = () => {
               <Download className="w-4 h-4 mr-2" />
               Exportar
             </Button>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Cobrança
-            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nova Cobrança
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                <PaymentForm
+                  onSuccess={() => window.location.reload()}
+                  onCancel={() => {}}
+                />
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
