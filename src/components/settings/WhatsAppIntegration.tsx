@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,11 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { MessageSquare, Send, History, FileText, AlertCircle, CheckCircle, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 interface WhatsAppConfig {
   instanceUrl: string
   authToken: string
-  instanceId: string
+  instanceName: string
   enableLogs: boolean
   enableDeliveryStatus: boolean
   isConnected: boolean
@@ -40,11 +41,13 @@ const WhatsAppIntegration = () => {
   const [config, setConfig] = useState<WhatsAppConfig>({
     instanceUrl: "",
     authToken: "",
-    instanceId: "",
+    instanceName: "",
     enableLogs: true,
     enableDeliveryStatus: true,
     isConnected: false
   })
+  const [loading, setLoading] = useState(false)
+  const [companyId, setCompanyId] = useState<string>("")
 
   const [templates, setTemplates] = useState<MessageTemplate[]>([
     {
@@ -66,24 +69,83 @@ const WhatsAppIntegration = () => {
     content: ""
   })
 
-  const [messageLogs] = useState<MessageLog[]>([
-    {
-      id: "1",
-      to: "+5511999999999",
-      message: "Olá João, seu pagamento de R$ 150,00 venceu em 15/01/2025...",
-      status: "read",
-      timestamp: new Date("2025-01-16T10:30:00"),
-      template: "Cobrança Vencimento"
-    },
-    {
-      id: "2",
-      to: "+5511888888888",
-      message: "Olá Maria, lembramos que seu pagamento de R$ 250,00...",
-      status: "delivered",
-      timestamp: new Date("2025-01-16T09:15:00"),
-      template: "Lembrete Vencimento"
+  const [messageLogs, setMessageLogs] = useState<MessageLog[]>([])
+
+  useEffect(() => {
+    loadSettings()
+    loadLogs()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile) return
+      setCompanyId(profile.company_id)
+
+      const { data: settings } = await supabase
+        .from('whatsapp_settings')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .single()
+
+      if (settings) {
+        setConfig({
+          instanceUrl: settings.instance_url,
+          authToken: settings.api_token,
+          instanceName: settings.instance_name,
+          enableLogs: settings.enable_logs,
+          enableDeliveryStatus: settings.enable_delivery_status,
+          isConnected: settings.connection_status === 'connected'
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error)
     }
-  ])
+  }
+
+  const loadLogs = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile) return
+
+      const { data: logs } = await supabase
+        .from('whatsapp_logs')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (logs) {
+        const formattedLogs = logs.map(log => ({
+          id: log.id,
+          to: log.phone_number,
+          message: log.message_content,
+          status: log.status as 'sent' | 'delivered' | 'read' | 'failed',
+          timestamp: new Date(log.created_at),
+          template: log.template_name || undefined
+        }))
+        setMessageLogs(formattedLogs)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar logs:', error)
+    }
+  }
 
   const [manualMessage, setManualMessage] = useState({
     phone: "",
@@ -96,7 +158,7 @@ const WhatsAppIntegration = () => {
   }
 
   const handleTestConnection = async () => {
-    if (!config.instanceUrl || !config.authToken || !config.instanceId) {
+    if (!config.instanceUrl || !config.authToken || !config.instanceName) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -105,36 +167,93 @@ const WhatsAppIntegration = () => {
       return
     }
 
+    setLoading(true)
     try {
-      // Simulate API call to test connection
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      setConfig(prev => ({ ...prev, isConnected: true }))
-      toast({
-        title: "Sucesso",
-        description: "Conexão com WhatsApp estabelecida com sucesso!"
+      const response = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'check_connection',
+          instance_url: config.instanceUrl,
+          api_token: config.authToken,
+          instance_name: config.instanceName
+        }
       })
+
+      if (response.data?.connected) {
+        setConfig(prev => ({ ...prev, isConnected: true }))
+        
+        // Atualizar status no banco
+        if (companyId) {
+          await supabase
+            .from('whatsapp_settings')
+            .upsert({
+              company_id: companyId,
+              instance_url: config.instanceUrl,
+              instance_name: config.instanceName,
+              api_token: config.authToken,
+              enable_logs: config.enableLogs,
+              enable_delivery_status: config.enableDeliveryStatus,
+              connection_status: 'connected'
+            })
+        }
+
+        toast({
+          title: "Sucesso",
+          description: "Conexão com WhatsApp Evolution estabelecida com sucesso!"
+        })
+      } else {
+        throw new Error(response.data?.error || 'Falha na conexão')
+      }
     } catch (error) {
+      console.error('Erro ao testar conexão:', error)
       toast({
         title: "Erro",
-        description: "Falha ao conectar com WhatsApp. Verifique suas credenciais.",
+        description: "Falha ao conectar com WhatsApp Evolution. Verifique suas credenciais.",
         variant: "destructive"
       })
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleSaveConfig = async () => {
+    if (!companyId) {
+      toast({
+        title: "Erro",
+        description: "Erro ao identificar empresa",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setLoading(true)
     try {
-      // Save encrypted credentials to database
+      const { error } = await supabase
+        .from('whatsapp_settings')
+        .upsert({
+          company_id: companyId,
+          instance_url: config.instanceUrl,
+          instance_name: config.instanceName,
+          api_token: config.authToken,
+          enable_logs: config.enableLogs,
+          enable_delivery_status: config.enableDeliveryStatus,
+          connection_status: config.isConnected ? 'connected' : 'disconnected'
+        })
+
+      if (error) throw error
+
       toast({
         title: "Sucesso",
         description: "Configurações salvas com segurança!"
       })
     } catch (error) {
+      console.error('Erro ao salvar configurações:', error)
       toast({
         title: "Erro",
         description: "Erro ao salvar configurações",
         variant: "destructive"
       })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -175,19 +294,48 @@ const WhatsAppIntegration = () => {
       return
     }
 
-    try {
-      // Send message via WppConnect API
+    if (!config.isConnected) {
       toast({
-        title: "Sucesso",
-        description: "Mensagem enviada com sucesso!"
+        title: "Erro",
+        description: "WhatsApp não está conectado",
+        variant: "destructive"
       })
-      setManualMessage({ phone: "", message: "", selectedTemplate: "" })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'send_message',
+          instance_url: config.instanceUrl,
+          api_token: config.authToken,
+          instance_name: config.instanceName,
+          phone_number: manualMessage.phone,
+          message: manualMessage.message,
+          company_id: companyId
+        }
+      })
+
+      if (response.data?.success) {
+        toast({
+          title: "Sucesso",
+          description: "Mensagem enviada com sucesso!"
+        })
+        setManualMessage({ phone: "", message: "", selectedTemplate: "" })
+        loadLogs() // Recarregar logs
+      } else {
+        throw new Error(response.data?.error || 'Falha ao enviar mensagem')
+      }
     } catch (error) {
+      console.error('Erro ao enviar mensagem:', error)
       toast({
         title: "Erro",
         description: "Erro ao enviar mensagem",
         variant: "destructive"
       })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -226,7 +374,7 @@ const WhatsAppIntegration = () => {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <MessageSquare className="w-6 h-6 text-green-600" />
-        <h2 className="text-2xl font-bold">Integração WhatsApp (WppConnect)</h2>
+        <h2 className="text-2xl font-bold">Integração WhatsApp Evolution</h2>
         {config.isConnected && (
           <Badge variant="secondary" className="bg-green-100 text-green-800">
             Conectado
@@ -245,29 +393,29 @@ const WhatsAppIntegration = () => {
         <TabsContent value="config" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Credenciais WppConnect</CardTitle>
+              <CardTitle>Credenciais WhatsApp Evolution</CardTitle>
               <CardDescription>
-                Configure suas credenciais para integração com WppConnect
+                Configure suas credenciais para integração com a API WhatsApp Evolution
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="instanceUrl">URL da Instância *</Label>
+                  <Label htmlFor="instanceUrl">URL da Instância Evolution *</Label>
                   <Input
                     id="instanceUrl"
-                    placeholder="https://api.wppconnect.io"
+                    placeholder="https://api.evolution.com.br"
                     value={config.instanceUrl}
                     onChange={(e) => handleConfigChange('instanceUrl', e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="instanceId">ID da Instância *</Label>
+                  <Label htmlFor="instanceName">Nome da Instância *</Label>
                   <Input
-                    id="instanceId"
+                    id="instanceName"
                     placeholder="minha-instancia"
-                    value={config.instanceId}
-                    onChange={(e) => handleConfigChange('instanceId', e.target.value)}
+                    value={config.instanceName}
+                    onChange={(e) => handleConfigChange('instanceName', e.target.value)}
                   />
                 </div>
               </div>
@@ -312,11 +460,11 @@ const WhatsAppIntegration = () => {
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button onClick={handleTestConnection} variant="outline">
-                  Testar Conexão
+                <Button onClick={handleTestConnection} variant="outline" disabled={loading}>
+                  {loading ? "Testando..." : "Testar Conexão"}
                 </Button>
-                <Button onClick={handleSaveConfig}>
-                  Salvar Configurações
+                <Button onClick={handleSaveConfig} disabled={loading}>
+                  {loading ? "Salvando..." : "Salvar Configurações"}
                 </Button>
               </div>
             </CardContent>
@@ -439,8 +587,8 @@ const WhatsAppIntegration = () => {
                 />
               </div>
 
-              <Button onClick={handleSendManualMessage} disabled={!config.isConnected}>
-                Enviar Mensagem
+              <Button onClick={handleSendManualMessage} disabled={!config.isConnected || loading}>
+                {loading ? "Enviando..." : "Enviar Mensagem"}
               </Button>
             </CardContent>
           </Card>

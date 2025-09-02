@@ -142,7 +142,7 @@ const SettingsPage = () => {
                       <MessageSquare className="w-8 h-8 text-green-600" />
                       <div>
                         <h4 className="font-medium">WhatsApp</h4>
-                        <p className="text-sm text-muted-foreground">WppConnect</p>
+                        <p className="text-sm text-muted-foreground">Evolution API</p>
                       </div>
                     </CardContent>
                   </Card>

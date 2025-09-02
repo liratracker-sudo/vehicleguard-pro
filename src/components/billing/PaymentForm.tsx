@@ -151,16 +151,48 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
       const message = `Olá ${client.name}! Sua cobrança de R$ ${amount.toFixed(2)} via ${getPaymentTypeLabel(type)} foi gerada. Vencimento: ${format(formData.due_date, 'dd/MM/yyyy')}.`
 
-      // Log WhatsApp message (actual sending would use WppConnect API)
-      await supabase.from('whatsapp_logs').insert({
-        company_id: (await supabase.from('profiles').select('company_id').eq('user_id', (await supabase.auth.getUser()).data.user?.id).single())?.data?.company_id,
-        client_id: clientId,
-        message_type: 'cobranca',
-        phone_number: client.phone,
-        message_content: message,
-        template_name: 'cobranca_gerada',
-        status: 'sent'
-      })
+      // Buscar configurações do WhatsApp Evolution
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .single()
+
+      if (!profile) return
+
+      const { data: whatsappSettings } = await supabase
+        .from('whatsapp_settings')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .eq('is_active', true)
+        .single()
+
+      if (whatsappSettings && whatsappSettings.connection_status === 'connected') {
+        // Enviar via Evolution API
+        await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'send_message',
+            instance_url: whatsappSettings.instance_url,
+            api_token: whatsappSettings.api_token,
+            instance_name: whatsappSettings.instance_name,
+            phone_number: client.phone,
+            message,
+            company_id: profile.company_id,
+            client_id: clientId
+          }
+        })
+      } else {
+        // Log apenas no banco se WhatsApp não estiver configurado
+        await supabase.from('whatsapp_logs').insert({
+          company_id: profile.company_id,
+          client_id: clientId,
+          message_type: 'cobranca',
+          phone_number: client.phone,
+          message_content: message,
+          template_name: 'cobranca_gerada',
+          status: 'pending'
+        })
+      }
 
       toast({
         title: "WhatsApp enviado",
