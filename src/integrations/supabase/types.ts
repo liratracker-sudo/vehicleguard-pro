@@ -562,12 +562,61 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_settings: {
+        Row: {
+          api_token: string
+          company_id: string
+          connection_status: string
+          created_at: string
+          enable_delivery_status: boolean
+          enable_logs: boolean
+          id: string
+          instance_name: string
+          instance_url: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          api_token: string
+          company_id: string
+          connection_status?: string
+          created_at?: string
+          enable_delivery_status?: boolean
+          enable_logs?: boolean
+          id?: string
+          instance_name: string
+          instance_url: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          api_token?: string
+          company_id?: string
+          connection_status?: string
+          created_at?: string
+          enable_delivery_status?: boolean
+          enable_logs?: boolean
+          id?: string
+          instance_name?: string
+          instance_url?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      decrypt_whatsapp_token: {
+        Args: { p_encrypted_token: string }
+        Returns: string
+      }
+      encrypt_whatsapp_token: {
+        Args: { p_token: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
