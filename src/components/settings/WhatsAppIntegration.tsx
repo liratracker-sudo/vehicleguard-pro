@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,9 +7,10 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Send, History, FileText, AlertCircle, CheckCircle, Clock } from "lucide-react"
+import { MessageSquare, Send, History, FileText, AlertCircle, CheckCircle, Clock, QrCode, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import QRCode from 'qrcode'
 
 interface WhatsAppConfig {
   instanceUrl: string
@@ -36,6 +37,12 @@ interface MessageLog {
   template?: string
 }
 
+interface QRCodeData {
+  qrCode: string
+  pairingCode?: string
+  base64?: string
+}
+
 const WhatsAppIntegration = () => {
   const { toast } = useToast()
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -48,6 +55,10 @@ const WhatsAppIntegration = () => {
   })
   const [loading, setLoading] = useState(false)
   const [companyId, setCompanyId] = useState<string>("")
+  const [qrCodeData, setQrCodeData] = useState<QRCodeData | null>(null)
+  const [qrCodeImage, setQrCodeImage] = useState<string>("")
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false)
+  const connectionCheckInterval = useRef<NodeJS.Timeout | null>(null)
 
   const [templates, setTemplates] = useState<MessageTemplate[]>([
     {
@@ -74,6 +85,13 @@ const WhatsAppIntegration = () => {
   useEffect(() => {
     loadSettings()
     loadLogs()
+    
+    // Cleanup interval on unmount
+    return () => {
+      if (connectionCheckInterval.current) {
+        clearInterval(connectionCheckInterval.current)
+      }
+    }
   }, [])
 
   const loadSettings = async () => {
@@ -155,6 +173,117 @@ const WhatsAppIntegration = () => {
 
   const handleConfigChange = (field: keyof WhatsAppConfig, value: string | boolean) => {
     setConfig(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleGenerateQRCode = async () => {
+    if (!config.instanceUrl || !config.authToken || !config.instanceName) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsGeneratingQR(true)
+    try {
+      const response = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'get_qr_code',
+          instance_url: config.instanceUrl,
+          api_token: config.authToken,
+          instance_name: config.instanceName
+        }
+      })
+
+      if (response.data?.success && response.data?.qrCode) {
+        setQrCodeData(response.data)
+        
+        // Gerar QR Code image
+        const qrImageUrl = await QRCode.toDataURL(response.data.qrCode, {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#000',
+            light: '#FFF'
+          }
+        })
+        setQrCodeImage(qrImageUrl)
+
+        // Iniciar verificação automática de conexão
+        startConnectionCheck()
+
+        toast({
+          title: "QR Code gerado",
+          description: "Escaneie o código QR com seu WhatsApp para conectar!"
+        })
+      } else {
+        throw new Error(response.data?.error || 'Falha ao gerar QR Code')
+      }
+    } catch (error) {
+      console.error('Erro ao gerar QR Code:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao gerar QR Code. Verifique suas credenciais.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsGeneratingQR(false)
+    }
+  }
+
+  const startConnectionCheck = () => {
+    // Limpar interval existente
+    if (connectionCheckInterval.current) {
+      clearInterval(connectionCheckInterval.current)
+    }
+
+    // Verificar conexão a cada 5 segundos
+    connectionCheckInterval.current = setInterval(async () => {
+      try {
+        const response = await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'check_connection',
+            instance_url: config.instanceUrl,
+            api_token: config.authToken,
+            instance_name: config.instanceName
+          }
+        })
+
+        if (response.data?.connected) {
+          setConfig(prev => ({ ...prev, isConnected: true }))
+          setQrCodeData(null)
+          setQrCodeImage("")
+          
+          // Atualizar status no banco
+          if (companyId) {
+            await supabase
+              .from('whatsapp_settings')
+              .upsert({
+                company_id: companyId,
+                instance_url: config.instanceUrl,
+                instance_name: config.instanceName,
+                api_token: config.authToken,
+                enable_logs: config.enableLogs,
+                enable_delivery_status: config.enableDeliveryStatus,
+                connection_status: 'connected'
+              })
+          }
+
+          // Parar verificação
+          if (connectionCheckInterval.current) {
+            clearInterval(connectionCheckInterval.current)
+          }
+
+          toast({
+            title: "Conectado!",
+            description: "WhatsApp conectado com sucesso!",
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao verificar conexão:', error)
+      }
+    }, 5000)
   }
 
   const handleTestConnection = async () => {
@@ -469,6 +598,92 @@ const WhatsAppIntegration = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* QR Code Section */}
+          {!config.isConnected && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="w-5 h-5" />
+                  Conectar WhatsApp
+                </CardTitle>
+                <CardDescription>
+                  Gere um QR Code para conectar sua instância WhatsApp
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!qrCodeImage ? (
+                  <div className="text-center space-y-4">
+                    <div className="p-8 border-2 border-dashed rounded-lg">
+                      <QrCode className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-muted-foreground mb-4">
+                        Clique no botão abaixo para gerar o QR Code e conectar seu WhatsApp
+                      </p>
+                      <Button 
+                        onClick={handleGenerateQRCode} 
+                        disabled={isGeneratingQR || !config.instanceUrl || !config.authToken || !config.instanceName}
+                      >
+                        {isGeneratingQR ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Gerando QR Code...
+                          </>
+                        ) : (
+                          <>
+                            <QrCode className="w-4 h-4 mr-2" />
+                            Gerar QR Code
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-4">
+                    <div className="p-4 border rounded-lg bg-white inline-block">
+                      <img 
+                        src={qrCodeImage} 
+                        alt="QR Code WhatsApp" 
+                        className="w-64 h-64 mx-auto"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-medium">Escaneie o QR Code com seu WhatsApp</p>
+                      <p className="text-sm text-muted-foreground">
+                        1. Abra o WhatsApp no seu celular<br/>
+                        2. Toque nos três pontos no canto superior direito<br/>
+                        3. Selecione "WhatsApp Web"<br/>
+                        4. Escaneie este código QR
+                      </p>
+                      {qrCodeData?.pairingCode && (
+                        <div className="mt-4 p-3 bg-muted rounded-lg">
+                          <p className="text-sm font-medium">Código de Pareamento:</p>
+                          <p className="text-lg font-mono tracking-wider">{qrCodeData.pairingCode}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 justify-center">
+                      <Button 
+                        onClick={handleGenerateQRCode} 
+                        variant="outline"
+                        disabled={isGeneratingQR}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Gerar Novo QR
+                      </Button>
+                      <Button 
+                        onClick={handleTestConnection} 
+                        variant="outline"
+                        disabled={loading}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Verificar Conexão
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-6">

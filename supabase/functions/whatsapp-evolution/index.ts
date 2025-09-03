@@ -31,6 +31,8 @@ serve(async (req) => {
         return await sendStatus(payload);
       case 'get_instance_info':
         return await getInstanceInfo(payload);
+      case 'get_qr_code':
+        return await getQRCode(payload);
       default:
         throw new Error(`Ação não suportada: ${action}`);
     }
@@ -239,5 +241,56 @@ async function getInstanceInfo(payload: any) {
   } catch (error) {
     console.error('Erro ao obter informações da instância:', error);
     throw error;
+  }
+}
+
+async function getQRCode(payload: any) {
+  const { instance_url, api_token, instance_name } = payload;
+  
+  console.log('Obtendo QR Code da instância:', { instance_name });
+
+  const connectUrl = `${instance_url}/instance/connect/${instance_name}`;
+  
+  try {
+    const response = await fetch(connectUrl, {
+      method: 'GET',
+      headers: {
+        'apikey': api_token
+      }
+    });
+
+    const result = await response.json();
+    console.log('QR Code response:', result);
+
+    if (response.ok && result.code) {
+      // O code retornado pela Evolution API pode ser usado para gerar QR Code
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          qrCode: result.code,
+          pairingCode: result.pairingCode || null,
+          base64: `data:image/png;base64,${result.base64 || ''}` // Caso a API retorne base64 diretamente
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Falha ao obter QR Code',
+          data: result
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (error) {
+    console.error('Erro ao obter QR Code:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 }
