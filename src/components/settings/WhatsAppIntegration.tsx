@@ -330,7 +330,17 @@ const WhatsAppIntegration = () => {
           description: "Conexão com WhatsApp Evolution estabelecida com sucesso!"
         })
       } else {
-        throw new Error(response.data?.error || 'Falha na conexão')
+        setConfig(prev => ({ ...prev, isConnected: false }))
+        const stateConn = response.data?.state || 'unknown'
+        toast({
+          title: "Instância desconectada",
+          description: stateConn === 'close' 
+            ? "Gerando QR Code para conectar..."
+            : "Não foi possível confirmar a conexão. Confira as credenciais ou gere o QR Code.",
+        })
+        if (stateConn === 'close') {
+          await handleGenerateQRCode()
+        }
       }
     } catch (error) {
       console.error('Erro ao testar conexão:', error)
