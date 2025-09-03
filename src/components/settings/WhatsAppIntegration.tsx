@@ -54,6 +54,7 @@ const WhatsAppIntegration = () => {
     isConnected: false
   })
   const [loading, setLoading] = useState(false)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [companyId, setCompanyId] = useState<string>("")
   const [qrCodeData, setQrCodeData] = useState<QRCodeData | null>(null)
   const [qrCodeImage, setQrCodeImage] = useState<string>("")
@@ -97,16 +98,36 @@ const WhatsAppIntegration = () => {
   const loadSettings = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setIsLoadingProfile(false)
+        return
+      }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
         .single()
 
-      if (!profile) return
+      if (profileError) {
+        console.error('Erro ao buscar perfil:', profileError)
+        setIsLoadingProfile(false)
+        return
+      }
+
+      if (!profile || !profile.company_id) {
+        console.error('Perfil não encontrado ou company_id não definido:', profile)
+        toast({
+          title: "Erro",
+          description: "Perfil da empresa não encontrado. Entre em contato com o suporte.",
+          variant: "destructive"
+        })
+        setIsLoadingProfile(false)
+        return
+      }
+      
       setCompanyId(profile.company_id)
+      setIsLoadingProfile(false)
 
       const { data: settings } = await supabase
         .from('whatsapp_settings')
@@ -355,10 +376,19 @@ const WhatsAppIntegration = () => {
   }
 
   const handleSaveConfig = async () => {
+    if (isLoadingProfile) {
+      toast({
+        title: "Aguarde",
+        description: "Carregando dados do perfil...",
+        variant: "default"
+      })
+      return
+    }
+
     if (!companyId) {
       toast({
         title: "Erro",
-        description: "Erro ao identificar empresa",
+        description: "Erro ao identificar empresa. Atualize a página e tente novamente.",
         variant: "destructive"
       })
       return
