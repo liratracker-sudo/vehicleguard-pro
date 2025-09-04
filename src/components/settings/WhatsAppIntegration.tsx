@@ -113,7 +113,7 @@ const WhatsAppIntegration = () => {
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       console.log('loadSettings: Resultado da consulta de perfil:', { profile, profileError })
 
@@ -126,11 +126,12 @@ const WhatsAppIntegration = () => {
       if (!profile || !profile.company_id) {
         console.error('Perfil não encontrado ou company_id não definido:', profile)
         toast({
-          title: "Erro",
-          description: "Perfil da empresa não encontrado. Entre em contato com o suporte.",
-          variant: "destructive"
+          title: "Aguardando perfil",
+          description: "Perfil/empresa não encontrado. Tentando novamente em 2s...",
+          variant: "default"
         })
-        setIsLoadingProfile(false)
+        // Tenta novamente após curto atraso (perfil pode ter sido criado agora)
+        setTimeout(() => { loadSettings(); }, 2000)
         return
       }
       
@@ -142,7 +143,7 @@ const WhatsAppIntegration = () => {
         .from('whatsapp_settings')
         .select('*')
         .eq('company_id', profile.company_id)
-        .single()
+        .maybeSingle()
 
       if (settings) {
         setConfig({
@@ -168,7 +169,7 @@ const WhatsAppIntegration = () => {
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (!profile) return
 
@@ -399,15 +400,29 @@ const WhatsAppIntegration = () => {
     if (!companyId) {
       console.error('Company ID não encontrado no momento de salvar:', { companyId, isLoadingProfile })
       
-      // Tentar recarregar o perfil
-      console.log('Tentando recarregar perfil...')
-      await loadSettings()
-      
-      // Verificar novamente após recarregar
-      if (!companyId) {
+      // Buscar companyId diretamente do perfil para esta operação
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (prof?.company_id) {
+          setCompanyId(prof.company_id)
+        }
+        if (!prof?.company_id) {
+          toast({
+            title: "Erro",
+            description: "Erro ao identificar empresa. Tente novamente em alguns segundos.",
+            variant: "destructive"
+          })
+          return
+        }
+      } else {
         toast({
-          title: "Erro",
-          description: "Erro ao identificar empresa. Verifique se você tem permissão de acesso.",
+          title: "Sessão expirada",
+          description: "Faça login novamente para salvar as configurações.",
           variant: "destructive"
         })
         return
