@@ -84,6 +84,7 @@ const WhatsAppIntegration = () => {
   const [messageLogs, setMessageLogs] = useState<MessageLog[]>([])
 
   useEffect(() => {
+    console.log('WhatsApp Integration: useEffect executado')
     loadSettings()
     loadLogs()
     
@@ -126,6 +127,7 @@ const WhatsAppIntegration = () => {
         return
       }
       
+      console.log('Company ID encontrado:', profile.company_id)
       setCompanyId(profile.company_id)
       setIsLoadingProfile(false)
 
@@ -376,6 +378,8 @@ const WhatsAppIntegration = () => {
   }
 
   const handleSaveConfig = async () => {
+    console.log('handleSaveConfig iniciado - isLoadingProfile:', isLoadingProfile, 'companyId:', companyId)
+    
     if (isLoadingProfile) {
       toast({
         title: "Aguarde",
@@ -386,12 +390,21 @@ const WhatsAppIntegration = () => {
     }
 
     if (!companyId) {
-      toast({
-        title: "Erro",
-        description: "Erro ao identificar empresa. Atualize a página e tente novamente.",
-        variant: "destructive"
-      })
-      return
+      console.error('Company ID não encontrado no momento de salvar:', { companyId, isLoadingProfile })
+      
+      // Tentar recarregar o perfil
+      console.log('Tentando recarregar perfil...')
+      await loadSettings()
+      
+      // Verificar novamente após recarregar
+      if (!companyId) {
+        toast({
+          title: "Erro",
+          description: "Erro ao identificar empresa. Verifique se você tem permissão de acesso.",
+          variant: "destructive"
+        })
+        return
+      }
     }
 
     setLoading(true)
