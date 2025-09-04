@@ -98,17 +98,24 @@ const WhatsAppIntegration = () => {
 
   const loadSettings = async () => {
     try {
+      console.log('loadSettings: Iniciando carregamento dos dados')
       const { data: { user } } = await supabase.auth.getUser()
+      console.log('loadSettings: Usuário obtido:', user?.id)
+      
       if (!user) {
+        console.log('loadSettings: Usuário não encontrado')
         setIsLoadingProfile(false)
         return
       }
 
+      console.log('loadSettings: Buscando perfil para user_id:', user.id)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
         .single()
+
+      console.log('loadSettings: Resultado da consulta de perfil:', { profile, profileError })
 
       if (profileError) {
         console.error('Erro ao buscar perfil:', profileError)
