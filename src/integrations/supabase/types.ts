@@ -562,6 +562,45 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_sessions: {
+        Row: {
+          company_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          instance_name: string
+          qr_code: string | null
+          session_id: string
+          status: string
+          token: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          instance_name: string
+          qr_code?: string | null
+          session_id: string
+          status?: string
+          token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          instance_name?: string
+          qr_code?: string | null
+          session_id?: string
+          status?: string
+          token?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_settings: {
         Row: {
           api_token: string

@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -25,6 +26,46 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
   
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+
+  // Carregar dados do cliente se estiver editando
+  useEffect(() => {
+    if (clientId) {
+      loadClient()
+    }
+  }, [clientId])
+
+  const loadClient = async () => {
+    if (!clientId) return
+    
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', clientId)
+        .single()
+
+      if (error) throw error
+
+      setFormData({
+        name: data.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        document: data.document || "",
+        address: data.address || "",
+        status: data.status || "active"
+      })
+    } catch (error: any) {
+      console.error('Erro ao carregar cliente:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar dados do cliente",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const formatDocument = (value: string) => {
     // Remove all non-digits
@@ -54,18 +95,23 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
+      if (!user) throw new Error('Usuário não autenticado')
 
       const { data: profile } = await supabase
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (!profile) throw new Error('Profile not found')
+      if (!profile?.company_id) throw new Error('Perfil da empresa não encontrado')
 
       const clientData = {
-        ...formData,
+        name: formData.name.trim(),
+        email: formData.email.trim() || null,
+        phone: formData.phone.trim(),
+        document: formData.document.trim() || null,
+        address: formData.address.trim() || null,
+        status: formData.status,
         company_id: profile.company_id
       }
 
@@ -81,11 +127,11 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
       })
 
       onSuccess?.()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error)
       toast({
         title: "Erro",
-        description: "Erro ao salvar cliente",
+        description: error.message || "Erro ao salvar cliente",
         variant: "destructive"
       })
     } finally {
@@ -158,6 +204,20 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
               placeholder="Rua das Flores, 123 - Centro - São Paulo - SP - CEP: 01000-000"
               rows={3}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="status">Status</Label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Ativo</SelectItem>
+                <SelectItem value="suspended">Suspenso</SelectItem>
+                <SelectItem value="inactive">Inativo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex gap-2 pt-4">

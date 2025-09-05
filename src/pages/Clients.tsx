@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, MapPin } from "lucide-react"
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2 } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -23,74 +23,40 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { ClientForm } from "@/components/clients/ClientForm"
-
-const clients = [
-  {
-    id: 1,
-    name: "Maria Santos Silva",
-    email: "maria.santos@email.com",
-    phone: "(11) 99999-1234",
-    document: "123.456.789-10",
-    address: "Rua das Flores, 123 - São Paulo, SP",
-    status: "active",
-    plan: "Premium",
-    vehicles: 3,
-    monthlyValue: 450.00,
-    lastPayment: "2024-01-15",
-    joinedAt: "2023-06-15"
-  },
-  {
-    id: 2,
-    name: "João Oliveira Costa",
-    email: "joao.oliveira@email.com",
-    phone: "(11) 98888-5678",
-    document: "987.654.321-00",
-    address: "Av. Paulista, 1000 - São Paulo, SP",
-    status: "active",
-    plan: "Básico",
-    vehicles: 1,
-    monthlyValue: 150.00,
-    lastPayment: "2024-01-14",
-    joinedAt: "2023-08-20"
-  },
-  {
-    id: 3,
-    name: "Ana Costa Ferreira",
-    email: "ana.costa@email.com",
-    phone: "(11) 97777-9012",
-    document: "456.789.123-45",
-    address: "Rua Augusta, 500 - São Paulo, SP",
-    status: "suspended",
-    plan: "Premium",
-    vehicles: 2,
-    monthlyValue: 300.00,
-    lastPayment: "2023-12-10",
-    joinedAt: "2023-03-10"
-  },
-  {
-    id: 4,
-    name: "Carlos Silva Mendes",
-    email: "carlos.silva@email.com",
-    phone: "(11) 96666-3456",
-    document: "789.123.456-78",
-    address: "Rua da Consolação, 800 - São Paulo, SP",
-    status: "active",
-    plan: "Empresarial",
-    vehicles: 10,
-    monthlyValue: 1200.00,
-    lastPayment: "2024-01-12",
-    joinedAt: "2023-01-05"
-  }
-]
+import { useClients } from "@/hooks/useClients"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const ClientsPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedClient, setSelectedClient] = useState<string | null>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const { clients, loading, deleteClient } = useClients()
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.document.includes(searchTerm)
+    (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (client.document && client.document.includes(searchTerm))
   )
+
+  const handleEditClient = (clientId: string) => {
+    setSelectedClient(clientId)
+    setIsDialogOpen(true)
+  }
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    if (confirm(`Tem certeza que deseja excluir o cliente "${clientName}"?`)) {
+      try {
+        await deleteClient(clientId)
+      } catch (error) {
+        // Erro já tratado no hook
+      }
+    }
+  }
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false)
+    setSelectedClient(null)
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -116,17 +82,18 @@ const ClientsPage = () => {
               Gerencie seus clientes e contratos de rastreamento
             </p>
           </div>
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="shrink-0">
+              <Button className="shrink-0" onClick={() => setIsDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Cliente
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <ClientForm
-                onSuccess={() => window.location.reload()}
-                onCancel={() => {}}
+                clientId={selectedClient || undefined}
+                onSuccess={handleDialogClose}
+                onCancel={handleDialogClose}
               />
             </DialogContent>
           </Dialog>
@@ -139,8 +106,8 @@ const ClientsPage = () => {
               <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,234</div>
-              <p className="text-xs text-muted-foreground">+12% vs mês anterior</p>
+              <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : clients.length}</div>
+              <p className="text-xs text-muted-foreground">Total cadastrado</p>
             </CardContent>
           </Card>
           <Card>
@@ -148,8 +115,10 @@ const ClientsPage = () => {
               <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,156</div>
-              <p className="text-xs text-muted-foreground">93.7% do total</p>
+              <div className="text-2xl font-bold">
+                {loading ? <Skeleton className="h-8 w-16" /> : clients.filter(c => c.status === 'active').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Status ativo</p>
             </CardContent>
           </Card>
           <Card>
@@ -157,17 +126,21 @@ const ClientsPage = () => {
               <CardTitle className="text-sm font-medium">Suspensos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">45</div>
-              <p className="text-xs text-muted-foreground">3.6% do total</p>
+              <div className="text-2xl font-bold">
+                {loading ? <Skeleton className="h-8 w-16" /> : clients.filter(c => c.status === 'suspended').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Status suspenso</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
+              <CardTitle className="text-sm font-medium">Inativos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">R$ 187K</div>
-              <p className="text-xs text-muted-foreground">+8.5% vs mês anterior</p>
+              <div className="text-2xl font-bold">
+                {loading ? <Skeleton className="h-8 w-16" /> : clients.filter(c => c.status === 'inactive').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Status inativo</p>
             </CardContent>
           </Card>
         </div>
@@ -211,62 +184,104 @@ const ClientsPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-primary/10 text-primary">
-                              {client.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{client.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {client.document}
+                  {loading ? (
+                    // Loading skeleton
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Skeleton className="h-10 w-10 rounded-full" />
+                            <div>
+                              <Skeleton className="h-4 w-32 mb-1" />
+                              <Skeleton className="h-3 w-24" />
                             </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center text-sm">
-                            <Mail className="w-3 h-3 mr-1 text-muted-foreground" />
-                            {client.email}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Skeleton className="h-3 w-40" />
+                            <Skeleton className="h-3 w-28" />
                           </div>
-                          <div className="flex items-center text-sm">
-                            <Phone className="w-3 h-3 mr-1 text-muted-foreground" />
-                            {client.phone}
-                          </div>
+                        </TableCell>
+                        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-8" /></TableCell>
+                      </TableRow>
+                    ))
+                  ) : filteredClients.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="text-muted-foreground">
+                          {searchTerm ? 'Nenhum cliente encontrado para a busca.' : 'Nenhum cliente cadastrado ainda.'}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{client.plan}</Badge>
-                      </TableCell>
-                      <TableCell>{client.vehicles}</TableCell>
-                      <TableCell>R$ {client.monthlyValue.toFixed(2)}</TableCell>
-                      <TableCell>{getStatusBadge(client.status)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                            <DropdownMenuItem>Ver detalhes</DropdownMenuItem>
-                            <DropdownMenuItem>Editar cliente</DropdownMenuItem>
-                            <DropdownMenuItem>Ver contratos</DropdownMenuItem>
-                            <DropdownMenuItem>Histórico de pagamentos</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
-                              Suspender cliente
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredClients.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback className="bg-primary/10 text-primary">
+                                {client.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{client.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {client.document || 'Sem documento'}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center text-sm">
+                              <Mail className="w-3 h-3 mr-1 text-muted-foreground" />
+                              {client.email || 'Não informado'}
+                            </div>
+                            <div className="flex items-center text-sm">
+                              <Phone className="w-3 h-3 mr-1 text-muted-foreground" />
+                              {client.phone}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">-</Badge>
+                        </TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>{getStatusBadge(client.status)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Editar cliente
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>Ver contratos</DropdownMenuItem>
+                              <DropdownMenuItem>Histórico de pagamentos</DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => handleDeleteClient(client.id, client.name)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir cliente
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
