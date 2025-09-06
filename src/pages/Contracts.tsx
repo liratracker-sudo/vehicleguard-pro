@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,58 +26,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ContractForm } from "@/components/contracts/ContractForm"
-import { supabase } from "@/integrations/supabase/client"
-import { useToast } from "@/hooks/use-toast"
+import { useContracts } from "@/hooks/useContracts"
 
 const ContractsPage = () => {
-  const [contracts, setContracts] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingContract, setEditingContract] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const { toast } = useToast()
-
-  const loadContracts = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (!profile) return
-
-      const { data, error } = await supabase
-        .from('contracts')
-        .select(`
-          *,
-          clients (name, phone),
-          vehicles (license_plate, model, brand),
-          plans (name)
-        `)
-        .eq('company_id', profile.company_id)
-
-      if (error) throw error
-
-      setContracts(data || [])
-    } catch (error) {
-      console.error('Error loading contracts:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar contratos",
-        variant: "destructive"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadContracts()
-  }, [])
+  
+  const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
   const filteredContracts = contracts.filter(contract =>
     contract.clients?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -120,53 +76,7 @@ const ContractsPage = () => {
 
   const handleDelete = async (contractId: string) => {
     if (!confirm('Tem certeza que deseja excluir este contrato?')) return
-
-    try {
-      const { error } = await supabase
-        .from('contracts')
-        .delete()
-        .eq('id', contractId)
-
-      if (error) throw error
-
-      toast({
-        title: "Contrato excluído",
-        description: "Contrato removido com sucesso"
-      })
-
-      loadContracts()
-    } catch (error) {
-      console.error('Error deleting contract:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao excluir contrato",
-        variant: "destructive"
-      })
-    }
-  }
-
-  const sendForSignature = async (contractId: string) => {
-    try {
-      // Integration with Autentique API would go here
-      await supabase
-        .from('contracts')
-        .update({ signature_status: 'sent' })
-        .eq('id', contractId)
-
-      toast({
-        title: "Enviado para assinatura",
-        description: "Contrato enviado via Autentique"
-      })
-
-      loadContracts()
-    } catch (error) {
-      console.error('Error sending for signature:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao enviar contrato",
-        variant: "destructive"
-      })
-    }
+    await deleteContract(contractId)
   }
 
   const handleFormSuccess = () => {
@@ -214,7 +124,7 @@ const ContractsPage = () => {
           </Dialog>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Contratos Ativos</CardTitle>
@@ -271,16 +181,16 @@ const ContractsPage = () => {
               </Button>
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Plano/Veículo</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Vigência</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Assinatura</TableHead>
+                    <TableHead className="min-w-[150px]">Cliente</TableHead>
+                    <TableHead className="min-w-[150px]">Plano/Veículo</TableHead>
+                    <TableHead className="min-w-[100px]">Valor</TableHead>
+                    <TableHead className="min-w-[150px]">Vigência</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="min-w-[120px]">Assinatura</TableHead>
                     <TableHead className="w-[70px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>

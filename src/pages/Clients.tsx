@@ -100,7 +100,7 @@ const ClientsPage = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
@@ -170,16 +170,16 @@ const ClientsPage = () => {
               </Button>
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Plano</TableHead>
-                    <TableHead>Veículos</TableHead>
-                    <TableHead>Valor Mensal</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead className="min-w-[150px]">Cliente</TableHead>
+                    <TableHead className="min-w-[150px]">Contato</TableHead>
+                    <TableHead className="min-w-[120px]">Plano</TableHead>
+                    <TableHead className="min-w-[100px]">Veículos</TableHead>
+                    <TableHead className="min-w-[120px]">Valor Mensal</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
                     <TableHead className="w-[70px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
