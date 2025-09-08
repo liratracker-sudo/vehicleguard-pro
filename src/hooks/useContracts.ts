@@ -42,10 +42,8 @@ export function useContracts() {
   const loadContracts = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Iniciando carregamento de contratos...');
       
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('👤 Usuário:', user ? 'Encontrado' : 'Não encontrado');
       
       if (!user) {
         throw new Error('Usuário não autenticado');
@@ -56,56 +54,57 @@ export function useContracts() {
         .select('company_id')
         .eq('user_id', user.id)
         .maybeSingle();
-
-      console.log('🏢 Profile encontrado:', profile);
       
       if (!profile?.company_id) {
         throw new Error('Perfil da empresa não encontrado');
       }
 
-      console.log('📋 Buscando contratos para company_id:', profile.company_id);
-
-      const { data, error } = await supabase
+      // Buscar contratos básicos primeiro
+      const { data: contractsData, error: contractsError } = await supabase
         .from('contracts')
-        .select(`
-          *,
-          clients!contracts_client_id_fkey (
-            name,
-            phone
-          ),
-          plans!contracts_plan_id_fkey (
-            name
-          )
-        `)
+        .select('*')
         .eq('company_id', profile.company_id)
         .order('created_at', { ascending: false });
 
-      console.log('📊 Resultado da query de contratos:', { data, error });
-
-      if (error) {
-        throw error;
+      if (contractsError) {
+        throw contractsError;
       }
 
-      // Buscar veículos separadamente para contratos que têm vehicle_id
-      const contractsWithVehicles = await Promise.all(
-        (data || []).map(async (contract) => {
-          if (contract.vehicle_id) {
-            const { data: vehicle } = await supabase
-              .from('vehicles')
-              .select('license_plate, model, brand')
-              .eq('id', contract.vehicle_id)
-              .maybeSingle();
-            
-            return { ...contract, vehicles: vehicle };
-          }
-          return contract;
-        })
-      );
+      // Buscar dados relacionados separadamente
+      const [clientsData, plansData, vehiclesData] = await Promise.all([
+        supabase
+          .from('clients')
+          .select('id, name, phone')
+          .eq('company_id', profile.company_id),
+        supabase
+          .from('plans')
+          .select('id, name')
+          .eq('company_id', profile.company_id),
+        supabase
+          .from('vehicles')
+          .select('id, license_plate, model, brand')
+          .eq('company_id', profile.company_id)
+      ]);
 
-      console.log('🚗 Contratos com veículos:', contractsWithVehicles);
-      setContracts(contractsWithVehicles as any || []);
+      // Mapear dados relacionados aos contratos
+      const enrichedContracts = (contractsData || []).map(contract => {
+        const client = clientsData.data?.find(c => c.id === contract.client_id);
+        const plan = plansData.data?.find(p => p.id === contract.plan_id);
+        const vehicle = contract.vehicle_id 
+          ? vehiclesData.data?.find(v => v.id === contract.vehicle_id)
+          : null;
+
+        return {
+          ...contract,
+          clients: client,
+          plans: plan,
+          vehicles: vehicle
+        };
+      });
+
+      setContracts(enrichedContracts || []);
     } catch (error: any) {
-      console.error('❌ Erro ao carregar contratos:', error);
+      console.error('Erro ao carregar contratos:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao carregar contratos",

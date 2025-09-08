@@ -116,7 +116,7 @@ const ContractsPage = () => {
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogTitle className="sr-only">
+              <DialogTitle>
                 {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
               </DialogTitle>
               <ContractForm
