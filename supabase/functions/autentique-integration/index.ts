@@ -189,8 +189,7 @@ async function createDocument(contractData: ContractData, token: string) {
 
   const variables = {
     document: {
-      name: contractData.contract_title,
-      sandbox: true
+      name: contractData.contract_title
     },
     signers: [{
       email: contractData.client_email,
