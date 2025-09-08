@@ -39,8 +39,28 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
   const { toast } = useToast()
 
   const loadClients = async () => {
-    const { data } = await supabase.from('clients').select('id, name').eq('status', 'active')
-    if (data) setClients(data)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!profile?.company_id) return
+
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('status', 'active')
+        .eq('company_id', profile.company_id)
+        
+      if (data) setClients(data)
+    } catch (error) {
+      console.error('Error loading clients:', error)
+    }
   }
 
   useEffect(() => {
@@ -59,9 +79,9 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (!profile) throw new Error('Profile not found')
+      if (!profile?.company_id) throw new Error('Profile not found')
 
       const vehicleData = {
         ...formData,

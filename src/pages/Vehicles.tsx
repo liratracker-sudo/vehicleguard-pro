@@ -23,6 +23,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { VehicleForm } from "@/components/vehicles/VehicleForm"
@@ -46,22 +47,35 @@ const VehiclesPage = () => {
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (!profile) return
+      if (!profile?.company_id) return
 
       const { data, error } = await supabase
         .from('vehicles')
-        .select(`
-          *,
-          clients (name, phone)
-        `)
+        .select('*')
         .eq('company_id', profile.company_id)
         .eq('is_active', true)
 
       if (error) throw error
 
-      setVehicles(data || [])
+      // Buscar dados dos clientes separadamente
+      const vehiclesWithClients = await Promise.all(
+        (data || []).map(async (vehicle) => {
+          if (vehicle.client_id) {
+            const { data: client } = await supabase
+              .from('clients')
+              .select('name, phone')
+              .eq('id', vehicle.client_id)
+              .maybeSingle();
+            
+            return { ...vehicle, clients: client };
+          }
+          return vehicle;
+        })
+      );
+
+      setVehicles(vehiclesWithClients || [])
     } catch (error) {
       console.error('Error loading vehicles:', error)
       toast({
@@ -160,6 +174,9 @@ const VehiclesPage = () => {
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogTitle className="sr-only">
+                {editingVehicle ? 'Editar Veículo' : 'Cadastrar Veículo'}
+              </DialogTitle>
               <VehicleForm
                 vehicleId={editingVehicle || undefined}
                 onSuccess={handleFormSuccess}
