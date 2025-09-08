@@ -131,10 +131,12 @@ export function AutentiqueIntegration() {
     try {
       setTesting(true)
       
-      // Testar conexão com Autentique fazendo uma chamada básica
+      // Testar conexão com Autentique
+      const tokenToTest = config.apiToken.includes('•') ? undefined : config.apiToken.trim()
       const response = await supabase.functions.invoke('autentique-integration', {
         body: {
-          action: 'test_connection'
+          action: 'test_connection',
+          token: tokenToTest
         }
       })
 
@@ -142,9 +144,13 @@ export function AutentiqueIntegration() {
         throw new Error(response.error.message)
       }
 
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Falha ao conectar com a API Autentique')
+      }
+
       toast({
         title: "Sucesso",
-        description: "Conexão com a API Autentique funcionando corretamente!"
+        description: response.data?.message || "Conexão com a API Autentique funcionando corretamente!"
       })
       
     } catch (error: any) {

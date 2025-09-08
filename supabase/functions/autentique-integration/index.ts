@@ -26,45 +26,50 @@ serve(async (req) => {
   );
 
   try {
-    const { action, contractData, documentId } = await req.json();
+    const { action, contractData, documentId, token: tokenOverride } = await req.json();
 
-    // Buscar o token da API do Autentique das configurações da empresa
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Authorization header required');
-    }
-
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!profile) {
-      throw new Error('Profile not found');
-    }
-
-    const { data: company } = await supabase
-      .from('companies')
-      .select('settings')
-      .eq('id', profile.company_id)
-      .single();
-
-    const companySettings = company?.settings as any;
-    let autentiqueToken = companySettings?.autentique_api_token as string | undefined;
-
-    // Fallback: use project secret if company token is not set
-    if (!autentiqueToken) {
-      autentiqueToken = Deno.env.get('AUTENTIQUE_API_TOKEN') ?? '';
-    }
+    // Se token for enviado no body (teste/diagnóstico), usa-o diretamente
+    let autentiqueToken: string | undefined = (tokenOverride && String(tokenOverride).trim()) || undefined;
 
     if (!autentiqueToken) {
-      throw new Error('Token da API Autentique não configurado. Configure nas Configurações > Autentique ou defina o segredo AUTENTIQUE_API_TOKEN.');
+      // Buscar o token da API do Autentique das configurações da empresa
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) {
+        return new Response(JSON.stringify({ success: false, error: 'Authorization header required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+      if (!user) {
+        return new Response(JSON.stringify({ success: false, error: 'User not authenticated' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile) {
+        return new Response(JSON.stringify({ success: false, error: 'Profile not found' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: company } = await supabase
+        .from('companies')
+        .select('settings')
+        .eq('id', profile.company_id)
+        .single();
+
+      const companySettings = company?.settings as any;
+      autentiqueToken = companySettings?.autentique_api_token as string | undefined;
+
+      // Fallback: use project secret if company token is not set
+      if (!autentiqueToken) {
+        autentiqueToken = Deno.env.get('AUTENTIQUE_API_TOKEN') ?? '';
+      }
+    }
+
+    if (!autentiqueToken) {
+      return new Response(JSON.stringify({ success: false, error: 'Token da API Autentique não configurado. Configure nas Configurações > Autentique ou defina o segredo AUTENTIQUE_API_TOKEN.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     console.log('Autentique action:', action);
@@ -102,29 +107,41 @@ serve(async (req) => {
 });
 
 async function testConnection(token: string) {
-  // Fazer uma consulta simples para testar a conexão
-  const query = `
-    query {
-      viewer {
-        id
-        name
-        email
+  // Tenta múltiplas queries simples para validar o token, conforme schema atual
+  const tryQueries = [
+    { q: `query { viewer { id name email } }`, pick: (d: any) => d?.viewer },
+    { q: `query { me { id name email } }`, pick: (d: any) => d?.me },
+    { q: `query { organizations { id name } }`, pick: (d: any) => ({ organizations: d?.organizations }) },
+  ];
+
+  for (const attempt of tryQueries) {
+    try {
+      const response = await makeAutentiqueRequest(attempt.q, {}, token);
+      const info = attempt.pick(response.data);
+      if (info) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: 'connected',
+            info,
+            message: 'Conexão com Autentique estabelecida com sucesso.'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+    } catch (err: any) {
+      // Continua tentando as próximas queries
+      console.warn('Teste de conexão falhou com uma das queries:', err?.message || err);
     }
-  `;
-  
-  const response = await makeAutentiqueRequest(query, {}, token);
-  
+  }
+
   return new Response(
-    JSON.stringify({ 
-      success: true,
-      status: 'connected', 
-      user: response.data.viewer,
-      message: 'Conexão com Autentique estabelecida com sucesso!'
+    JSON.stringify({
+      success: false,
+      status: 'error',
+      message: 'Falha ao conectar com a API Autentique. Verifique seu token e permissões.',
     }),
-    {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    }
+    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
 
