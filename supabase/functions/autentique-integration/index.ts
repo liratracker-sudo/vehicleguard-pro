@@ -137,9 +137,12 @@ async function createDocument(contractData: ContractData, token: string) {
   const variables = {
     document: {
       name: contractData.contract_title,
-      content: contractData.contract_content
+      content: contractData.contract_content,
+      language: "pt-BR"
     }
   };
+
+  console.log('Creating document with variables:', JSON.stringify(variables, null, 2));
 
   const response = await makeAutentiqueRequest(mutation, variables, token);
 
@@ -225,6 +228,8 @@ async function getDocumentStatus(documentId: string, token: string) {
 }
 
 async function makeAutentiqueRequest(query: string, variables: any, token: string) {
+  console.log('Making Autentique API request:', { query: query.substring(0, 100) + '...', variables });
+  
   const response = await fetch('https://api.autentique.com.br/v2/graphql', {
     method: 'POST',
     headers: {
@@ -237,17 +242,20 @@ async function makeAutentiqueRequest(query: string, variables: any, token: strin
     })
   });
 
+  console.log('Autentique API response status:', response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Autentique API error:', errorText);
-    throw new Error(`Autentique API error: ${response.status} ${errorText}`);
+    console.error('Autentique API HTTP error:', { status: response.status, error: errorText });
+    throw new Error(`Erro na API Autentique (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
+  console.log('Autentique API response data:', JSON.stringify(data, null, 2));
 
   if (data.errors) {
     console.error('Autentique GraphQL errors:', data.errors);
-    throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+    throw new Error(`Erro GraphQL: ${data.errors.map((e: any) => e.message).join(', ')}`);
   }
 
   return data;

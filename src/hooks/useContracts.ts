@@ -238,6 +238,8 @@ export function useContracts() {
         throw new Error('Contrato não encontrado')
       }
 
+      console.log('Iniciando envio para assinatura - Contrato:', contractId)
+
       // Get client details
       const { data: client } = await supabase
         .from('clients')
@@ -249,6 +251,12 @@ export function useContracts() {
         throw new Error('Cliente não encontrado')
       }
 
+      if (!client.email) {
+        throw new Error('Cliente deve ter um email cadastrado para envio')
+      }
+
+      console.log('Cliente encontrado:', { name: client.name, email: client.email })
+
       // Get plan details  
       const { data: plan } = await supabase
         .from('plans')
@@ -257,56 +265,82 @@ export function useContracts() {
         .single()
 
       // Call Autentique integration
+      console.log('Chamando API Autentique para criar documento...')
+      
       const response = await supabase.functions.invoke('autentique-integration', {
         body: {
           action: 'create_document',
           contractData: {
             client_name: client.name,
             client_email: client.email,
-            client_phone: client.phone,
-            contract_title: `Contrato de Prestação de Serviços - ${client.name}`,
+            client_phone: client.phone || '',
+            contract_title: `Contrato ${contract.id.substring(0, 8)} - ${client.name}`,
             contract_content: generateContractContent(contract, client, plan)
           }
         }
       })
 
+      console.log('Resposta da API Autentique:', response)
+
       if (response.error) {
-        throw new Error(response.error.message)
+        console.error('Erro na edge function:', response.error)
+        throw new Error(`Erro ao conectar com Autentique: ${response.error.message}`)
       }
 
-      // Update contract with Autentique document ID and send for signature
+      if (!response.data?.success) {
+        console.error('Erro retornado pela API Autentique:', response.data)
+        throw new Error(response.data?.error || 'Erro ao criar documento no Autentique. Verifique se o token da API está configurado corretamente.')
+      }
+
+      const documentId = response.data.document.id
+      console.log('Documento criado com sucesso. ID:', documentId)
+
+      // Update contract with Autentique document ID
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
-          signature_status: 'sent',
-          autentique_document_id: response.data.document.id,
-          document_url: `https://app.autentique.com.br/document/${response.data.document.id}`
+          signature_status: 'pending',
+          autentique_document_id: documentId
         })
         .eq('id', contractId)
 
       if (updateError) throw updateError
 
       // Now send for signature
+      console.log('Enviando documento para assinatura...')
       const signatureResponse = await supabase.functions.invoke('autentique-integration', {
         body: {
           action: 'send_for_signature',
-          documentId: response.data.document.id,
+          documentId: documentId,
           contractData: {
             client_name: client.name,
             client_email: client.email,
-            client_phone: client.phone
+            client_phone: client.phone || ''
           }
         }
       })
 
-      if (signatureResponse.error) {
-        console.warn('Erro ao enviar para assinatura, mas documento foi criado:', signatureResponse.error)
-      }
+      console.log('Resposta do envio para assinatura:', signatureResponse)
 
-      toast({
-        title: "Enviado",
-        description: "Contrato enviado para assinatura eletrônica!"
-      })
+      if (signatureResponse.error) {
+        console.error('Erro ao enviar para assinatura:', signatureResponse.error)
+        toast({
+          title: "Documento Criado",
+          description: "Documento criado no Autentique, mas houve erro no envio. Envie manualmente pela plataforma.",
+          variant: "destructive"
+        })
+      } else if (signatureResponse.data?.success) {
+        toast({
+          title: "Enviado",
+          description: "Contrato enviado para assinatura eletrônica!"
+        })
+      } else {
+        toast({
+          title: "Documento Criado",
+          description: "Documento criado, mas pode haver problemas no envio automático",
+          variant: "destructive"
+        })
+      }
 
       await loadContracts() // Reload to get updated status
     } catch (error: any) {
