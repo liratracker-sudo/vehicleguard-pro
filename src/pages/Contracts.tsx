@@ -36,9 +36,9 @@ const ContractsPage = () => {
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
   const filteredContracts = contracts.filter(contract =>
-    contract.clients?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.plans?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.vehicles?.license_plate.toLowerCase().includes(searchTerm.toLowerCase())
+    contract.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.plans?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.vehicles?.license_plate?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const getStatusBadge = (status: string) => {

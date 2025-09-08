@@ -62,17 +62,12 @@ export function useContracts() {
         .from('contracts')
         .select(`
           *,
-          clients (
+          clients!contracts_client_id_fkey (
             name,
             phone
           ),
-          plans (
+          plans!contracts_plan_id_fkey (
             name
-          ),
-          vehicles (
-            license_plate,
-            model,
-            brand
           )
         `)
         .eq('company_id', profile.company_id)
@@ -82,7 +77,23 @@ export function useContracts() {
         throw error;
       }
 
-      setContracts(data as any || []);
+      // Buscar veículos separadamente para contratos que têm vehicle_id
+      const contractsWithVehicles = await Promise.all(
+        (data || []).map(async (contract) => {
+          if (contract.vehicle_id) {
+            const { data: vehicle } = await supabase
+              .from('vehicles')
+              .select('license_plate, model, brand')
+              .eq('id', contract.vehicle_id)
+              .maybeSingle();
+            
+            return { ...contract, vehicles: vehicle };
+          }
+          return contract;
+        })
+      );
+
+      setContracts(contractsWithVehicles as any || []);
     } catch (error: any) {
       console.error('Erro ao carregar contratos:', error);
       toast({
