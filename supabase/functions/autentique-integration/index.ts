@@ -56,10 +56,15 @@ serve(async (req) => {
       .single();
 
     const companySettings = company?.settings as any;
-    const autentiqueToken = companySettings?.autentique_api_token;
+    let autentiqueToken = companySettings?.autentique_api_token as string | undefined;
+
+    // Fallback: use project secret if company token is not set
+    if (!autentiqueToken) {
+      autentiqueToken = Deno.env.get('AUTENTIQUE_API_TOKEN') ?? '';
+    }
 
     if (!autentiqueToken) {
-      throw new Error('Token da API Autentique não configurado. Configure nas Configurações > Autentique.');
+      throw new Error('Token da API Autentique não configurado. Configure nas Configurações > Autentique ou defina o segredo AUTENTIQUE_API_TOKEN.');
     }
 
     console.log('Autentique action:', action);
@@ -160,7 +165,6 @@ async function createDocument(contractData: ContractData, token: string) {
       createDocument(document: $document, signers: $signers, file: $file) {
         id
         name
-        status
         created_at
       }
     }
@@ -169,13 +173,14 @@ async function createDocument(contractData: ContractData, token: string) {
   const variables = {
     document: {
       name: contractData.contract_title,
-      sandbox: true // Use sandbox mode to avoid consuming credits during testing
+      sandbox: true
     },
     signers: [{
       email: contractData.client_email,
       name: contractData.client_name,
       action: "SIGN"
-    }]
+    }],
+    file: null as any
   };
 
   // Create a blob from HTML content
