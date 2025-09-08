@@ -656,6 +656,15 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      validate_whatsapp_session: {
+        Args: { p_company_id: string }
+        Returns: {
+          instance_name: string
+          is_valid: boolean
+          message: string
+          session_status: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
