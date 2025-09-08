@@ -42,7 +42,10 @@ export function useContracts() {
   const loadContracts = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Iniciando carregamento de contratos...');
+      
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Usuário:', user ? 'Encontrado' : 'Não encontrado');
       
       if (!user) {
         throw new Error('Usuário não autenticado');
@@ -54,9 +57,13 @@ export function useContracts() {
         .eq('user_id', user.id)
         .maybeSingle();
 
+      console.log('🏢 Profile encontrado:', profile);
+      
       if (!profile?.company_id) {
         throw new Error('Perfil da empresa não encontrado');
       }
+
+      console.log('📋 Buscando contratos para company_id:', profile.company_id);
 
       const { data, error } = await supabase
         .from('contracts')
@@ -72,6 +79,8 @@ export function useContracts() {
         `)
         .eq('company_id', profile.company_id)
         .order('created_at', { ascending: false });
+
+      console.log('📊 Resultado da query de contratos:', { data, error });
 
       if (error) {
         throw error;
@@ -93,9 +102,10 @@ export function useContracts() {
         })
       );
 
+      console.log('🚗 Contratos com veículos:', contractsWithVehicles);
       setContracts(contractsWithVehicles as any || []);
     } catch (error: any) {
-      console.error('Erro ao carregar contratos:', error);
+      console.error('❌ Erro ao carregar contratos:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao carregar contratos",

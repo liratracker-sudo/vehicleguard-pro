@@ -23,6 +23,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ContractForm } from "@/components/contracts/ContractForm"
@@ -115,6 +116,9 @@ const ContractsPage = () => {
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogTitle className="sr-only">
+                {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
+              </DialogTitle>
               <ContractForm
                 contractId={editingContract || undefined}
                 onSuccess={handleFormSuccess}
