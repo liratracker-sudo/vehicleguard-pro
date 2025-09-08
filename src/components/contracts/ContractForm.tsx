@@ -442,14 +442,14 @@ Assinatura do Contratante
                 <div>
                   <Label htmlFor="vehicle_id">Veículo (Opcional)</Label>
                   <Select 
-                    value={formData.vehicle_id}
-                    onValueChange={(value) => setFormData({...formData, vehicle_id: value})}
+                    value={formData.vehicle_id || "none"}
+                    onValueChange={(value) => setFormData({...formData, vehicle_id: value === "none" ? "" : value})}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o veículo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum veículo</SelectItem>
+                      <SelectItem value="none">Nenhum veículo</SelectItem>
                       {filteredVehicles.map((vehicle) => (
                         <SelectItem key={vehicle.id} value={vehicle.id}>
                           {vehicle.license_plate} - {vehicle.brand} {vehicle.model}
