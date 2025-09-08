@@ -4,8 +4,9 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Users, Shield, Bell, Plug, MessageSquare } from "lucide-react"
+import { Settings, Users, Shield, Bell, Plug, MessageSquare, FileText } from "lucide-react"
 import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
+import { AutentiqueIntegration } from "@/components/settings/AutentiqueIntegration"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -38,13 +39,14 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="users">Usuários</TabsTrigger>
             <TabsTrigger value="security">Segurança</TabsTrigger>
             <TabsTrigger value="notifications">Notificações</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+            <TabsTrigger value="autentique">Autentique</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -165,6 +167,17 @@ const SettingsPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+                  
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+                        onClick={() => setActiveTab("autentique")}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <FileText className="w-8 h-8 text-blue-600" />
+                      <div>
+                        <h4 className="font-medium">Autentique</h4>
+                        <p className="text-sm text-muted-foreground">Documentos Digitais</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -172,6 +185,10 @@ const SettingsPage = () => {
 
           <TabsContent value="whatsapp" className="space-y-6">
             <WhatsAppIntegration />
+          </TabsContent>
+
+          <TabsContent value="autentique" className="space-y-6">
+            <AutentiqueIntegration />
           </TabsContent>
         </Tabs>
       </div>

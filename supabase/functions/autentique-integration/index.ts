@@ -27,15 +27,47 @@ serve(async (req) => {
 
   try {
     const { action, contractData, documentId } = await req.json();
-    const autentiqueToken = Deno.env.get('AUTENTIQUE_API_TOKEN');
+
+    // Buscar o token da API do Autentique das configurações da empresa
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Authorization header required');
+    }
+
+    const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
+
+    const { data: company } = await supabase
+      .from('companies')
+      .select('settings')
+      .eq('id', profile.company_id)
+      .single();
+
+    const companySettings = company?.settings as any;
+    const autentiqueToken = companySettings?.autentique_api_token;
 
     if (!autentiqueToken) {
-      throw new Error('Autentique API token not configured');
+      throw new Error('Token da API Autentique não configurado. Configure nas Configurações > Autentique.');
     }
 
     console.log('Autentique action:', action);
 
     switch (action) {
+      case 'test_connection':
+        return await testConnection(autentiqueToken);
+      
       case 'create_document':
         return await createDocument(contractData, autentiqueToken);
       
@@ -63,6 +95,33 @@ serve(async (req) => {
     );
   }
 });
+
+async function testConnection(token: string) {
+  // Fazer uma consulta simples para testar a conexão
+  const query = `
+    query {
+      viewer {
+        id
+        name
+        email
+      }
+    }
+  `;
+  
+  const response = await makeAutentiqueRequest(query, {}, token);
+  
+  return new Response(
+    JSON.stringify({ 
+      success: true,
+      status: 'connected', 
+      user: response.data.viewer,
+      message: 'Conexão com Autentique estabelecida com sucesso!'
+    }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    }
+  );
+}
 
 async function createDocument(contractData: ContractData, token: string) {
   const mutation = `
