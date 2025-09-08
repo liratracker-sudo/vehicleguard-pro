@@ -130,6 +130,7 @@ async function createDocument(contractData: ContractData, token: string) {
         id
         name
         status
+        created_at
       }
     }
   `;
@@ -137,8 +138,25 @@ async function createDocument(contractData: ContractData, token: string) {
   const variables = {
     document: {
       name: contractData.contract_title,
-      content: contractData.contract_content,
-      language: "pt-BR"
+      template: {
+        html: `
+          <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+              <h1 style="text-align: center; color: #333;">${contractData.contract_title}</h1>
+              <div style="margin: 20px 0;">
+                <pre style="white-space: pre-wrap; font-family: Arial, sans-serif; line-height: 1.6;">
+${contractData.contract_content}
+                </pre>
+              </div>
+              <div style="margin-top: 50px;">
+                <p><strong>Cliente:</strong> ${contractData.client_name}</p>
+                <p><strong>E-mail:</strong> ${contractData.client_email}</p>
+                ${contractData.client_phone ? `<p><strong>Telefone:</strong> ${contractData.client_phone}</p>` : ''}
+              </div>
+            </body>
+          </html>
+        `
+      }
     }
   };
 
