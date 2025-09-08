@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Users, Shield, Bell, Plug, MessageSquare } from "lucide-react"
-import WhatsAppIntegration from "@/components/settings/WhatsAppIntegration"
+import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -38,12 +38,13 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="users">Usuários</TabsTrigger>
             <TabsTrigger value="security">Segurança</TabsTrigger>
             <TabsTrigger value="notifications">Notificações</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -159,8 +160,8 @@ const SettingsPage = () => {
                     <CardContent className="flex items-center gap-3 p-4">
                       <MessageSquare className="w-8 h-8 text-green-600" />
                       <div>
-                        <h4 className="font-medium">WhatsApp</h4>
-                        <p className="text-sm text-muted-foreground">Evolution API</p>
+                        <h4 className="font-medium">WhatsApp Evolution</h4>
+                        <p className="text-sm text-muted-foreground">Conexão Persistente</p>
                       </div>
                     </CardContent>
                   </Card>

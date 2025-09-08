@@ -656,6 +656,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      maintain_whatsapp_connection: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       validate_whatsapp_session: {
         Args: { p_company_id: string }
         Returns: {
