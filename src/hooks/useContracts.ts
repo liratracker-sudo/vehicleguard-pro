@@ -213,26 +213,116 @@ export function useContracts() {
 
   const sendForSignature = async (contractId: string) => {
     try {
-      // Aqui seria a integração com a Autentique API
-      // Por enquanto, apenas atualizamos o status
-      await updateContract(contractId, {
-        signature_status: 'sent'
-      });
+      const contract = contracts.find(c => c.id === contractId)
+      if (!contract) {
+        throw new Error('Contrato não encontrado')
+      }
+
+      // Get client details
+      const { data: client } = await supabase
+        .from('clients')
+        .select('name, email, phone')
+        .eq('id', contract.client_id)
+        .single()
+
+      if (!client) {
+        throw new Error('Cliente não encontrado')
+      }
+
+      // Get plan details  
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('name')
+        .eq('id', contract.plan_id)
+        .single()
+
+      // Call Autentique integration
+      const response = await supabase.functions.invoke('autentique-integration', {
+        body: {
+          action: 'create_document',
+          contractData: {
+            client_name: client.name,
+            client_email: client.email,
+            client_phone: client.phone,
+            contract_title: `Contrato de Prestação de Serviços - ${client.name}`,
+            contract_content: generateContractContent(contract, client, plan)
+          }
+        }
+      })
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      // Update contract with Autentique document ID and send for signature
+      const { error: updateError } = await supabase
+        .from('contracts')
+        .update({ 
+          signature_status: 'sent',
+          autentique_document_id: response.data.document.id,
+          document_url: `https://app.autentique.com.br/document/${response.data.document.id}`
+        })
+        .eq('id', contractId)
+
+      if (updateError) throw updateError
+
+      // Now send for signature
+      const signatureResponse = await supabase.functions.invoke('autentique-integration', {
+        body: {
+          action: 'send_for_signature',
+          documentId: response.data.document.id,
+          contractData: {
+            client_name: client.name,
+            client_email: client.email,
+            client_phone: client.phone
+          }
+        }
+      })
+
+      if (signatureResponse.error) {
+        console.warn('Erro ao enviar para assinatura, mas documento foi criado:', signatureResponse.error)
+      }
 
       toast({
         title: "Enviado",
         description: "Contrato enviado para assinatura eletrônica!"
-      });
+      })
+
+      await loadContracts() // Reload to get updated status
     } catch (error: any) {
-      console.error('Erro ao enviar para assinatura:', error);
+      console.error('Erro ao enviar para assinatura:', error)
       toast({
-        title: "Erro",
+        title: "Erro", 
         description: error.message || "Erro ao enviar para assinatura",
         variant: "destructive"
-      });
-      throw error;
+      })
+      throw error
     }
-  };
+  }
+
+  const generateContractContent = (contract: Contract, client: any, plan: any) => {
+    return `
+CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+CONTRATANTE: ${client.name}
+E-mail: ${client.email}
+Telefone: ${client.phone}
+
+PLANO: ${plan?.name || 'Não especificado'}
+VALOR MENSAL: R$ ${contract.monthly_value.toFixed(2)}
+
+${contract.vehicles ? `VEÍCULO: ${contract.vehicles.license_plate} - ${contract.vehicles.brand} ${contract.vehicles.model}` : ''}
+
+VIGÊNCIA: ${new Date(contract.start_date).toLocaleDateString('pt-BR')} ${contract.end_date ? `até ${new Date(contract.end_date).toLocaleDateString('pt-BR')}` : '(prazo indeterminado)'}
+
+TIPO DE CONTRATO: ${contract.contract_type === 'service' ? 'Prestação de Serviços' : contract.contract_type === 'rental' ? 'Locação' : 'Manutenção'}
+
+Este contrato estabelece os termos e condições para a prestação dos serviços contratados.
+
+_________________________________
+Assinatura do Contratante
+    `
+  }
 
   useEffect(() => {
     loadContracts();
