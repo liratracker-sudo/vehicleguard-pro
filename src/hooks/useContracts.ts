@@ -306,41 +306,13 @@ export function useContracts() {
 
       if (updateError) throw updateError
 
-      // Now send for signature
-      console.log('Enviando documento para assinatura...')
-      const signatureResponse = await supabase.functions.invoke('autentique-integration', {
-        body: {
-          action: 'send_for_signature',
-          documentId: documentId,
-          contractData: {
-            client_name: client.name,
-            client_email: client.email,
-            client_phone: client.phone || ''
-          }
-        }
+      // The document creation already sends the signature email automatically
+      console.log('Documento criado e email de assinatura enviado automaticamente')
+
+      toast({
+        title: "Enviado",
+        description: "Contrato enviado para assinatura eletrônica!"
       })
-
-      console.log('Resposta do envio para assinatura:', signatureResponse)
-
-      if (signatureResponse.error) {
-        console.error('Erro ao enviar para assinatura:', signatureResponse.error)
-        toast({
-          title: "Documento Criado",
-          description: "Documento criado no Autentique, mas houve erro no envio. Envie manualmente pela plataforma.",
-          variant: "destructive"
-        })
-      } else if (signatureResponse.data?.success) {
-        toast({
-          title: "Enviado",
-          description: "Contrato enviado para assinatura eletrônica!"
-        })
-      } else {
-        toast({
-          title: "Documento Criado",
-          description: "Documento criado, mas pode haver problemas no envio automático",
-          variant: "destructive"
-        })
-      }
 
       await loadContracts() // Reload to get updated status
     } catch (error: any) {

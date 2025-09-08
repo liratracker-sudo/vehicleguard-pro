@@ -124,9 +124,40 @@ async function testConnection(token: string) {
 }
 
 async function createDocument(contractData: ContractData, token: string) {
+  // Create HTML content for the document
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${contractData.contract_title}</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+        h1 { text-align: center; color: #333; }
+        .content { margin: 20px 0; }
+        .client-info { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>${contractData.contract_title}</h1>
+    <div class="content">
+        <pre style="white-space: pre-wrap; font-family: Arial, sans-serif;">${contractData.contract_content}</pre>
+    </div>
+    <div class="client-info">
+        <p><strong>Cliente:</strong> ${contractData.client_name}</p>
+        <p><strong>E-mail:</strong> ${contractData.client_email}</p>
+        ${contractData.client_phone ? `<p><strong>Telefone:</strong> ${contractData.client_phone}</p>` : ''}
+    </div>
+</body>
+</html>`;
+
+  // Create multipart form data
+  const formData = new FormData();
+  
+  // Add the GraphQL query
   const mutation = `
-    mutation CreateDocument($document: CreateDocumentInput!) {
-      createDocument(document: $document) {
+    mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) {
+      createDocument(document: $document, signers: $signers, file: $file) {
         id
         name
         status
@@ -138,36 +169,62 @@ async function createDocument(contractData: ContractData, token: string) {
   const variables = {
     document: {
       name: contractData.contract_title,
-      template: {
-        html: `
-          <html>
-            <body style="font-family: Arial, sans-serif; padding: 20px;">
-              <h1 style="text-align: center; color: #333;">${contractData.contract_title}</h1>
-              <div style="margin: 20px 0;">
-                <pre style="white-space: pre-wrap; font-family: Arial, sans-serif; line-height: 1.6;">
-${contractData.contract_content}
-                </pre>
-              </div>
-              <div style="margin-top: 50px;">
-                <p><strong>Cliente:</strong> ${contractData.client_name}</p>
-                <p><strong>E-mail:</strong> ${contractData.client_email}</p>
-                ${contractData.client_phone ? `<p><strong>Telefone:</strong> ${contractData.client_phone}</p>` : ''}
-              </div>
-            </body>
-          </html>
-        `
-      }
-    }
+      sandbox: true // Use sandbox mode to avoid consuming credits during testing
+    },
+    signers: [{
+      email: contractData.client_email,
+      name: contractData.client_name,
+      action: "SIGN"
+    }]
   };
 
-  console.log('Creating document with variables:', JSON.stringify(variables, null, 2));
+  // Create a blob from HTML content
+  const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+  
+  formData.append('operations', JSON.stringify({
+    query: mutation,
+    variables: variables
+  }));
+  
+  formData.append('map', JSON.stringify({
+    "0": ["variables.file"]
+  }));
+  
+  formData.append('0', htmlBlob, `${contractData.contract_title}.html`);
 
-  const response = await makeAutentiqueRequest(mutation, variables, token);
+  console.log('Sending document to Autentique:', {
+    title: contractData.contract_title,
+    clientEmail: contractData.client_email
+  });
+
+  const response = await fetch('https://api.autentique.com.br/v2/graphql', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData
+  });
+
+  console.log('Autentique API response status:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Autentique API HTTP error:', { status: response.status, error: errorText });
+    throw new Error(`Erro na API Autentique (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('Autentique API response data:', JSON.stringify(data, null, 2));
+
+  if (data.errors) {
+    console.error('Autentique GraphQL errors:', data.errors);
+    throw new Error(`Erro GraphQL: ${data.errors.map((e: any) => e.message).join(', ')}`);
+  }
 
   return new Response(
     JSON.stringify({ 
       success: true, 
-      document: response.data.createDocument 
+      document: data.data.createDocument 
     }),
     {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -176,33 +233,15 @@ ${contractData.contract_content}
 }
 
 async function sendForSignature(documentId: string, contractData: ContractData, token: string) {
-  const mutation = `
-    mutation CreateSigner($signer: CreateSignerInput!) {
-      createSigner(signer: $signer) {
-        id
-        email
-        name
-        status
-      }
-    }
-  `;
-
-  const variables = {
-    signer: {
-      document_id: documentId,
-      email: contractData.client_email,
-      name: contractData.client_name,
-      phone_number: contractData.client_phone,
-      action: "SIGN"
-    }
-  };
-
-  const response = await makeAutentiqueRequest(mutation, variables, token);
-
+  // Para documentos criados com signatários, eles já recebem automaticamente o email
+  // Esta função pode ser usada para adicionar signatários adicionais se necessário
+  
+  console.log('Document created and signature link already sent to:', contractData.client_email);
+  
   return new Response(
     JSON.stringify({ 
       success: true, 
-      signer: response.data.createSigner 
+      message: 'Document created and signature email already sent automatically'
     }),
     {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
