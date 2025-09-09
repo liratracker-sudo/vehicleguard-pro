@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,14 +18,31 @@ interface CompanyFormProps {
 export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFormProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [plans, setPlans] = useState<any[]>([])
   const [formData, setFormData] = useState({
     name: company?.name || '',
     slug: company?.slug || '',
     email: company?.email || '',
     phone: company?.phone || '',
     domain: company?.domain || '',
-    address: company?.address || ''
+    address: company?.address || '',
+    plan_id: ''
   })
+
+  const loadPlans = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .select('id, name, price_monthly')
+        .eq('is_active', true)
+        .order('price_monthly', { ascending: true })
+
+      if (error) throw error
+      setPlans(data || [])
+    } catch (error: any) {
+      console.error('Erro ao carregar planos:', error)
+    }
+  }
 
   const generateSlug = (name: string) => {
     return name.toLowerCase()
@@ -50,9 +67,10 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     try {
       if (company) {
         // Atualizar empresa existente
+        const { name, slug, email, phone, domain, address } = formData
         const { error } = await supabase
           .from('companies')
-          .update(formData)
+          .update({ name, slug, email, phone, domain, address })
           .eq('id', company.id)
 
         if (error) throw error
@@ -63,11 +81,29 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
         })
       } else {
         // Criar nova empresa
-        const { error } = await supabase
+        const { name, slug, email, phone, domain, address } = formData
+        const { data: newCompany, error: companyError } = await supabase
           .from('companies')
-          .insert([formData])
+          .insert([{ name, slug, email, phone, domain, address }])
+          .select('id')
+          .single()
 
-        if (error) throw error
+        if (companyError) throw companyError
+
+        // Se um plano foi selecionado, criar assinatura
+        if (formData.plan_id && newCompany) {
+          const { error: subscriptionError } = await supabase
+            .from('company_subscriptions')
+            .insert([{
+              company_id: newCompany.id,
+              plan_id: formData.plan_id,
+              status: 'active',
+              auto_renew: true,
+              started_at: new Date().toISOString()
+            }])
+
+          if (subscriptionError) throw subscriptionError
+        }
 
         toast({
           title: "Sucesso", 
@@ -86,7 +122,8 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
           email: '',
           phone: '',
           domain: '',
-          address: ''
+          address: '',
+          plan_id: ''
         })
       }
     } catch (error: any) {
@@ -99,6 +136,19 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
       setLoading(false)
     }
   }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
+  }
+
+  useEffect(() => {
+    if (open && !company) {
+      loadPlans()
+    }
+  }, [open, company])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -182,6 +232,31 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
               rows={3}
             />
           </div>
+
+          {!company && (
+            <div>
+              <Label htmlFor="plan_id">Plano de Assinatura</Label>
+              <Select
+                value={formData.plan_id}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, plan_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um plano (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sem plano</SelectItem>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      {plan.name} - {formatCurrency(plan.price_monthly)}/mês
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Você pode associar ou alterar o plano depois
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button

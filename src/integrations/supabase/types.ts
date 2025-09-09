@@ -309,6 +309,38 @@ export type Database = {
           },
         ]
       }
+      company_credentials: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          password_hash: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          password_hash: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          password_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_credentials_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_limits: {
         Row: {
           company_id: string

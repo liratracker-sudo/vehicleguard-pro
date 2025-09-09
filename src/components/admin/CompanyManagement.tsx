@@ -10,7 +10,8 @@ import { WhiteLabelConfig } from "./WhiteLabelConfig"
 import { CompanyForm } from "./CompanyForm"
 import { CompanyLimitsDialog } from "./CompanyLimitsDialog"
 import { CompanySubscriptionDialog } from "./CompanySubscriptionDialog"
-import { Building2, Plus, Settings, Activity, Palette, ExternalLink, Edit, CreditCard } from "lucide-react"
+import { CompanyPasswordDialog } from "./CompanyPasswordDialog"
+import { Building2, Plus, Settings, Activity, Palette, ExternalLink, Edit, CreditCard, Key, Trash2 } from "lucide-react"
 
 interface Company {
   id: string
@@ -46,7 +47,9 @@ export function CompanyManagement() {
   const [showLimitsDialog, setShowLimitsDialog] = useState(false)
   const [showCompanyForm, setShowCompanyForm] = useState(false)
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
+  const [companyHasPassword, setCompanyHasPassword] = useState(false)
 
   const loadCompanies = async () => {
     try {
@@ -144,6 +147,53 @@ export function CompanyManagement() {
   const openSubscriptionSettings = (company: Company) => {
     setSelectedCompany(company)
     setShowSubscriptionDialog(true)
+  }
+
+  const openPasswordSettings = async (company: Company) => {
+    setSelectedCompany(company)
+    
+    // Verificar se a empresa já tem senha
+    try {
+      const { data, error } = await supabase
+        .from('company_credentials')
+        .select('id')
+        .eq('company_id', company.id)
+        .single()
+
+      setCompanyHasPassword(!!data && !error)
+    } catch (error) {
+      setCompanyHasPassword(false)
+    }
+    
+    setShowPasswordDialog(true)
+  }
+
+  const deleteCompany = async (company: Company) => {
+    if (!confirm(`Tem certeza que deseja excluir a empresa "${company.name}"? Esta ação não pode ser desfeita.`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('id', company.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Sucesso",
+        description: "Empresa excluída com sucesso"
+      })
+
+      await loadCompanies()
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
   }
 
   useEffect(() => {
@@ -318,10 +368,20 @@ export function CompanyManagement() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => openPasswordSettings(company)}
                           className="gap-2"
                         >
-                          <Activity className="w-4 h-4" />
-                          Logs
+                          <Key className="w-4 h-4" />
+                          Senha
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteCompany(company)}
+                          className="gap-2 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Excluir
                         </Button>
                       </div>
                     </TableCell>
@@ -371,6 +431,15 @@ export function CompanyManagement() {
         companyName={selectedCompany?.name || ''}
         currentSubscription={selectedCompany?.subscription}
         onSaved={loadCompanies}
+      />
+
+      {/* Company Password Dialog */}
+      <CompanyPasswordDialog
+        open={showPasswordDialog}
+        onOpenChange={setShowPasswordDialog}
+        companyId={selectedCompany?.id || null}
+        companyName={selectedCompany?.name || ''}
+        hasPassword={companyHasPassword}
       />
     </div>
   )
