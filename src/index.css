@@ -6,11 +6,11 @@
 
 @layer base {
   :root {
-    /* Core Brand Colors - Professional Blue Palette */
-    --primary: 214 84% 56%;          /* Corporate Blue */
+    /* Core Brand Colors - Blue-Red Palette */
+    --primary: 250 84% 56%;          /* Blue-Red Purple */
     --primary-foreground: 0 0% 100%;
-    --primary-light: 214 100% 96%;   /* Light Blue Background */
-    --primary-dark: 214 84% 46%;     /* Darker Blue for Hover */
+    --primary-light: 250 100% 96%;   /* Light Blue-Red Background */
+    --primary-dark: 250 84% 46%;     /* Darker Blue-Red for Hover */
     
     /* Background System */
     --background: 0 0% 100%;         /* Pure White */
@@ -56,16 +56,16 @@
     /* Form Elements */
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --input-focus: 214 84% 56%;
-    --ring: 214 84% 56%;
+    --input-focus: 250 84% 56%;
+    --ring: 250 84% 56%;
     
     /* Interactive States */
     --hover: 220 14% 92%;
-    --hover-accent: 214 84% 66%;
-    --active: 214 84% 46%;
+    --hover-accent: 250 84% 66%;
+    --active: 250 84% 46%;
     
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(214 84% 56%), hsl(214 84% 66%));
+    --gradient-primary: linear-gradient(135deg, hsl(250 84% 56%), hsl(250 84% 66%));
     --gradient-secondary: linear-gradient(135deg, hsl(220 14% 96%), hsl(210 20% 98%));
     --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     
@@ -73,7 +73,7 @@
     --shadow-sm: 0 1px 2px 0 hsl(215 25% 27% / 0.05);
     --shadow-md: 0 4px 6px -1px hsl(215 25% 27% / 0.1), 0 2px 4px -1px hsl(215 25% 27% / 0.06);
     --shadow-lg: 0 10px 15px -3px hsl(215 25% 27% / 0.1), 0 4px 6px -2px hsl(215 25% 27% / 0.05);
-    --shadow-primary: 0 4px 14px 0 hsl(214 84% 56% / 0.15);
+    --shadow-primary: 0 4px 14px 0 hsl(250 84% 56% / 0.15);
     
     /* Animations - Futuristic Design */
     --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -90,12 +90,12 @@
     /* Sidebar System */
     --sidebar-background: 220 14% 96%;
     --sidebar-foreground: 215 25% 27%;
-    --sidebar-primary: 214 84% 56%;
+    --sidebar-primary: 250 84% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 14% 92%;
     --sidebar-accent-foreground: 215 25% 27%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 214 84% 56%;
+    --sidebar-ring: 250 84% 56%;
   }
 
   .dark {
@@ -112,10 +112,10 @@
     --popover: 215 28% 17%;
     --popover-foreground: 210 40% 98%;
     
-    --primary: 214 84% 56%;
+    --primary: 250 84% 56%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 214 84% 26%;
-    --primary-dark: 214 84% 66%;
+    --primary-light: 250 84% 26%;
+    --primary-dark: 250 84% 66%;
     
     --secondary: 215 28% 25%;
     --secondary-foreground: 210 40% 98%;
@@ -134,21 +134,21 @@
     
     --border: 215 28% 25%;
     --input: 215 28% 25%;
-    --input-focus: 214 84% 56%;
-    --ring: 214 84% 56%;
+    --input-focus: 250 84% 56%;
+    --ring: 250 84% 56%;
     
     --hover: 215 28% 28%;
-    --hover-accent: 214 84% 66%;
-    --active: 214 84% 46%;
+    --hover-accent: 250 84% 66%;
+    --active: 250 84% 46%;
     
     --sidebar-background: 215 28% 15%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 214 84% 56%;
+    --sidebar-primary: 250 84% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 215 28% 25%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 215 28% 25%;
-    --sidebar-ring: 214 84% 56%;
+    --sidebar-ring: 250 84% 56%;
   }
 }
 
@@ -191,7 +191,7 @@
   .icon-hover:hover {
     @apply scale-110;
     transform: translateY(-2px) scale(1.1);
-    filter: drop-shadow(0 4px 8px hsl(var(--primary) / 0.3));
+    filter: drop-shadow(0 4px 8px hsl(250 84% 56% / 0.3));
   }
   
   .icon-slide-hover {
@@ -207,7 +207,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent);
+    background: linear-gradient(90deg, transparent, hsl(250 84% 56% / 0.1), transparent);
     transition: left 0.5s ease-out;
   }
   
@@ -227,8 +227,8 @@
   .card-futuristic:hover {
     @apply shadow-lg;
     transform: translateY(-2px) translateZ(0);
-    border-color: hsl(var(--primary) / 0.3);
-    box-shadow: 0 8px 32px hsl(var(--primary) / 0.1);
+    border-color: hsl(250 84% 56% / 0.3);
+    box-shadow: 0 8px 32px hsl(250 84% 56% / 0.1);
   }
 
   /* Responsive Design Utilities */
