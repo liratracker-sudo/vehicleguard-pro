@@ -3,12 +3,14 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "./AppSidebar"
 import { UserNav } from "./UserNav"
 import { WhatsAppStatus } from "./WhatsAppStatus"
+import { useEnsureAsaasWebhook } from "@/hooks/useEnsureAsaasWebhook"
 
 interface AppLayoutProps {
   children: ReactNode
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  useEnsureAsaasWebhook();
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background-secondary">
