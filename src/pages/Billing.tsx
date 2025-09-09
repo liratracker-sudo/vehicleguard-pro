@@ -25,8 +25,8 @@ const BillingPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filters, setFilters] = useState<BillingFiltersState>({
     search: "",
-    status: "",
-    gateway: "",
+    status: "all",
+    gateway: "all",
     dateFrom: undefined,
     dateTo: undefined,
     amountMin: "",
@@ -68,8 +68,8 @@ const BillingPage = () => {
   const clearFilters = () => {
     setFilters({
       search: "",
-      status: "",
-      gateway: "",
+      status: "all",
+      gateway: "all",
       dateFrom: undefined,
       dateTo: undefined,
       amountMin: "",
@@ -90,12 +90,12 @@ const BillingPage = () => {
     }
 
     // Status filter
-    if (filters.status && payment.status !== filters.status) {
+    if (filters.status && filters.status !== "all" && payment.status !== filters.status) {
       return false
     }
 
     // Gateway filter
-    if (filters.gateway && payment.payment_gateway !== filters.gateway) {
+    if (filters.gateway && filters.gateway !== "all" && payment.payment_gateway !== filters.gateway) {
       return false
     }
 

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns"
-import { CalendarIcon, Filter, X } from "lucide-react"
+import { CalendarIcon, FilterIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface BillingFiltersState {
@@ -46,9 +46,12 @@ export function BillingFilters({
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const hasActiveFilters = Object.values(filters).some(value => 
-    value !== '' && value !== undefined
-  );
+  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+    if (key === 'status' || key === 'gateway') {
+      return value !== 'all' && value !== ''
+    }
+    return value !== '' && value !== undefined
+  });
 
   return (
     <div className="space-y-4">
@@ -67,7 +70,7 @@ export function BillingFilters({
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="pending">Pendente</SelectItem>
             <SelectItem value="paid">Pago</SelectItem>
             <SelectItem value="overdue">Vencido</SelectItem>
@@ -80,7 +83,7 @@ export function BillingFilters({
             <SelectValue placeholder="Gateway" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="asaas">Asaas</SelectItem>
             <SelectItem value="pix">PIX</SelectItem>
             <SelectItem value="boleto">Boleto</SelectItem>
@@ -92,7 +95,7 @@ export function BillingFilters({
           variant="outline"
           onClick={() => setShowAdvanced(!showAdvanced)}
         >
-          <Filter className="w-4 h-4 mr-2" />
+          <FilterIcon className="w-4 h-4 mr-2" />
           Filtros
         </Button>
 
