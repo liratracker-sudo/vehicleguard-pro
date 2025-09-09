@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { useCompanyAdmin } from "@/hooks/useCompanyAdmin"
 import { CompanyManagement } from "@/components/admin/CompanyManagement"
+import { SubscriptionPlansManagement } from "@/components/admin/SubscriptionPlansManagement"
 import { Building2, Shield, Crown, TrendingUp, CreditCard, FileText, Users } from "lucide-react"
 
 const AdminPage = () => {
@@ -242,17 +243,7 @@ const AdminPage = () => {
           </TabsContent>
 
           <TabsContent value="plans">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gestão de Planos</CardTitle>
-                <CardDescription>
-                  Crie e gerencie planos de assinatura do sistema
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Em desenvolvimento...</p>
-              </CardContent>
-            </Card>
+            <SubscriptionPlansManagement />
           </TabsContent>
 
           <TabsContent value="logs">

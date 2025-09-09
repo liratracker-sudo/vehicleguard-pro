@@ -3,15 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { WhiteLabelConfig } from "./WhiteLabelConfig"
-import { Building2, Plus, Settings, Activity, Palette, ExternalLink } from "lucide-react"
+import { CompanyForm } from "./CompanyForm"
+import { CompanyLimitsDialog } from "./CompanyLimitsDialog"
+import { CompanySubscriptionDialog } from "./CompanySubscriptionDialog"
+import { Building2, Plus, Settings, Activity, Palette, ExternalLink, Edit, CreditCard } from "lucide-react"
 
 interface Company {
   id: string
@@ -45,6 +44,9 @@ export function CompanyManagement() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [showWhiteLabelConfig, setShowWhiteLabelConfig] = useState(false)
   const [showLimitsDialog, setShowLimitsDialog] = useState(false)
+  const [showCompanyForm, setShowCompanyForm] = useState(false)
+  const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false)
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null)
 
   const loadCompanies = async () => {
     try {
@@ -129,6 +131,21 @@ export function CompanyManagement() {
     setShowLimitsDialog(true)
   }
 
+  const handleNewCompany = () => {
+    setEditingCompany(null)
+    setShowCompanyForm(true)
+  }
+
+  const handleEditCompany = (company: Company) => {
+    setEditingCompany(company)
+    setShowCompanyForm(true)
+  }
+
+  const openSubscriptionSettings = (company: Company) => {
+    setSelectedCompany(company)
+    setShowSubscriptionDialog(true)
+  }
+
   useEffect(() => {
     loadCompanies()
 
@@ -198,7 +215,7 @@ export function CompanyManagement() {
                 Gerencie todas as empresas cadastradas no sistema
               </CardDescription>
             </div>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handleNewCompany}>
               <Plus className="w-4 h-4" />
               Nova Empresa
             </Button>
@@ -227,13 +244,23 @@ export function CompanyManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {company.subscription ? (
-                        <Badge variant={company.subscription.status === 'active' ? 'default' : 'secondary'}>
-                          {company.subscription.plan_name}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">Sem plano</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {company.subscription ? (
+                          <Badge variant={company.subscription.status === 'active' ? 'default' : 'secondary'}>
+                            {company.subscription.plan_name}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Sem plano</Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openSubscriptionSettings(company)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <CreditCard className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {company.branding?.subdomain ? (
@@ -261,6 +288,15 @@ export function CompanyManagement() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditCompany(company)}
+                          className="gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Editar
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -309,48 +345,33 @@ export function CompanyManagement() {
         </CardContent>
       </Card>
 
-      {/* Dialog Limits Settings */}
-      <Dialog open={showLimitsDialog} onOpenChange={setShowLimitsDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Limites da Empresa</DialogTitle>
-            <DialogDescription>
-              Configure os limites de uso para {selectedCompany?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="max_vehicles">Máximo de Veículos</Label>
-              <Input
-                id="max_vehicles"
-                type="number"
-                defaultValue={selectedCompany?.limits?.max_vehicles || 100}
-              />
-            </div>
-            <div>
-              <Label htmlFor="max_users">Máximo de Usuários</Label>
-              <Input
-                id="max_users"
-                type="number"
-                defaultValue={selectedCompany?.limits?.max_users || 10}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="limits_active"
-                defaultChecked={selectedCompany?.limits?.is_active ?? true}
-              />
-              <Label htmlFor="limits_active">Aplicar limites</Label>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowLimitsDialog(false)}>
-                Cancelar
-              </Button>
-              <Button>Salvar</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Company Form Dialog */}
+      <CompanyForm
+        open={showCompanyForm}
+        onOpenChange={setShowCompanyForm}
+        company={editingCompany}
+        onSaved={loadCompanies}
+      />
+
+      {/* Company Limits Dialog */}
+      <CompanyLimitsDialog
+        open={showLimitsDialog}
+        onOpenChange={setShowLimitsDialog}
+        companyId={selectedCompany?.id || null}
+        companyName={selectedCompany?.name || ''}
+        currentLimits={selectedCompany?.limits}
+        onSaved={loadCompanies}
+      />
+
+      {/* Company Subscription Dialog */}
+      <CompanySubscriptionDialog
+        open={showSubscriptionDialog}
+        onOpenChange={setShowSubscriptionDialog}
+        companyId={selectedCompany?.id || null}
+        companyName={selectedCompany?.name || ''}
+        currentSubscription={selectedCompany?.subscription}
+        onSaved={loadCompanies}
+      />
     </div>
   )
 }
