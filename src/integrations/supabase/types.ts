@@ -1136,7 +1136,21 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      log_company_activity: {
+        Args: {
+          p_activity_type: string
+          p_company_id: string
+          p_description: string
+          p_metadata?: Json
+          p_user_id?: string
+        }
+        Returns: string
+      }
       maintain_whatsapp_connection: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      promote_self_to_super_admin: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
