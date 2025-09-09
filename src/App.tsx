@@ -18,6 +18,7 @@ import ReportsPage from "./pages/Reports";
 import WhiteLabelPage from "./pages/WhiteLabel";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 const App = () => {
   // Create QueryClient inside component to ensure React is available
@@ -40,7 +41,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin" element={<RoleGuard allowed={['super_admin']}><AdminPage /></RoleGuard>} />
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/plans" element={<PlansPage />} />
               <Route path="/contracts" element={<ContractsPage />} />

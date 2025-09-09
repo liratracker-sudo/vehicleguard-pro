@@ -1152,6 +1152,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_super_admin_access: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       decrypt_asaas_token: {
         Args: { p_encrypted_token: string }
         Returns: string
@@ -1179,10 +1183,6 @@ export type Database = {
         Returns: string
       }
       maintain_whatsapp_connection: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      promote_self_to_super_admin: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }

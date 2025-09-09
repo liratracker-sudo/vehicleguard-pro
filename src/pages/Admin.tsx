@@ -2,17 +2,17 @@ import { useState, useEffect } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { supabase } from "@/integrations/supabase/client"
-import { useToast } from "@/hooks/use-toast"
+
 import { useCompanyAdmin } from "@/hooks/useCompanyAdmin"
 import { CompanyManagement } from "@/components/admin/CompanyManagement"
 import { SubscriptionPlansManagement } from "@/components/admin/SubscriptionPlansManagement"
 import { Building2, Shield, Crown, TrendingUp, CreditCard, FileText, Users } from "lucide-react"
 
 const AdminPage = () => {
-  const { toast } = useToast()
+  
   const { stats, loading: statsLoading } = useCompanyAdmin()
   const [isLoading, setIsLoading] = useState(true)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
@@ -40,25 +40,6 @@ const AdminPage = () => {
     }
   }
 
-  const promoteToSuperAdmin = async () => {
-    try {
-      const { error } = await supabase.rpc('promote_self_to_super_admin')
-      if (error) throw error
-
-      toast({
-        title: "Sucesso",
-        description: "Você foi promovido a Super Administrador!"
-      })
-
-      await loadUserProfile()
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
-  }
 
   useEffect(() => {
     loadUserProfile()
@@ -88,14 +69,10 @@ const AdminPage = () => {
                 Esta área é restrita apenas para Super Administradores do sistema.
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center space-y-4">
+            <CardContent className="text-center">
               <p className="text-sm text-muted-foreground">
-                Se você é o primeiro usuário do sistema, pode se promover a Super Administrador:
+                Você não tem permissão para acessar esta área.
               </p>
-              <Button onClick={promoteToSuperAdmin} className="gap-2">
-                <Crown className="w-4 h-4" />
-                Tornar-se Super Admin
-              </Button>
             </CardContent>
           </Card>
         </div>
