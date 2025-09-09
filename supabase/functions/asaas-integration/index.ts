@@ -648,8 +648,8 @@ async function setupWebhook(supabaseClient: any, companyId: string, data: any) {
   
   const settings = await getAsaasSettings(supabaseClient, companyId)
   
-  // Gerar token único para o webhook
-  const webhookAuthToken = crypto.randomUUID()
+  // Gerar/usar token para o webhook
+  const webhookAuthToken = (data?.webhook_auth_token && String(data.webhook_auth_token).trim()) || crypto.randomUUID()
   const webhookUrl = `https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/asaas-webhook`
   
   const webhookData = {
@@ -660,8 +660,9 @@ async function setupWebhook(supabaseClient: any, companyId: string, data: any) {
     authToken: webhookAuthToken,
     sendType: "SEQUENTIALLY",
     events: [
+      // Eventos válidos suportados pela API do Asaas
       "PAYMENT_CREATED",
-      "PAYMENT_AWAITING_PAYMENT", 
+      "PAYMENT_UPDATED",
       "PAYMENT_RECEIVED",
       "PAYMENT_CONFIRMED",
       "PAYMENT_OVERDUE",

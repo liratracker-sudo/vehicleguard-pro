@@ -16,7 +16,9 @@ export function AsaasIntegration() {
     apiToken: "",
     isSandbox: true,
     isConfigured: false,
-    showToken: false
+    showToken: false,
+    webhookToken: "",
+    showWebhookToken: false
   })
 
   const [companyId, setCompanyId] = useState("")
@@ -54,7 +56,9 @@ export function AsaasIntegration() {
           apiToken: "••••••••••••••••••••••••••••••••", // Mascarar token existente
           isSandbox: settings.is_sandbox,
           isConfigured: true,
-          showToken: false
+          showToken: false,
+          webhookToken: "",
+          showWebhookToken: false
         })
         setLastTestResult(settings.test_result)
         setWebhookConfigured(!!settings.webhook_id)
@@ -187,6 +191,10 @@ export function AsaasIntegration() {
     setConfig(prev => ({ ...prev, showToken: !prev.showToken }))
   }
 
+  const toggleWebhookTokenVisibility = () => {
+    setConfig(prev => ({ ...prev, showWebhookToken: !prev.showWebhookToken }))
+  }
+
   const handleSetupWebhook = async () => {
     if (!config.isConfigured) {
       toast({
@@ -202,7 +210,10 @@ export function AsaasIntegration() {
 
       const response = await supabase.functions.invoke('asaas-integration', {
         body: {
-          action: 'setup_webhook'
+          action: 'setup_webhook',
+          data: {
+            webhook_auth_token: config.webhookToken?.trim() || undefined
+          }
         }
       })
 
@@ -293,6 +304,35 @@ export function AsaasIntegration() {
                 </p>
               </div>
             )}
+
+            <div>
+              <Label htmlFor="webhookToken">Token do Webhook (opcional)</Label>
+              <div className="flex gap-2 mt-1">
+                <div className="relative flex-1">
+                  <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input 
+                    id="webhookToken"
+                    type={config.showWebhookToken ? "text" : "password"}
+                    value={config.webhookToken}
+                    onChange={(e) => setConfig({ ...config, webhookToken: e.target.value })}
+                    placeholder="Defina um token para autenticar os webhooks"
+                    className="pl-10 pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={toggleWebhookTokenVisibility}
+                  >
+                    {config.showWebhookToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Se deixar em branco, geraremos um token automaticamente ao configurar o webhook.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-2">
