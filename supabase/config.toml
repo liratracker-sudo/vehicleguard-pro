@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.asaas-webhook]
 verify_jwt = false
+
+[functions.asaas-sync-payments]
+verify_jwt = false

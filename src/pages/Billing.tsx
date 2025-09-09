@@ -268,11 +268,18 @@ const BillingPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <BillingFilters 
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  onClearFilters={clearFilters}
-                />
+                <div className="flex gap-4 items-start">
+                  <div className="flex-1">
+                    <BillingFilters 
+                      filters={filters}
+                      onFiltersChange={setFilters}
+                      onClearFilters={clearFilters}
+                    />
+                  </div>
+                  <div className="w-80">
+                    <AsaasStatusIndicator />
+                  </div>
+                </div>
                 
                 <div className="text-sm text-muted-foreground">
                   Exibindo {filteredPayments.length} de {payments.length} cobranças
