@@ -11,6 +11,23 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://mcdidffxwtnqhawqil
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jZGlkZmZ4d3RucWhhd3FpbGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQ2ODEsImV4cCI6MjA3MTk5MDY4MX0.v2VSArebudz3nJsblgqlRJB4dOt7VQGTwSEO1M32waw';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
+// Utility: normalize BR phone numbers to WhatsApp format (only digits, with country code 55)
+function normalizeBrazilPhone(phone: string): string | null {
+  if (!phone) return null;
+  // Keep digits only
+  let p = phone.replace(/\D/g, '');
+  // Remove leading zeros
+  p = p.replace(/^0+/, '');
+  // If already starts with 55, keep as is
+  if (p.startsWith('55')) return p;
+  // If it looks like local (10-11 digits), prefix country code
+  if (p.length === 10 || p.length === 11) return '55' + p;
+  // If has 12-13 digits but missing 55, add it
+  if (p.length >= 12 && p.length <= 13) return p.startsWith('55') ? p : '55' + p;
+  // Fallback: return digits (may still fail at provider)
+  return p;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -87,6 +104,16 @@ serve(async (req) => {
       );
     }
 
+    // Normalize phone for WhatsApp Evolution (digits only + country code 55)
+    const normalizedPhone = normalizeBrazilPhone(targetPhone);
+    if (!normalizedPhone || normalizedPhone.length < 12) {
+      console.error('notify-whatsapp validation: telefone inválido após normalização', { targetPhone, normalizedPhone });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Telefone inválido para WhatsApp' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Scheduling path: just create a payment_notifications pending entry
     if (schedule_for && new Date(schedule_for).getTime() > Date.now()) {
       // Use service role to bypass RLS for notifications
@@ -136,7 +163,7 @@ serve(async (req) => {
         instance_url: whatsappSettings.instance_url,
         api_token: whatsappSettings.api_token,
         instance_name: whatsappSettings.instance_name,
-        phone_number: targetPhone,
+        phone_number: normalizedPhone,
         message,
         company_id,
         client_id,
@@ -144,6 +171,7 @@ serve(async (req) => {
     });
 
     const ok = !sendRes.error && (sendRes.data?.success ?? true);
+    const errMsg = ok ? null : (sendRes.error?.message || (sendRes.data && (sendRes.data.error || (typeof sendRes.data === 'string' ? sendRes.data : JSON.stringify(sendRes.data)))) || 'Falha ao enviar via Evolution API');
 
     // Record into payment_notifications when tied to a payment
     if (payment_id) {
@@ -166,7 +194,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: ok }),
+      JSON.stringify({ success: ok, error: ok ? null : errMsg }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
