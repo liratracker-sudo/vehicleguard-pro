@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.autentique-integration]
 verify_jwt = true
+
+[functions.asaas-integration]
+verify_jwt = true
