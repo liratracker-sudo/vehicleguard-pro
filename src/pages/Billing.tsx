@@ -248,6 +248,7 @@ const BillingPage = () => {
         <Tabs defaultValue="manage" className="space-y-6">
           <TabsList>
             <TabsTrigger value="manage">Gerenciar Cobranças</TabsTrigger>
+            <TabsTrigger value="cpf-lookup">Consultar por CPF</TabsTrigger>
             <TabsTrigger value="history">Histórico & Relatórios</TabsTrigger>
           </TabsList>
 
@@ -353,6 +354,10 @@ const BillingPage = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="cpf-lookup">
+            <AsaasCpfLookup />
           </TabsContent>
 
           <TabsContent value="history">
