@@ -182,6 +182,27 @@
 }
 
 @layer components {
+  /* Layout System Components */
+  .container {
+    @apply flex flex-col items-start gap-2.5 p-2.5 w-full max-w-full container-responsive;
+  }
+  
+  .header {
+    @apply flex justify-between items-center w-full mb-4;
+  }
+  
+  .menu {
+    @apply relative z-10 ml-auto;
+  }
+  
+  .client-item {
+    @apply flex items-center justify-between w-full p-2.5 border-b border-border mb-2.5;
+  }
+  
+  .text {
+    @apply text-sm text-foreground;
+  }
+
   /* Futuristic Icon Hover Animations */
   .icon-hover {
     @apply transition-all duration-300 ease-out;
