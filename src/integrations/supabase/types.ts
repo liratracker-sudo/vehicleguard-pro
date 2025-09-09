@@ -14,6 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
+      asaas_logs: {
+        Row: {
+          company_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          operation_type: string
+          request_data: Json | null
+          response_data: Json | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation_type: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation_type?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asaas_settings: {
+        Row: {
+          api_token_encrypted: string
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_sandbox: boolean
+          last_test_at: string | null
+          test_result: Json | null
+          updated_at: string
+        }
+        Insert: {
+          api_token_encrypted: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          api_token_encrypted?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
@@ -774,8 +859,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrypt_asaas_token: {
+        Args: { p_encrypted_token: string }
+        Returns: string
+      }
       decrypt_whatsapp_token: {
         Args: { p_encrypted_token: string }
+        Returns: string
+      }
+      encrypt_asaas_token: {
+        Args: { p_token: string }
         Returns: string
       }
       encrypt_whatsapp_token: {

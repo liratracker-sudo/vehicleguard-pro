@@ -4,9 +4,10 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Users, Shield, Bell, Plug, MessageSquare, FileText } from "lucide-react"
+import { Settings, Users, Shield, Bell, Plug, MessageSquare, FileText, CreditCard } from "lucide-react"
 import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { AutentiqueIntegration } from "@/components/settings/AutentiqueIntegration"
+import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
@@ -40,7 +41,7 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="users">Usuários</TabsTrigger>
             <TabsTrigger value="security">Segurança</TabsTrigger>
@@ -49,6 +50,7 @@ const SettingsPage = () => {
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="autentique">Autentique</TabsTrigger>
+            <TabsTrigger value="asaas">Asaas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -184,6 +186,17 @@ const SettingsPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+                        onClick={() => setActiveTab("asaas")}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <CreditCard className="w-8 h-8 text-purple-600" />
+                      <div>
+                        <h4 className="font-medium">Asaas</h4>
+                        <p className="text-sm text-muted-foreground">Gateway de Pagamento</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -195,6 +208,10 @@ const SettingsPage = () => {
 
           <TabsContent value="autentique" className="space-y-6">
             <AutentiqueIntegration />
+          </TabsContent>
+
+          <TabsContent value="asaas" className="space-y-6">
+            <AsaasIntegration />
           </TabsContent>
         </Tabs>
       </div>
