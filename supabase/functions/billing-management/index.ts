@@ -114,25 +114,31 @@ serve(async (req) => {
           throw new Error('Payment not found');
         }
 
-        // Send notification via WhatsApp
+        // Prepare payment reminder message
+        const paymentUrl = payment.payment_url || payment.pix_code || 'Contacte-nos para obter o link de pagamento';
+        const message = `Olá ${payment.clients?.name || 'Cliente'}, lembramos que você tem um pagamento no valor de R$ ${payment.amount} com vencimento em ${payment.due_date}. ${paymentUrl.startsWith('http') ? `Link para pagamento: ${paymentUrl}` : paymentUrl}`;
+
+        // Send notification via WhatsApp with service role authorization
         const notificationResponse = await supabaseService.functions.invoke('notify-whatsapp', {
           body: {
-            company_id: profile.company_id,
             client_id: payment.client_id,
+            message: message,
             payment_id: payment_id,
-            message_type: 'payment_reminder',
-            phone_number: payment.clients?.phone,
-            template_data: {
-              client_name: payment.clients?.name,
-              amount: payment.amount,
-              due_date: payment.due_date,
-              payment_url: payment.payment_url || payment.pix_code || 'Contacte-nos'
-            }
+            phone: payment.clients?.phone
+          },
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`
           }
         });
 
         if (notificationResponse.error) {
-          throw new Error(`Failed to send notification: ${notificationResponse.error.message}`);
+          console.error('WhatsApp notification error:', notificationResponse.error);
+          throw new Error(`Failed to send notification: ${notificationResponse.error.message || 'Unknown error'}`);
+        }
+
+        if (!notificationResponse.data?.success) {
+          console.error('WhatsApp notification failed:', notificationResponse.data);
+          throw new Error(`Failed to send notification: ${JSON.stringify(notificationResponse.data)}`);
         }
 
         return new Response(
