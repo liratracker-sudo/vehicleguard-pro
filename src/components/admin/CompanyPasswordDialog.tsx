@@ -28,6 +28,16 @@ export function CompanyPasswordDialog({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
+  // Limpar campos quando o dialog fechar
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setPassword('')
+      setConfirmPassword('')
+      setShowPassword(false)
+    }
+    onOpenChange(newOpen)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!companyId || !password) return
@@ -56,7 +66,7 @@ export function CompanyPasswordDialog({
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Sessão inválida')
 
-      const response = await fetch('/functions/v1/company-credentials', {
+      const response = await fetch('https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/company-credentials', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,9 +90,7 @@ export function CompanyPasswordDialog({
         description: result.message
       })
 
-      onOpenChange(false)
-      setPassword('')
-      setConfirmPassword('')
+      handleOpenChange(false)
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -105,7 +113,7 @@ export function CompanyPasswordDialog({
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Sessão inválida')
 
-      const response = await fetch('/functions/v1/company-credentials', {
+      const response = await fetch('https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/company-credentials', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +136,7 @@ export function CompanyPasswordDialog({
         description: result.message
       })
 
-      onOpenChange(false)
+      handleOpenChange(false)
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -141,7 +149,7 @@ export function CompanyPasswordDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -208,12 +216,12 @@ export function CompanyPasswordDialog({
               )}
             </div>
             <div className="flex gap-2">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={loading}
-              >
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => handleOpenChange(false)}
+                  disabled={loading}
+                >
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading || !password || !confirmPassword}>

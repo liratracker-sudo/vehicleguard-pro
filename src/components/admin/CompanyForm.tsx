@@ -150,6 +150,31 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     }
   }, [open, company])
 
+  // Atualizar formData quando company mudar (para edição)
+  useEffect(() => {
+    if (company) {
+      setFormData({
+        name: company.name || '',
+        slug: company.slug || '',
+        email: company.email || '',
+        phone: company.phone || '',
+        domain: company.domain || '',
+        address: company.address || '',
+        plan_id: ''
+      })
+    } else {
+      setFormData({
+        name: '',
+        slug: '',
+        email: '',
+        phone: '',
+        domain: '',
+        address: '',
+        plan_id: ''
+      })
+    }
+  }, [company])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
