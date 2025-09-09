@@ -17,6 +17,16 @@ serve(async (req) => {
   }
 
   try {
+    // Verificar assinatura do webhook
+    const authToken = req.headers.get('asaas-access-token');
+    if (!authToken) {
+      console.error('Webhook sem token de autenticação');
+      return new Response(
+        JSON.stringify({ error: 'Token de autenticação ausente' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const webhookData = await req.json();
     console.log('Received Asaas webhook:', JSON.stringify(webhookData, null, 2));
 
@@ -26,11 +36,28 @@ serve(async (req) => {
       throw new Error('Invalid webhook data: missing payment information');
     }
 
+    // Verificar se o token é válido
+    const { data: webhookSettings } = await supabase
+      .from('asaas_settings')
+      .select('webhook_auth_token, company_id')
+      .eq('webhook_auth_token', authToken)
+      .eq('webhook_enabled', true)
+      .single();
+
+    if (!webhookSettings) {
+      console.error('Token de webhook inválido:', authToken);
+      return new Response(
+        JSON.stringify({ error: 'Token de webhook inválido' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Find the payment transaction by external_id (Asaas payment ID)
     const { data: transaction, error: findError } = await supabase
       .from('payment_transactions')
       .select('*')
       .eq('external_id', payment.id)
+      .eq('company_id', webhookSettings.company_id)
       .single();
 
     if (findError) {
@@ -99,11 +126,11 @@ serve(async (req) => {
 
     // Log webhook event
     await supabase.from('asaas_logs').insert({
-      company_id: transaction.company_id,
+      company_id: webhookSettings.company_id,
       operation_type: 'webhook',
       status: 'success',
       request_data: webhookData,
-      response_data: { payment_id: transaction.id, new_status: newStatus }
+      response_data: { payment_id: transaction.id, new_status: newStatus, event }
     });
 
     return new Response(

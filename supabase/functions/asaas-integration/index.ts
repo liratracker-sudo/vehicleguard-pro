@@ -96,6 +96,8 @@ Deno.serve(async (req) => {
         return await saveSettings(supabaseClient, companyId, data)
       case 'test_connection':
         return await testConnection(supabaseClient, companyId, data)
+      case 'setup_webhook':
+        return await setupWebhook(supabaseClient, companyId, data)
       case 'create_customer':
         return await createCustomer(supabaseClient, companyId, data)
       case 'create_charge':
@@ -636,6 +638,132 @@ async function getCharge(supabaseClient: any, companyId: string, data: any) {
     console.error('Erro ao buscar cobrança:', error)
     
     await logAsaasOperation(supabaseClient, companyId, 'get_charge', { chargeId: data.chargeId }, null, 'error', error.message)
+    
+    throw error
+  }
+}
+
+async function setupWebhook(supabaseClient: any, companyId: string, data: any) {
+  console.log('Configurando webhook Asaas')
+  
+  const settings = await getAsaasSettings(supabaseClient, companyId)
+  
+  // Gerar token único para o webhook
+  const webhookAuthToken = crypto.randomUUID()
+  const webhookUrl = `https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/asaas-webhook`
+  
+  const webhookData = {
+    name: "Webhook Automatico - MultiCall",
+    url: webhookUrl,
+    enabled: true,
+    interrupted: false,
+    authToken: webhookAuthToken,
+    sendType: "SEQUENTIALLY",
+    events: [
+      "PAYMENT_CREATED",
+      "PAYMENT_AWAITING_PAYMENT", 
+      "PAYMENT_RECEIVED",
+      "PAYMENT_CONFIRMED",
+      "PAYMENT_OVERDUE",
+      "PAYMENT_DELETED",
+      "PAYMENT_REFUNDED",
+      "PAYMENT_RESTORED"
+    ]
+  }
+
+  try {
+    // Verificar se já existe webhook
+    const existingWebhooksResp = await makeAsaasRequest(`${settings.base_url}/webhooks`, {
+      method: 'GET',
+      headers: {
+        'access_token': settings.api_token,
+        'access-token': settings.api_token,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    let webhookId = null
+    const existingWebhooks = existingWebhooksResp?.data || []
+    const existingWebhook = existingWebhooks.find((w: any) => w.url === webhookUrl)
+
+    if (existingWebhook) {
+      // Atualizar webhook existente
+      const updateResp = await makeAsaasRequest(`${settings.base_url}/webhooks/${existingWebhook.id}`, {
+        method: 'PUT',
+        headers: {
+          'access_token': settings.api_token,
+          'access-token': settings.api_token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(webhookData)
+      })
+      webhookId = updateResp.id
+      console.log('Webhook atualizado:', webhookId)
+    } else {
+      // Criar novo webhook
+      const createResp = await makeAsaasRequest(`${settings.base_url}/webhooks`, {
+        method: 'POST',
+        headers: {
+          'access_token': settings.api_token,
+          'access-token': settings.api_token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(webhookData)
+      })
+      webhookId = createResp.id
+      console.log('Webhook criado:', webhookId)
+    }
+
+    // Salvar configurações do webhook no banco
+    const { error: updateError } = await supabaseClient
+      .from('asaas_settings')
+      .update({
+        webhook_url: webhookUrl,
+        webhook_auth_token: webhookAuthToken,
+        webhook_id: webhookId,
+        webhook_events: webhookData.events,
+        webhook_enabled: true,
+        webhook_last_setup_at: new Date().toISOString()
+      })
+      .eq('company_id', companyId)
+
+    if (updateError) {
+      console.error('Erro ao salvar webhook settings:', updateError)
+      throw new Error('Falha ao salvar configurações do webhook')
+    }
+
+    await logAsaasOperation(
+      supabaseClient, 
+      companyId, 
+      'setup_webhook', 
+      webhookData, 
+      { webhookId, webhookUrl }, 
+      'success'
+    )
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Webhook configurado com sucesso!',
+        webhookId,
+        webhookUrl,
+        authToken: webhookAuthToken
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('Erro ao configurar webhook:', error)
+    
+    await logAsaasOperation(
+      supabaseClient, 
+      companyId, 
+      'setup_webhook', 
+      webhookData, 
+      null, 
+      'error', 
+      error.message
+    )
     
     throw error
   }

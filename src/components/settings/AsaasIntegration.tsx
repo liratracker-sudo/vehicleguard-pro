@@ -22,7 +22,9 @@ export function AsaasIntegration() {
   const [companyId, setCompanyId] = useState("")
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [settingWebhook, setSettingWebhook] = useState(false)
   const [lastTestResult, setLastTestResult] = useState<any>(null)
+  const [webhookConfigured, setWebhookConfigured] = useState(false)
 
   const loadSettings = async () => {
     try {
@@ -55,6 +57,7 @@ export function AsaasIntegration() {
           showToken: false
         })
         setLastTestResult(settings.test_result)
+        setWebhookConfigured(!!settings.webhook_id)
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error)
@@ -184,6 +187,52 @@ export function AsaasIntegration() {
     setConfig(prev => ({ ...prev, showToken: !prev.showToken }))
   }
 
+  const handleSetupWebhook = async () => {
+    if (!config.isConfigured) {
+      toast({
+        title: "Erro",
+        description: "Salve as configurações do Asaas primeiro",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setSettingWebhook(true)
+
+      const response = await supabase.functions.invoke('asaas-integration', {
+        body: {
+          action: 'setup_webhook'
+        }
+      })
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Falha ao configurar webhook')
+      }
+
+      toast({ 
+        title: "Sucesso", 
+        description: "Webhook configurado com sucesso! O sistema irá receber atualizações automáticas de pagamento." 
+      })
+
+      setWebhookConfigured(true)
+      await loadSettings()
+      
+    } catch (error: any) {
+      toast({ 
+        title: "Erro", 
+        description: error.message, 
+        variant: "destructive" 
+      })
+    } finally {
+      setSettingWebhook(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -257,6 +306,15 @@ export function AsaasIntegration() {
             >
               {testing ? "Testando..." : "Testar Conexão"}
             </Button>
+            {config.isConfigured && (
+              <Button 
+                onClick={handleSetupWebhook} 
+                disabled={settingWebhook || webhookConfigured} 
+                variant={webhookConfigured ? "default" : "secondary"}
+              >
+                {settingWebhook ? "Configurando..." : webhookConfigured ? "Webhook Ativo" : "Configurar Webhook"}
+              </Button>
+            )}
           </div>
 
           <div className="pt-4 border-t">
@@ -305,9 +363,19 @@ export function AsaasIntegration() {
                 <li>• Criação automática de clientes</li>
                 <li>• Emissão de cobranças (boleto, PIX, cartão)</li>
                 <li>• Acompanhamento de status de pagamento</li>
-                <li>• Webhooks para atualização automática</li>
+                <li className={webhookConfigured ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                  • {webhookConfigured ? "✓ Webhooks configurados - atualizações automáticas ativas" : "• Webhooks para atualização automática (não configurado)"}
+                </li>
                 <li>• Relatórios financeiros integrados</li>
               </ul>
+              
+              {webhookConfigured && (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>✓ Webhook Ativo:</strong> O sistema receberá automaticamente as atualizações de status dos pagamentos em tempo real.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

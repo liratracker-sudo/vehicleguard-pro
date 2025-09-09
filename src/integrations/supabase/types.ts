@@ -66,6 +66,12 @@ export type Database = {
           last_test_at: string | null
           test_result: Json | null
           updated_at: string
+          webhook_auth_token: string | null
+          webhook_enabled: boolean | null
+          webhook_events: string[] | null
+          webhook_id: string | null
+          webhook_last_setup_at: string | null
+          webhook_url: string | null
         }
         Insert: {
           api_token_encrypted: string
@@ -77,6 +83,12 @@ export type Database = {
           last_test_at?: string | null
           test_result?: Json | null
           updated_at?: string
+          webhook_auth_token?: string | null
+          webhook_enabled?: boolean | null
+          webhook_events?: string[] | null
+          webhook_id?: string | null
+          webhook_last_setup_at?: string | null
+          webhook_url?: string | null
         }
         Update: {
           api_token_encrypted?: string
@@ -88,6 +100,12 @@ export type Database = {
           last_test_at?: string | null
           test_result?: Json | null
           updated_at?: string
+          webhook_auth_token?: string | null
+          webhook_enabled?: boolean | null
+          webhook_events?: string[] | null
+          webhook_id?: string | null
+          webhook_last_setup_at?: string | null
+          webhook_url?: string | null
         }
         Relationships: [
           {
