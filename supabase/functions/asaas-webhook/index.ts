@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, asaas-access-token, accessToken, x-access-token',
 };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -18,9 +18,26 @@ serve(async (req) => {
 
   try {
     // Verificar assinatura do webhook
-    const authToken = req.headers.get('asaas-access-token');
+    // Extração flexível do token (Asaas envia 'asaas-access-token'; também aceitamos variações e querystring)
+    const getBearer = (h: string | null) =>
+      h && h.toLowerCase().startsWith('bearer ') ? h.slice(7).trim() : null;
+
+    const url = new URL(req.url);
+    const headerToken =
+      req.headers.get('asaas-access-token') ||
+      req.headers.get('accessToken') ||
+      req.headers.get('x-access-token') ||
+      getBearer(req.headers.get('authorization'));
+
+    const queryToken =
+      url.searchParams.get('asaas-access-token') ||
+      url.searchParams.get('accessToken') ||
+      url.searchParams.get('asaas_access_token');
+
+    const authToken = headerToken || queryToken;
+
     if (!authToken) {
-      console.error('Webhook sem token de autenticação');
+      console.error('Webhook sem token de autenticação (nenhum header/query encontrado)');
       return new Response(
         JSON.stringify({ error: 'Token de autenticação ausente' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
