@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, CreditCard, QrCode, Link2, Receipt } from "lucide-react"
+import { CalendarIcon, CreditCard, QrCode, Link2, Receipt, Search, AlertCircle } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { useAsaas } from "@/hooks/useAsaas"
 import { supabase } from "@/integrations/supabase/client"
 import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 interface PaymentFormProps {
   onSuccess?: () => void
@@ -28,10 +30,14 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     due_date: new Date()
   })
   
+  const [cpf, setCpf] = useState("")
+  const [existingCharges, setExistingCharges] = useState<any[]>([])
+  const [showCharges, setShowCharges] = useState(false)
   const [clients, setClients] = useState<any[]>([])
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const { findChargesByCpf, loading: asaasLoading } = useAsaas()
 
   const loadData = async () => {
     try {
@@ -47,7 +53,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       if (!profile) return
 
       const [clientsRes, contractsRes] = await Promise.all([
-        supabase.from('clients').select('id, name, phone, email').eq('company_id', profile.company_id),
+        supabase.from('clients').select('id, name, phone, email, document').eq('company_id', profile.company_id),
         supabase.from('contracts').select('id, monthly_value, client_id, clients(name)').eq('company_id', profile.company_id).eq('status', 'active')
       ])
 
@@ -55,6 +61,84 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       if (contractsRes.data) setContracts(contractsRes.data)
     } catch (error) {
       console.error('Error loading data:', error)
+    }
+  }
+
+  const formatCpf = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11)
+    const part1 = digits.slice(0, 3)
+    const part2 = digits.slice(3, 6)
+    const part3 = digits.slice(6, 9)
+    const part4 = digits.slice(9, 11)
+    let out = part1
+    if (part2) out += `.${part2}`
+    if (part3) out += `.${part3}`
+    if (part4) out += `-${part4}`
+    return out
+  }
+
+  const searchClientByCpf = async () => {
+    const cpfDigits = cpf.replace(/\D/g, '')
+    if (cpfDigits.length !== 11) {
+      toast({
+        title: "CPF inválido",
+        description: "Digite um CPF válido com 11 dígitos",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // 1. Buscar cliente local por CPF
+    const localClient = clients.find(c => c.document?.replace(/\D/g, '') === cpfDigits)
+    if (localClient) {
+      setFormData(prev => ({ ...prev, client_id: localClient.id }))
+      toast({
+        title: "Cliente encontrado",
+        description: `Cliente ${localClient.name} selecionado`
+      })
+    }
+
+    // 2. Consultar cobranças existentes no Asaas
+    try {
+      const result = await findChargesByCpf(cpfDigits)
+      if (result.customerFound && result.charges) {
+        setExistingCharges(result.charges)
+        setShowCharges(true)
+        if (result.charges.length > 0) {
+          toast({
+            title: "Cobranças encontradas",
+            description: `${result.charges.length} cobrança(s) encontrada(s) no Asaas`,
+            variant: "default"
+          })
+        }
+      } else {
+        setExistingCharges([])
+        setShowCharges(false)
+      }
+    } catch (error) {
+      // Error already handled by the hook
+      setExistingCharges([])
+      setShowCharges(false)
+    }
+  }
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'RECEIVED':
+      case 'CONFIRMED': return 'default'
+      case 'PENDING': return 'secondary'
+      case 'OVERDUE': return 'destructive'
+      default: return 'outline'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'RECEIVED':
+      case 'CONFIRMED': return 'Pago'
+      case 'PENDING': return 'Pendente'
+      case 'OVERDUE': return 'Vencido'
+      default: return status
     }
   }
 
@@ -217,6 +301,93 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {/* CPF Search Section */}
+          <div className="border rounded-lg p-4 bg-muted/20">
+            <Label htmlFor="cpf">Buscar por CPF</Label>
+            <div className="flex gap-2 mt-2">
+              <Input
+                id="cpf"
+                placeholder="Digite o CPF do cliente"
+                value={cpf}
+                onChange={(e) => setCpf(formatCpf(e.target.value))}
+                maxLength={14}
+                inputMode="numeric"
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={searchClientByCpf}
+                disabled={asaasLoading}
+              >
+                <Search className={`w-4 h-4 mr-2 ${asaasLoading ? 'animate-pulse' : ''}`} />
+                Buscar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Busca o cliente no sistema local e consulta cobranças existentes no Asaas
+            </p>
+          </div>
+
+          {/* Existing Charges Section */}
+          {showCharges && existingCharges.length > 0 && (
+            <div className="border rounded-lg p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <h4 className="font-medium text-amber-800 dark:text-amber-200">
+                  Cobranças Existentes no Asaas
+                </h4>
+              </div>
+              <div className="rounded border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[100px]">Valor</TableHead>
+                      <TableHead className="w-[100px]">Status</TableHead>
+                      <TableHead className="w-[120px]">Vencimento</TableHead>
+                      <TableHead>Link de Pagamento</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {existingCharges.slice(0, 3).map((charge: any) => (
+                      <TableRow key={charge.id}>
+                        <TableCell className="font-medium">
+                          R$ {(charge.value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(charge.status)}>
+                            {getStatusLabel(charge.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {charge.dueDate ? new Date(charge.dueDate).toLocaleDateString('pt-BR') : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {charge.invoiceUrl || charge.bankSlipUrl ? (
+                            <a
+                              href={charge.invoiceUrl || charge.bankSlipUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary underline text-sm"
+                            >
+                              Ver cobrança
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {existingCharges.length > 3 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  E mais {existingCharges.length - 3} cobrança(s)...
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="client_id">Cliente *</Label>
