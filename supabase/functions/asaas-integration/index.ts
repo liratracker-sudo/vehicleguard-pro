@@ -8,6 +8,47 @@ const corsHeaders = {
 const ASAAS_API_BASE = 'https://api.asaas.com/v3'
 const ASAAS_SANDBOX_BASE = 'https://api-sandbox.asaas.com/v3'
 
+// Local encryption helpers (AES-GCM using Web Crypto)
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+function bufToBase64(buf: ArrayBuffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+function base64ToBuf(b64: string) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function getAesKey(secret: string) {
+  const secretBytes = textEncoder.encode(secret);
+  const hash = await crypto.subtle.digest('SHA-256', secretBytes);
+  return crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptTokenLocal(token: string, secret: string) {
+  const key = await getAesKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, textEncoder.encode(token));
+  const combined = new Uint8Array(iv.length + new Uint8Array(cipher).length);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(cipher), iv.length);
+  return bufToBase64(combined.buffer);
+}
+
+async function decryptTokenLocal(encrypted: string, secret: string) {
+  const data = new Uint8Array(base64ToBuf(encrypted));
+  const iv = data.slice(0, 12);
+  const cipher = data.slice(12);
+  const key = await getAesKey(secret);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+  return textDecoder.decode(plain);
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -78,7 +119,6 @@ Deno.serve(async (req) => {
 })
 
 async function getAsaasSettings(supabaseClient: any, companyId: string) {
-  await ensureEncryptionKey(supabaseClient)
   const { data: settings } = await supabaseClient
     .from('asaas_settings')
     .select('*')
@@ -90,18 +130,21 @@ async function getAsaasSettings(supabaseClient: any, companyId: string) {
     throw new Error('Configurações do Asaas não encontradas')
   }
 
-  // Descriptografar token
-  const { data: decryptedToken } = await supabaseClient
-    .rpc('decrypt_asaas_token', { p_encrypted_token: settings.api_token_encrypted })
-
-  if (!decryptedToken) {
-    throw new Error('Erro ao descriptografar token do Asaas')
+  const key = Deno.env.get('ASAAS_ENCRYPTION_KEY') ?? Deno.env.get('EVOLUTION_ENCRYPTION_KEY')
+  if (!key) {
+    throw new Error('Chave de criptografia ausente')
   }
 
-  return {
-    ...settings,
-    api_token: decryptedToken,
-    base_url: settings.is_sandbox ? ASAAS_SANDBOX_BASE : ASAAS_API_BASE
+  try {
+    const decryptedToken = await decryptTokenLocal(settings.api_token_encrypted, key)
+    return {
+      ...settings,
+      api_token: decryptedToken,
+      base_url: settings.is_sandbox ? ASAAS_SANDBOX_BASE : ASAAS_API_BASE
+    }
+  } catch (e) {
+    console.error('Erro ao descriptografar token localmente:', e)
+    throw new Error('Erro ao descriptografar token do Asaas')
   }
 }
 
@@ -402,19 +445,27 @@ async function saveSettings(supabaseClient: any, companyId: string, data: any) {
   if (!data?.api_token) {
     return new Response(
       JSON.stringify({ success: false, message: 'API key é obrigatória' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  await ensureEncryptionKey(supabaseClient)
+  const key = Deno.env.get('ASAAS_ENCRYPTION_KEY') ?? Deno.env.get('EVOLUTION_ENCRYPTION_KEY')
+  if (!key) {
+    console.error('Chave de criptografia não configurada: defina o secret ASAAS_ENCRYPTION_KEY')
+    return new Response(
+      JSON.stringify({ success: false, message: 'Chave de criptografia ausente' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
-  const { data: encryptedToken, error: encErr } = await supabaseClient
-    .rpc('encrypt_asaas_token', { p_token: data.api_token })
-  if (encErr || !encryptedToken) {
-    console.error('Erro ao criptografar token:', encErr)
+  let encryptedToken: string
+  try {
+    encryptedToken = await encryptTokenLocal(data.api_token, key)
+  } catch (err) {
+    console.error('Erro ao criptografar token localmente:', err)
     return new Response(
       JSON.stringify({ success: false, message: 'Falha ao criptografar API key' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
@@ -433,7 +484,7 @@ async function saveSettings(supabaseClient: any, companyId: string, data: any) {
     console.error('Erro ao salvar asaas_settings:', error)
     return new Response(
       JSON.stringify({ success: false, message: 'Falha ao salvar configurações' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
