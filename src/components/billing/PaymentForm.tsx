@@ -128,8 +128,8 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         description: `${getPaymentTypeLabel(formData.transaction_type)} gerado com sucesso!`
       })
 
-      // Auto-send WhatsApp notification
-      await sendWhatsAppNotification(transaction.client_id, formData.transaction_type, formData.amount)
+      // Auto-send WhatsApp notification (autônoma)
+      await sendWhatsAppNotification(transaction.client_id, transaction.id, formData.transaction_type, formData.amount)
 
       onSuccess?.()
     } catch (error) {
@@ -144,55 +144,23 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     }
   }
 
-  const sendWhatsAppNotification = async (clientId: string, type: string, amount: number) => {
+  const sendWhatsAppNotification = async (clientId: string, paymentId: string, type: string, amount: number) => {
     try {
       const client = clients.find(c => c.id === clientId)
       if (!client || !client.phone) return
 
       const message = `Olá ${client.name}! Sua cobrança de R$ ${amount.toFixed(2)} via ${getPaymentTypeLabel(type)} foi gerada. Vencimento: ${format(formData.due_date, 'dd/MM/yyyy')}.`
 
-      // Buscar configurações do WhatsApp Evolution
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .single()
-
-      if (!profile) return
-
-      const { data: whatsappSettings } = await supabase
-        .from('whatsapp_settings')
-        .select('*')
-        .eq('company_id', profile.company_id)
-        .eq('is_active', true)
-        .single()
-
-      if (whatsappSettings && whatsappSettings.connection_status === 'connected') {
-        // Enviar via Evolution API
-        await supabase.functions.invoke('whatsapp-evolution', {
-          body: {
-            action: 'send_message',
-            instance_url: whatsappSettings.instance_url,
-            api_token: whatsappSettings.api_token,
-            instance_name: whatsappSettings.instance_name,
-            phone_number: client.phone,
-            message,
-            company_id: profile.company_id,
-            client_id: clientId
-          }
-        })
-      } else {
-        // Log apenas no banco se WhatsApp não estiver configurado
-        await supabase.from('whatsapp_logs').insert({
-          company_id: profile.company_id,
+      // Envio autônomo via Edge Function centralizada
+      const { error } = await supabase.functions.invoke('notify-whatsapp', {
+        body: {
           client_id: clientId,
-          message_type: 'cobranca',
-          phone_number: client.phone,
-          message_content: message,
-          template_name: 'cobranca_gerada',
-          status: 'pending'
-        })
-      }
+          payment_id: paymentId,
+          message,
+        }
+      })
+
+      if (error) throw error
 
       toast({
         title: "WhatsApp enviado",
@@ -200,6 +168,11 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       })
     } catch (error) {
       console.error('Error sending WhatsApp:', error)
+      toast({
+        title: "Erro ao enviar WhatsApp",
+        description: "Verifique a integração do WhatsApp",
+        variant: "destructive"
+      })
     }
   }
 
