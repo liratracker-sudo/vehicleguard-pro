@@ -33,6 +33,12 @@ serve(async (req) => {
         return await getInstanceInfo(payload);
       case 'get_qr_code':
         return await getQRCode(payload);
+      case 'createSession': {
+        // Compatibilidade com chamadas antigas que enviam payload aninhado e usam "token"
+        const p: any = (payload as any)?.payload ? { ...(payload as any).payload } : payload;
+        if (p?.token && !p?.api_token) p.api_token = p.token;
+        return await getQRCode(p);
+      }
       default:
         throw new Error(`Ação não suportada: ${action}`);
     }
