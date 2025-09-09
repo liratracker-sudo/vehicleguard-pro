@@ -1,0 +1,356 @@
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
+import { WhiteLabelConfig } from "./WhiteLabelConfig"
+import { Building2, Plus, Settings, Activity, Palette, ExternalLink } from "lucide-react"
+
+interface Company {
+  id: string
+  name: string
+  slug: string
+  email: string
+  phone: string
+  domain: string
+  is_active: boolean
+  created_at: string
+  branding?: {
+    logo_url: string
+    primary_color: string
+    subdomain: string
+  }
+  subscription?: {
+    plan_name: string
+    status: string
+  }
+  limits?: {
+    max_vehicles: number
+    max_users: number
+    is_active: boolean
+  }
+}
+
+export function CompanyManagement() {
+  const { toast } = useToast()
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+  const [showWhiteLabelConfig, setShowWhiteLabelConfig] = useState(false)
+  const [showLimitsDialog, setShowLimitsDialog] = useState(false)
+
+  const loadCompanies = async () => {
+    try {
+      const { data: companiesData, error } = await supabase
+        .from('companies')
+        .select(`
+          *,
+          company_branding (
+            logo_url,
+            primary_color,
+            subdomain
+          ),
+          company_subscriptions (
+            subscription_plans (
+              name
+            ),
+            status
+          ),
+          company_limits (
+            max_vehicles,
+            max_users,
+            is_active
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const formattedData = companiesData?.map(company => ({
+        ...company,
+        branding: company.company_branding?.[0] || null,
+        subscription: company.company_subscriptions?.[0] ? {
+          plan_name: company.company_subscriptions[0].subscription_plans?.name || 'Sem plano',
+          status: company.company_subscriptions[0].status
+        } : null,
+        limits: company.company_limits?.[0] || null
+      })) || []
+
+      setCompanies(formattedData)
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleCompanyStatus = async (companyId: string, newStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .update({ is_active: newStatus })
+        .eq('id', companyId)
+
+      if (error) throw error
+
+      await loadCompanies()
+      
+      toast({
+        title: "Sucesso",
+        description: `Empresa ${newStatus ? 'ativada' : 'desativada'} com sucesso`
+      })
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const openBrandingSettings = (company: Company) => {
+    setSelectedCompany(company)
+    setShowWhiteLabelConfig(true)
+  }
+
+  const openLimitsSettings = (company: Company) => {
+    setSelectedCompany(company)
+    setShowLimitsDialog(true)
+  }
+
+  useEffect(() => {
+    loadCompanies()
+
+    // Realtime subscription
+    const channel = supabase
+      .channel('company-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'companies' },
+        () => loadCompanies()
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'company_branding' },
+        () => loadCompanies()
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'company_limits' },
+        () => loadCompanies()
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Gestão de Empresas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Se está mostrando configuração white-label, renderizar apenas ela
+  if (showWhiteLabelConfig && selectedCompany) {
+    return (
+      <WhiteLabelConfig
+        companyId={selectedCompany.id}
+        companyName={selectedCompany.name}
+        onClose={() => {
+          setShowWhiteLabelConfig(false)
+          setSelectedCompany(null)
+          loadCompanies() // Recarregar dados após fechar
+        }}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5" />
+                Gestão de Empresas
+              </CardTitle>
+              <CardDescription>
+                Gerencie todas as empresas cadastradas no sistema
+              </CardDescription>
+            </div>
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nova Empresa
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Subdomínio</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Criado em</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {companies.map((company) => (
+                  <TableRow key={company.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{company.name}</div>
+                        <div className="text-sm text-muted-foreground">{company.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {company.subscription ? (
+                        <Badge variant={company.subscription.status === 'active' ? 'default' : 'secondary'}>
+                          {company.subscription.plan_name}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Sem plano</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {company.branding?.subdomain ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{company.branding.subdomain}</span>
+                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Não configurado</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={company.is_active}
+                          onCheckedChange={(checked) => toggleCompanyStatus(company.id, checked)}
+                        />
+                        <span className="text-sm">
+                          {company.is_active ? 'Ativa' : 'Inativa'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(company.created_at).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openBrandingSettings(company)}
+                          className="gap-2"
+                        >
+                          <Palette className="w-4 h-4" />
+                          Branding
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openLimitsSettings(company)}
+                          className="gap-2"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Limites
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <Activity className="w-4 h-4" />
+                          Logs
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {companies.length === 0 && (
+              <div className="text-center py-12">
+                <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-muted-foreground">
+                  Nenhuma empresa cadastrada
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  As empresas aparecerão aqui quando se cadastrarem no sistema
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dialog Limits Settings */}
+      <Dialog open={showLimitsDialog} onOpenChange={setShowLimitsDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Limites da Empresa</DialogTitle>
+            <DialogDescription>
+              Configure os limites de uso para {selectedCompany?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="max_vehicles">Máximo de Veículos</Label>
+              <Input
+                id="max_vehicles"
+                type="number"
+                defaultValue={selectedCompany?.limits?.max_vehicles || 100}
+              />
+            </div>
+            <div>
+              <Label htmlFor="max_users">Máximo de Usuários</Label>
+              <Input
+                id="max_users"
+                type="number"
+                defaultValue={selectedCompany?.limits?.max_users || 10}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="limits_active"
+                defaultChecked={selectedCompany?.limits?.is_active ?? true}
+              />
+              <Label htmlFor="limits_active">Aplicar limites</Label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowLimitsDialog(false)}>
+                Cancelar
+              </Button>
+              <Button>Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

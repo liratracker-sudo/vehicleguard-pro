@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WhatsAppProvider } from "@/contexts/WhatsAppContext";
 import Index from "./pages/Index";
 import AuthPage from "./pages/Auth";
+import AdminPage from "./pages/Admin";
 import ClientsPage from "./pages/Clients";
 import PlansPage from "./pages/Plans";
 import ContractsPage from "./pages/Contracts";
@@ -39,6 +40,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/plans" element={<PlansPage />} />
               <Route path="/contracts" element={<ContractsPage />} />

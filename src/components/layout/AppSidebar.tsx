@@ -9,7 +9,8 @@ import {
   BarChart3,
   Settings,
   Car,
-  Building2
+  Building2,
+  Shield
 } from "lucide-react"
 
 import {
@@ -85,6 +86,13 @@ const navigation = [
     url: "/settings",
     icon: Settings,
     group: "configuracoes"
+  },
+  {
+    title: "Administração",
+    url: "/admin",
+    icon: Shield,
+    group: "admin",
+    requireSuperAdmin: true
   }
 ]
 
@@ -94,6 +102,7 @@ const groupedNavigation = {
   financeiro: navigation.filter(item => item.group === "financeiro"),
   relatorios: navigation.filter(item => item.group === "relatorios"),
   configuracoes: navigation.filter(item => item.group === "configuracoes"),
+  admin: navigation.filter(item => item.group === "admin"),
 }
 
 export function AppSidebar() {
@@ -203,6 +212,25 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {groupedNavigation.configuracoes.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className={getNavCls}>
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Administração */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Administração</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {groupedNavigation.admin.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} className={getNavCls}>
