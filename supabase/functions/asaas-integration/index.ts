@@ -390,10 +390,10 @@ async function listCharges(supabaseClient: any, companyId: string, data: any) {
 }
 
 async function ensureEncryptionKey(supabaseClient: any) {
-  const key = Deno.env.get('EVOLUTION_ENCRYPTION_KEY')
+  const key = Deno.env.get('ASAAS_ENCRYPTION_KEY') ?? Deno.env.get('EVOLUTION_ENCRYPTION_KEY')
   if (!key) {
-    console.warn('EVOLUTION_ENCRYPTION_KEY não configurada')
-    return
+    console.error('Chave de criptografia não configurada: defina o secret ASAAS_ENCRYPTION_KEY')
+    throw new Error('Chave de criptografia ausente')
   }
   await supabaseClient.rpc('set_encryption_key_guc', { p_key: key })
 }
