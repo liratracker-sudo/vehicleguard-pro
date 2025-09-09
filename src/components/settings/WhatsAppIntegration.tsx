@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { useWhatsAppConnection } from "@/contexts/WhatsAppContext"
-import { MessageCircle, RefreshCw, Phone, AlertCircle, CheckCircle, Settings } from "lucide-react"
+import { MessageCircle, RefreshCw, Phone, AlertCircle, CheckCircle, Settings, QrCode } from "lucide-react"
 
 export function WhatsAppIntegration() {
   const { toast } = useToast()
@@ -27,11 +28,64 @@ export function WhatsAppIntegration() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [showQRDialog, setShowQRDialog] = useState(false)
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null)
+  const [loadingQR, setLoadingQR] = useState(false)
 
-  // Sincronizar com context global
+  // Sincronizar com context global e mostrar QR quando desconectado
   useEffect(() => {
     setConfig(prev => ({ ...prev, isConnected: connectionState.isConnected }))
-  }, [connectionState.isConnected])
+    
+    // Mostrar QR automaticamente quando desconectar
+    if (!connectionState.isConnected && connectionState.connectionStatus === 'disconnected' && config.instanceUrl && config.authToken && config.instanceName) {
+      handleShowQR()
+    }
+  }, [connectionState.isConnected, connectionState.connectionStatus])
+
+  // Monitora mudanças na configuração para mostrar QR
+  useEffect(() => {
+    if (!connectionState.isConnected && config.instanceUrl && config.authToken && config.instanceName) {
+      const timer = setTimeout(() => handleShowQR(), 1000) // Delay para evitar chamadas excessivas
+      return () => clearTimeout(timer)
+    }
+  }, [config.instanceUrl, config.authToken, config.instanceName])
+
+  const handleShowQR = async () => {
+    if (!config.instanceUrl || !config.authToken || !config.instanceName) return
+    
+    try {
+      setLoadingQR(true)
+      setShowQRDialog(true)
+      
+      const response = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'get_qr_code',
+          instance_url: config.instanceUrl,
+          api_token: config.authToken,
+          instance_name: config.instanceName
+        }
+      })
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (response.data?.success && response.data?.qrCode) {
+        setQrCodeData(response.data.qrCode)
+      } else {
+        throw new Error('Falha ao obter QR Code')
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao obter QR Code",
+        description: error.message,
+        variant: "destructive"
+      })
+      setShowQRDialog(false)
+    } finally {
+      setLoadingQR(false)
+    }
+  }
 
   const loadSettings = async () => {
     try {
@@ -159,6 +213,12 @@ export function WhatsAppIntegration() {
             <Button onClick={handleConnect} disabled={connecting} variant="outline">
               {connecting ? "Conectando..." : "Conectar"}
             </Button>
+            {!connectionState.isConnected && config.instanceUrl && config.authToken && config.instanceName && (
+              <Button onClick={handleShowQR} disabled={loadingQR} variant="secondary">
+                <QrCode className="w-4 h-4 mr-2" />
+                {loadingQR ? "Gerando..." : "QR Code"}
+              </Button>
+            )}
           </div>
 
           <div className="pt-4 border-t">
@@ -171,6 +231,63 @@ export function WhatsAppIntegration() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog do QR Code */}
+      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5" />
+              Conectar WhatsApp
+            </DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code com seu WhatsApp para conectar a instância
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col items-center space-y-4 py-4">
+            {loadingQR ? (
+              <div className="flex flex-col items-center space-y-2">
+                <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Gerando QR Code...</p>
+              </div>
+            ) : qrCodeData ? (
+              <div className="flex flex-col items-center space-y-4">
+                <div className="p-4 bg-white rounded-lg border">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeData)}`}
+                    alt="QR Code WhatsApp"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium">Abra o WhatsApp no seu celular</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vá em Menu (⋮) → Dispositivos conectados → Conectar um dispositivo
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleShowQR} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={loadingQR}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Atualizar QR
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center space-y-2">
+                <AlertCircle className="w-8 h-8 text-destructive mx-auto" />
+                <p className="text-sm text-muted-foreground">Erro ao gerar QR Code</p>
+                <Button onClick={handleShowQR} variant="outline" size="sm">
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

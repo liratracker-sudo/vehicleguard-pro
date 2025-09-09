@@ -33,8 +33,8 @@ export const WhatsAppStatus: React.FC = () => {
         );
       default:
         return (
-          <Badge variant="outline" className="gap-1">
-            <MessageCircle className="w-3 h-3" />
+          <Badge variant="outline" className="gap-1 border-destructive/30 text-destructive">
+            <MessageCircle className="w-3 h-3 text-destructive" />
             WhatsApp Desconectado
           </Badge>
         );
