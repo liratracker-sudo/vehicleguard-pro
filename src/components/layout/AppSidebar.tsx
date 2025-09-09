@@ -133,14 +133,14 @@ export function AppSidebar() {
   }, [])
 
   return (
-    <Sidebar className="w-64" collapsible="icon">
+    <Sidebar className="w-64 sm:w-64" collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
+          <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center icon-hover">
             <Car className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-sidebar-foreground">VehicleGuard</h2>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-sidebar-foreground truncate">VehicleGuard</h2>
             <p className="text-xs text-muted-foreground">Pro</p>
           </div>
         </div>
@@ -156,8 +156,8 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="w-4 h-4 icon-hover" />
+                      <span className="truncate">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
