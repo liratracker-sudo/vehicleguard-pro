@@ -128,14 +128,21 @@ serve(async (req) => {
           }
         });
 
+        let success = true;
+        let errMsg = '';
         if (notificationResponse.error) {
-          console.error('WhatsApp notification error:', notificationResponse.error);
-          throw new Error(`Failed to send notification: ${notificationResponse.error.message || 'Unknown error'}`);
+          success = false;
+          errMsg = notificationResponse.error.message || 'Falha ao chamar notify-whatsapp';
+        } else if (!notificationResponse.data?.success) {
+          success = false;
+          errMsg = notificationResponse.data?.error || 'Falha ao enviar notificação via WhatsApp';
         }
 
-        if (!notificationResponse.data?.success) {
-          console.error('WhatsApp notification failed:', notificationResponse.data);
-          throw new Error(`Failed to send notification: ${JSON.stringify(notificationResponse.data)}`);
+        if (!success) {
+          return new Response(
+            JSON.stringify({ success: false, message: errMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
 
         return new Response(

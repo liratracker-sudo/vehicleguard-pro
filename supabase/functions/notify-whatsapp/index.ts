@@ -34,18 +34,20 @@ serve(async (req) => {
     };
 
     if (!client_id || !message) {
+      console.error('notify-whatsapp validation: missing client_id or message');
       return new Response(
-        JSON.stringify({ error: 'client_id e message são obrigatórios' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'client_id e message são obrigatórios' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Get authenticated user and company
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData.user) {
+      console.error('notify-whatsapp auth: usuário não autenticado');
       return new Response(
-        JSON.stringify({ error: 'Usuário não autenticado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -56,9 +58,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (profileErr || !profile?.company_id) {
+      console.error('notify-whatsapp validation: perfil/empresa não encontrado');
       return new Response(
-        JSON.stringify({ error: 'Perfil/empresa não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Perfil/empresa não encontrado' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -77,9 +80,10 @@ serve(async (req) => {
     }
 
     if (!targetPhone) {
+      console.error('notify-whatsapp validation: telefone do cliente não encontrado');
       return new Response(
-        JSON.stringify({ error: 'Telefone do cliente não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Telefone do cliente não encontrado' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -118,9 +122,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!whatsappSettings) {
+      console.error('notify-whatsapp validation: configurações do WhatsApp não encontradas');
       return new Response(
-        JSON.stringify({ error: 'Configurações do WhatsApp não encontradas' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Configurações do WhatsApp não encontradas' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

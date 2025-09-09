@@ -86,6 +86,10 @@ export function useBillingManagement() {
 
       if (error) throw error;
 
+      if (!data?.success) {
+        throw new Error(data?.message || data?.error || 'Falha ao reenviar a notificação.');
+      }
+
       toast({
         title: "Sucesso",
         description: "Notificação reenviada com sucesso!"
@@ -116,6 +120,11 @@ export function useBillingManagement() {
 
       if (error) throw error;
 
+      if (!data?.success) {
+        toast({ title: "Aviso", description: data?.message || data?.error || "Não foi possível gerar a segunda via.", variant: "destructive" });
+        return data;
+      }
+
       toast({
         title: "Sucesso",
         description: "Segunda via gerada com sucesso!"
@@ -145,6 +154,10 @@ export function useBillingManagement() {
 
       if (error) throw error;
 
+      if (!data?.success) {
+        throw new Error(data?.error || 'Não foi possível obter o saldo da empresa.');
+      }
+
       return data.data;
     } catch (error: any) {
       toast({
@@ -166,6 +179,10 @@ export function useBillingManagement() {
       });
 
       if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Falha ao gerar cobranças automáticas.');
+      }
 
       toast({
         title: "Sucesso",
