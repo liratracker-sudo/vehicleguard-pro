@@ -11,7 +11,8 @@ import { CompanyForm } from "./CompanyForm"
 import { CompanyLimitsDialog } from "./CompanyLimitsDialog"
 import { CompanySubscriptionDialog } from "./CompanySubscriptionDialog"
 import { CompanyPasswordDialog } from "./CompanyPasswordDialog"
-import { Building2, Plus, Settings, Activity, Palette, ExternalLink, Edit, CreditCard, Key, Trash2 } from "lucide-react"
+import { CompanyUsersDialog } from "./CompanyUsersDialog"
+import { Building2, Plus, Settings, Activity, Palette, ExternalLink, Edit, CreditCard, Key, Trash2, Users } from "lucide-react"
 
 interface Company {
   id: string
@@ -48,6 +49,7 @@ export function CompanyManagement() {
   const [showCompanyForm, setShowCompanyForm] = useState(false)
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false)
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [showUsersDialog, setShowUsersDialog] = useState(false)
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
   const [companyHasPassword, setCompanyHasPassword] = useState(false)
 
@@ -102,18 +104,28 @@ export function CompanyManagement() {
 
   const toggleCompanyStatus = async (companyId: string, newStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('companies')
-        .update({ is_active: newStatus })
-        .eq('id', companyId)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Não autenticado')
 
-      if (error) throw error
+      // Use the edge function for immediate effect
+      const response = await supabase.functions.invoke('admin-company-management', {
+        body: {
+          company_id: companyId,
+          is_active: newStatus,
+          action: 'toggle_company_status'
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+
+      if (response.error) throw response.error
 
       await loadCompanies()
       
       toast({
         title: "Sucesso",
-        description: `Empresa ${newStatus ? 'ativada' : 'desativada'} com sucesso`
+        description: `Empresa ${newStatus ? 'ativada' : 'desativada'} com sucesso e efeito imediato`
       })
     } catch (error: any) {
       toast({
@@ -149,6 +161,39 @@ export function CompanyManagement() {
     setShowSubscriptionDialog(true)
   }
 
+  const assignPlanToCompany = async (companyId: string, planId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Não autenticado')
+
+      const response = await supabase.functions.invoke('admin-company-management', {
+        body: {
+          action: 'assign_plan',
+          company_id: companyId,
+          plan_id: planId
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+
+      if (response.error) throw response.error
+
+      toast({
+        title: "Sucesso",
+        description: "Plano associado com sucesso! Mudanças ativas imediatamente."
+      })
+
+      await loadCompanies()
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
+
   const openPasswordSettings = async (company: Company) => {
     setSelectedCompany(company)
     
@@ -166,6 +211,11 @@ export function CompanyManagement() {
     }
     
     setShowPasswordDialog(true)
+  }
+
+  const openUsersSettings = (company: Company) => {
+    setSelectedCompany(company)
+    setShowUsersDialog(true)
   }
 
   const deleteCompany = async (company: Company) => {
@@ -368,6 +418,15 @@ export function CompanyManagement() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => openUsersSettings(company)}
+                          className="gap-2"
+                        >
+                          <Users className="w-4 h-4" />
+                          Usuários
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => openPasswordSettings(company)}
                           className="gap-2"
                         >
@@ -440,6 +499,14 @@ export function CompanyManagement() {
         companyId={selectedCompany?.id || null}
         companyName={selectedCompany?.name || ''}
         hasPassword={companyHasPassword}
+      />
+
+      {/* Company Users Dialog */}
+      <CompanyUsersDialog
+        open={showUsersDialog}
+        onOpenChange={setShowUsersDialog}
+        companyId={selectedCompany?.id || null}
+        companyName={selectedCompany?.name || ''}
       />
     </div>
   )

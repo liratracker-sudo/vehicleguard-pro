@@ -81,36 +81,26 @@ export function CompanySubscriptionDialog({
     setLoading(true)
 
     try {
-      if (currentSubscription) {
-        // Atualizar assinatura existente
-        const { error } = await supabase
-          .from('company_subscriptions')
-          .update({
-            plan_id: formData.plan_id,
-            status: formData.status,
-            auto_renew: formData.auto_renew
-          })
-          .eq('company_id', companyId)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Não autenticado')
 
-        if (error) throw error
-      } else {
-        // Criar nova assinatura
-        const { error } = await supabase
-          .from('company_subscriptions')
-          .insert([{
-            company_id: companyId,
-            plan_id: formData.plan_id,
-            status: formData.status,
-            auto_renew: formData.auto_renew,
-            started_at: new Date().toISOString()
-          }])
+      // Use the admin edge function for immediate effect
+      const response = await supabase.functions.invoke('admin-company-management', {
+        body: {
+          action: 'assign_plan',
+          company_id: companyId,
+          plan_id: formData.plan_id
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
 
-        if (error) throw error
-      }
+      if (response.error) throw response.error
 
       toast({
         title: "Sucesso",
-        description: "Assinatura da empresa atualizada com sucesso"
+        description: "Plano associado com sucesso! Mudanças ativas imediatamente."
       })
 
       onSaved()

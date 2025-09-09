@@ -8,3 +8,9 @@ verify_jwt = true
 
 [functions.asaas-integration]
 verify_jwt = true
+
+[functions.admin-user-management]
+verify_jwt = true
+
+[functions.admin-company-management]
+verify_jwt = true
