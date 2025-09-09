@@ -99,6 +99,8 @@ Deno.serve(async (req) => {
         return await getCustomer(supabaseClient, companyId, data)
       case 'list_charges':
         return await listCharges(supabaseClient, companyId, data)
+      case 'find_charges_by_cpf':
+        return await findChargesByCpf(supabaseClient, companyId, data)
       default:
         throw new Error('Ação não suportada')
     }
@@ -429,6 +431,106 @@ async function listCharges(supabaseClient: any, companyId: string, data: any) {
     await logAsaasOperation(supabaseClient, companyId, 'list_charges', data, null, 'error', error.message)
     
     throw error
+  }
+}
+
+async function findChargesByCpf(supabaseClient: any, companyId: string, data: any) {
+  console.log('Buscando cobranças por CPF no Asaas')
+
+  if (!data?.cpfCnpj) {
+    return new Response(
+      JSON.stringify({ success: false, message: 'CPF/CNPJ é obrigatório' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const settings = await getAsaasSettings(supabaseClient, companyId)
+
+  try {
+    const cpf = String(data.cpfCnpj).replace(/\D/g, '')
+
+    // 1) Buscar cliente pelo CPF/CNPJ
+    const customersResp = await makeAsaasRequest(`${settings.base_url}/customers?cpfCnpj=${cpf}`, {
+      method: 'GET',
+      headers: {
+        'access_token': settings.api_token,
+        'access-token': settings.api_token,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const customers = customersResp?.data ?? (Array.isArray(customersResp) ? customersResp : [])
+
+    if (!customers || customers.length === 0) {
+      await logAsaasOperation(
+        supabaseClient,
+        companyId,
+        'find_charges_by_cpf',
+        { cpfCnpj: cpf },
+        { customers: customersResp },
+        'success'
+      )
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          customerFound: false,
+          message: 'Nenhuma cobrança encontrada para este CPF',
+          charges: []
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const customer = customers[0]
+
+    // 2) Buscar cobranças pelo customer.id
+    const paymentsResp = await makeAsaasRequest(`${settings.base_url}/payments?customer=${customer.id}`, {
+      method: 'GET',
+      headers: {
+        'access_token': settings.api_token,
+        'access-token': settings.api_token,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const payments = paymentsResp?.data ?? (Array.isArray(paymentsResp) ? paymentsResp : [])
+
+    await logAsaasOperation(
+      supabaseClient,
+      companyId,
+      'find_charges_by_cpf',
+      { cpfCnpj: cpf, customerId: customer.id },
+      paymentsResp,
+      'success'
+    )
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        customerFound: true,
+        customer,
+        charges: payments
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    console.error('Erro na busca por CPF:', error)
+
+    await logAsaasOperation(
+      supabaseClient,
+      companyId,
+      'find_charges_by_cpf',
+      { cpfCnpj: data?.cpfCnpj },
+      null,
+      'error',
+      (error as any).message
+    )
+
+    return new Response(
+      JSON.stringify({ success: false, message: (error as any).message || 'Falha na consulta Asaas' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 }
 

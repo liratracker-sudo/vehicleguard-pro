@@ -259,6 +259,44 @@ export function useAsaas() {
     }
   }
 
+  const findChargesByCpf = async (cpfCnpj: string) => {
+    setLoading(true)
+    try {
+      const response = await supabase.functions.invoke('asaas-integration', {
+        body: {
+          action: 'find_charges_by_cpf',
+          data: { cpfCnpj }
+        }
+      })
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Falha ao consultar cobranças por CPF')
+      }
+
+      if (!response.data.customerFound) {
+        toast({
+          title: 'Sem cobranças',
+          description: 'Nenhuma cobrança encontrada para este CPF'
+        })
+      }
+
+      return response.data
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message,
+        variant: 'destructive'
+      })
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     settings,
     loading,
@@ -267,6 +305,7 @@ export function useAsaas() {
     createCharge,
     getCustomer,
     listCharges,
+    findChargesByCpf,
     loadSettings
   }
 }
