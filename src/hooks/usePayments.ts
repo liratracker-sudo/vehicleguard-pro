@@ -193,8 +193,31 @@ export function usePayments() {
     }
   };
 
+  // Real-time subscription for payment updates
   useEffect(() => {
     loadPayments();
+
+    // Subscribe to real-time changes in payment_transactions
+    const channel = supabase
+      .channel('payment-transactions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payment_transactions'
+        },
+        (payload) => {
+          console.log('Payment transaction updated:', payload);
+          // Reload payments when there's a change
+          loadPayments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return {

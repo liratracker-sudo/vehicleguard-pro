@@ -13,6 +13,7 @@ import { BillingFilters, BillingFiltersState } from "@/components/billing/Billin
 import { usePayments } from "@/hooks/usePayments"
 import { useBillingManagement } from "@/hooks/useBillingManagement"
 import { AsaasCpfLookup } from "@/components/billing/AsaasCpfLookup"
+import { AsaasStatusIndicator } from "@/components/billing/AsaasStatusIndicator"
 import {
   Table,
   TableBody,
