@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns"
-import { CalendarIcon, FilterIcon, X } from "lucide-react"
+import { CalendarIcon, Filter as FilterIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface BillingFiltersState {
