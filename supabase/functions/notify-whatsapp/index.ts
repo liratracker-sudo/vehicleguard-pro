@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://mcdidffxwtnqhawqilln.supabase.co';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jZGlkZmZ4d3RucWhhd3FpbGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQ2ODEsImV4cCI6MjA3MTk5MDY4MX0.v2VSArebudz3nJsblgqlRJB4dOt7VQGTwSEO1M32waw';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -84,7 +85,10 @@ serve(async (req) => {
 
     // Scheduling path: just create a payment_notifications pending entry
     if (schedule_for && new Date(schedule_for).getTime() > Date.now()) {
-      const { error: insErr } = await supabase
+      // Use service role to bypass RLS for notifications
+      const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      
+      const { error: insErr } = await supabaseService
         .from('payment_notifications')
         .insert({
           company_id,
@@ -138,7 +142,10 @@ serve(async (req) => {
 
     // Record into payment_notifications when tied to a payment
     if (payment_id) {
-      await supabase.from('payment_notifications').insert({
+      // Use service role to bypass RLS for notifications
+      const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      
+      await supabaseService.from('payment_notifications').insert({
         company_id,
         client_id,
         payment_id,

@@ -59,8 +59,7 @@ async function sendPendingNotifications() {
     .from('payment_notifications')
     .select(`
       *,
-      payment_transactions!inner(*, clients(name, phone, email)),
-      payment_notification_settings!inner(*)
+      payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('status', 'pending')
     .lte('scheduled_for', new Date().toISOString())
@@ -114,7 +113,13 @@ async function sendPendingNotifications() {
 async function sendSingleNotification(notification: any) {
   const payment = notification.payment_transactions;
   const client = payment.clients;
-  const settings = notification.payment_notification_settings;
+  
+  // Get notification settings for the company
+  const { data: settings } = await supabase
+    .from('payment_notification_settings')
+    .select('*')
+    .eq('company_id', notification.company_id)
+    .single();
   
   if (!client?.phone) {
     throw new Error('Cliente não possui telefone cadastrado');

@@ -690,6 +690,7 @@ export type Database = {
           id: string
           last_error: string | null
           message_body: string | null
+          notification_settings_id: string | null
           offset_days: number
           payment_id: string
           scheduled_for: string
@@ -706,6 +707,7 @@ export type Database = {
           id?: string
           last_error?: string | null
           message_body?: string | null
+          notification_settings_id?: string | null
           offset_days: number
           payment_id: string
           scheduled_for: string
@@ -722,6 +724,7 @@ export type Database = {
           id?: string
           last_error?: string | null
           message_body?: string | null
+          notification_settings_id?: string | null
           offset_days?: number
           payment_id?: string
           scheduled_for?: string
@@ -742,6 +745,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_notifications_notification_settings_id_fkey"
+            columns: ["notification_settings_id"]
+            isOneToOne: false
+            referencedRelation: "payment_notification_settings"
             referencedColumns: ["id"]
           },
           {
