@@ -79,6 +79,11 @@ const BillingPage = () => {
   }
 
   const filteredPayments = payments.filter(payment => {
+    // Exclude cancelled payments (deleted charges should not be visible)
+    if (payment.status === 'cancelled') {
+      return false
+    }
+
     // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase()
