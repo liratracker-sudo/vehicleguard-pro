@@ -27,6 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+import { supabase } from "@/integrations/supabase/client"
 
 const WhiteLabelPage = () => {
   const [branding, setBranding] = useState({
@@ -46,6 +48,10 @@ const WhiteLabelPage = () => {
     efi: { enabled: false, clientId: "", clientSecret: "", environment: "sandbox" },
     whatsapp: { enabled: false, instanceId: "", token: "" }
   })
+
+  const { toast } = useToast()
+  const [savingProvider, setSavingProvider] = useState<string | null>(null)
+  const [testingProvider, setTestingProvider] = useState<string | null>(null)
 
   const [messages, setMessages] = useState({
     welcome: "Bem-vindo ao {company_name}! Seu veículo está protegido conosco.",
@@ -357,9 +363,71 @@ const WhiteLabelPage = () => {
                             </div>
                           )}
                           
-                          <Button variant="outline" size="sm">
-                            Testar Conexão
-                          </Button>
+                          <div className="flex gap-2">
+                            {provider === 'asaas' && (
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  if (!('apiKey' in config) || !config.apiKey) {
+                                    toast({ title: "Erro", description: "Informe a Chave da API antes de salvar", variant: "destructive" });
+                                    return;
+                                  }
+                                  try {
+                                    setSavingProvider('asaas');
+                                    const { data, error } = await supabase.functions.invoke('asaas-integration', {
+                                      body: {
+                                        action: 'save_settings',
+                                        data: {
+                                          api_token: config.apiKey,
+                                          is_sandbox: (config.environment || 'sandbox') !== 'production'
+                                        }
+                                      }
+                                    });
+                                    if (error) throw new Error(error.message);
+                                    if (!data?.success) throw new Error(data?.message || 'Falha ao salvar configurações');
+                                    toast({ title: "Sucesso", description: "Configurações do Asaas salvas!" });
+                                  } catch (e:any) {
+                                    toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" });
+                                  } finally {
+                                    setSavingProvider(null);
+                                  }
+                                }}
+                                disabled={savingProvider==='asaas'}
+                              >
+                                {savingProvider==='asaas' ? "Salvando..." : "Salvar Configuração"}
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                if (provider !== 'asaas') {
+                                  toast({ title: "Indisponível", description: `Teste de conexão ainda não implementado para ${provider}.` });
+                                  return;
+                                }
+                                try {
+                                  setTestingProvider(provider);
+                                  // Se a chave está preenchida, testar usando ela; senão usar configuração salva
+                                  const testData = ('apiKey' in config && config.apiKey)
+                                    ? { api_token: config.apiKey, is_sandbox: (config.environment || 'sandbox') !== 'production' }
+                                    : undefined;
+                                  const { data, error } = await supabase.functions.invoke('asaas-integration', {
+                                    body: { action: 'test_connection', data: testData }
+                                  });
+                                  if (error) throw new Error(error.message);
+                                  if (!data?.success) throw new Error(data?.message || 'Falha ao testar conexão');
+                                  toast({ title: "Sucesso", description: data?.message || "Conexão testada com sucesso!" });
+                                } catch (e:any) {
+                                  toast({ title: "Erro ao testar", description: e.message, variant: "destructive" });
+                                } finally {
+                                  setTestingProvider(null);
+                                }
+                              }}
+                              disabled={testingProvider===provider}
+                            >
+                              {testingProvider===provider ? "Testando..." : "Testar Conexão"}
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
