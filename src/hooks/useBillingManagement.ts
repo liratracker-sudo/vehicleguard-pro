@@ -202,10 +202,41 @@ export function useBillingManagement() {
     }
   };
 
+  const deletePermanently = async (paymentId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-management', {
+        body: {
+          action: 'delete_permanently',
+          payment_id: paymentId
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Cobrança excluída permanentemente!"
+      });
+
+      return data;
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     updatePaymentStatus,
     deletePayment,
+    deletePermanently,
     resendNotification,
     generateSecondCopy,
     getCompanyBalance,

@@ -34,14 +34,16 @@ import { useBillingManagement } from "@/hooks/useBillingManagement";
 interface BillingActionsProps {
   payment: PaymentTransaction;
   onUpdate: () => void;
+  showDeletePermanently?: boolean;
 }
 
-export function BillingActions({ payment, onUpdate }: BillingActionsProps) {
+export function BillingActions({ payment, onUpdate, showDeletePermanently = false }: BillingActionsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { 
     loading,
     updatePaymentStatus,
     deletePayment,
+    deletePermanently,
     resendNotification,
     generateSecondCopy
   } = useBillingManagement();
@@ -57,7 +59,13 @@ export function BillingActions({ payment, onUpdate }: BillingActionsProps) {
 
   const handleDelete = async () => {
     try {
-      await deletePayment(payment.id);
+      if (showDeletePermanently) {
+        // For permanent deletion, we need a new function
+        await deletePermanently(payment.id);
+      } else {
+        // For cancelling, use existing function
+        await deletePayment(payment.id);
+      }
       setShowDeleteDialog(false);
       onUpdate();
     } catch (error) {
@@ -183,35 +191,67 @@ export function BillingActions({ payment, onUpdate }: BillingActionsProps) {
           
           <DropdownMenuSeparator />
           
-          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-            <AlertDialogTrigger asChild>
-              <DropdownMenuItem 
-                onSelect={(e) => e.preventDefault()}
-                className="text-destructive focus:text-destructive"
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Cancelar Cobrança
-              </DropdownMenuItem>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Cancelar Cobrança</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Voltar</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleDelete}
-                  disabled={loading}
-                  className="bg-destructive hover:bg-destructive/90"
+          {showDeletePermanently ? (
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem 
+                  onSelect={(e) => e.preventDefault()}
+                  className="text-destructive focus:text-destructive"
                 >
-                  Confirmar Cancelamento
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Excluir Permanentemente
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir Cobrança Permanentemente</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja excluir permanentemente esta cobrança? Esta ação não pode ser desfeita e a cobrança será removida completamente do sistema.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Voltar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDelete}
+                    disabled={loading}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    Confirmar Exclusão
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem 
+                  onSelect={(e) => e.preventDefault()}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Cancelar Cobrança
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancelar Cobrança</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Voltar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDelete}
+                    disabled={loading}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    Confirmar Cancelamento
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

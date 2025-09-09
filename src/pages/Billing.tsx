@@ -253,6 +253,7 @@ const BillingPage = () => {
         <Tabs defaultValue="manage" className="space-y-6">
           <TabsList>
             <TabsTrigger value="manage">Gerenciar Cobranças</TabsTrigger>
+            <TabsTrigger value="cancelled">Cobranças Canceladas</TabsTrigger>
             <TabsTrigger value="cpf-lookup">Consultar por CPF</TabsTrigger>
             <TabsTrigger value="history">Histórico & Relatórios</TabsTrigger>
           </TabsList>
@@ -349,6 +350,86 @@ const BillingPage = () => {
                                   loadPayments()
                                   loadCompanyBalance()
                                 }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="cancelled" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cobranças Canceladas</CardTitle>
+                <CardDescription>
+                  Visualize e exclua permanentemente cobranças canceladas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="text-sm text-muted-foreground">
+                  Exibindo {payments.filter(p => p.status === 'cancelled').length} cobranças canceladas
+                </div>
+
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[150px]">Cliente/ID</TableHead>
+                        <TableHead className="min-w-[100px]">Tipo</TableHead>
+                        <TableHead className="min-w-[100px]">Valor</TableHead>
+                        <TableHead className="min-w-[120px]">Cancelado em</TableHead>
+                        <TableHead className="min-w-[120px]">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.filter(p => p.status === 'cancelled').length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8">
+                            Nenhuma cobrança cancelada encontrada
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        payments.filter(p => p.status === 'cancelled').map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium">
+                                  {payment.clients?.name || 'Sistema'}
+                                </div>
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  {payment.id.substring(0, 8)}...
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">
+                                {payment.transaction_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                {new Date(payment.updated_at).toLocaleDateString('pt-BR')}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(payment.updated_at).toLocaleTimeString('pt-BR')}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <BillingActions 
+                                payment={payment} 
+                                onUpdate={() => {
+                                  loadPayments()
+                                  loadCompanyBalance()
+                                }}
+                                showDeletePermanently={true}
                               />
                             </TableCell>
                           </TableRow>

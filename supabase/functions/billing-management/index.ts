@@ -272,6 +272,26 @@ serve(async (req) => {
         );
       }
 
+      case 'delete_permanently': {
+        if (!payment_id) {
+          throw new Error('Payment ID is required');
+        }
+
+        // Permanently delete the payment from database
+        const { error } = await supabase
+          .from('payment_transactions')
+          .delete()
+          .eq('id', payment_id)
+          .eq('company_id', profile.company_id);
+
+        if (error) throw error;
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Payment deleted permanently' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
