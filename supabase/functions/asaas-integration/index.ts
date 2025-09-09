@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 const ASAAS_API_BASE = 'https://api.asaas.com/v3'
-const ASAAS_SANDBOX_BASE = 'https://sandbox.asaas.com/api/v3'
+const ASAAS_SANDBOX_BASE = 'https://api-sandbox.asaas.com/v3'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
