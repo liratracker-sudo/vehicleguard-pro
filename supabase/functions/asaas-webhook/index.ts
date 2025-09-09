@@ -17,6 +17,9 @@ serve(async (req) => {
   }
 
   try {
+    // Variáveis para reuso (evitar ler o body mais de uma vez)
+    let webhookData: any = null;
+    let authorizedCompanyId: string | null = null;
     // Verificar assinatura do webhook
     // Extração flexível do token (Asaas envia 'asaas-access-token'; também aceitamos variações e querystring)
     const getBearer = (h: string | null) =>
@@ -37,14 +40,42 @@ serve(async (req) => {
     const authToken = headerToken || queryToken;
 
     if (!authToken) {
-      console.error('Webhook sem token de autenticação (nenhum header/query encontrado)');
-      return new Response(
-        JSON.stringify({ error: 'Token de autenticação ausente' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Sem token: tentar autorizar pelo paymentId para contas que não configuraram token
+      try {
+        webhookData = await req.json();
+        const paymentId = webhookData?.payment?.id;
+        if (paymentId) {
+          const { data: tx } = await supabase
+            .from('payment_transactions')
+            .select('company_id')
+            .eq('external_id', paymentId)
+            .single();
+          if (tx?.company_id) {
+            const { data: s } = await supabase
+              .from('asaas_settings')
+              .select('company_id, webhook_auth_token, webhook_enabled')
+              .eq('company_id', tx.company_id)
+              .eq('webhook_enabled', true)
+              .maybeSingle();
+            if (s && !s.webhook_auth_token) {
+              authorizedCompanyId = tx.company_id;
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (!authorizedCompanyId) {
+        console.error('Webhook sem token e sem autorização por fallback');
+        return new Response(
+          JSON.stringify({ error: 'Token ausente. Configure o AccessToken no Asaas ou use ?accessToken=TOKEN' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    const webhookData = await req.json();
+    if (!webhookData) {
+      webhookData = await req.json();
+    }
     console.log('Received Asaas webhook:', JSON.stringify(webhookData, null, 2));
 
     const { event, payment } = webhookData;
@@ -53,13 +84,19 @@ serve(async (req) => {
       throw new Error('Invalid webhook data: missing payment information');
     }
 
-    // Verificar se o token é válido
-    const { data: webhookSettings } = await supabase
-      .from('asaas_settings')
-      .select('webhook_auth_token, company_id')
-      .eq('webhook_auth_token', authToken)
-      .eq('webhook_enabled', true)
-      .single();
+    // Resolver company pelo token (ou fallback sem token)
+    let webhookSettings: any = null;
+    if (authToken) {
+      const { data } = await supabase
+        .from('asaas_settings')
+        .select('webhook_auth_token, company_id')
+        .eq('webhook_auth_token', authToken)
+        .eq('webhook_enabled', true)
+        .single();
+      webhookSettings = data;
+    } else if (authorizedCompanyId) {
+      webhookSettings = { company_id: authorizedCompanyId };
+    }
 
     if (!webhookSettings) {
       console.error('Token de webhook inválido:', authToken);
