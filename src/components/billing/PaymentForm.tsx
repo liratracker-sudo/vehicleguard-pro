@@ -159,19 +159,24 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
   }
 
   const generatePayment = async () => {
-    setLoading(true)
+    console.log('🚀 Starting payment generation...');
+    setLoading(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
+      console.log('📋 Form data:', formData);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      console.log('👤 User authenticated:', user.id);
 
       const { data: profile } = await supabase
         .from('profiles')
         .select('company_id')
         .eq('user_id', user.id)
-        .single()
+        .single();
 
-      if (!profile) throw new Error('Profile not found')
+      if (!profile) throw new Error('Profile not found');
+      console.log('🏢 Company ID:', profile.company_id);
 
       // Create payment transaction record
       const transactionData = {
@@ -179,23 +184,37 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         company_id: profile.company_id,
         status: 'pending',
         due_date: formData.due_date.toISOString().split('T')[0]
-      }
+      };
+
+      console.log('💾 Creating transaction with data:', transactionData);
 
       const { data: transaction, error } = await supabase
         .from('payment_transactions')
         .insert(transactionData)
         .select()
-        .single()
+        .single();
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Transaction creation error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Transaction created:', transaction);
 
       // First, create or get customer in Asaas
       const client = clients.find(c => c.id === formData.client_id);
-      if (!client) throw new Error('Cliente não encontrado');
+      if (!client) {
+        console.error('❌ Client not found:', formData.client_id);
+        throw new Error('Cliente não encontrado');
+      }
+      
+      console.log('👥 Client found:', client);
 
       // Try to create customer in Asaas first
       let asaasCustomerId;
       try {
+        console.log('🔄 Creating customer in Asaas...');
+        
         const { data: customerResponse, error: customerError } = await supabase.functions.invoke('asaas-integration', {
           body: {
             action: 'create_customer',
@@ -209,49 +228,63 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
           }
         });
 
+        console.log('👥 Customer response:', customerResponse);
+        console.log('👥 Customer error:', customerError);
+
         if (customerError) {
-          console.error('Customer creation error:', customerError);
+          console.error('❌ Customer creation error:', customerError);
         }
 
         if (customerResponse?.success && customerResponse.customer?.id) {
           asaasCustomerId = customerResponse.customer.id;
+          console.log('✅ Asaas customer ID:', asaasCustomerId);
         } else {
           // If customer creation fails, we'll use the document to search
-          console.log('Using fallback: searching by document');
+          console.log('⚠️ Using fallback: searching by document');
           asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
         }
       } catch (error) {
-        console.error('Customer handling error:', error);
+        console.error('❌ Customer handling error:', error);
         asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
       }
 
       // Generate payment using Asaas integration
-      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke('asaas-integration', {
-        body: {
-          action: 'create_charge',
-          data: {
-            customerId: asaasCustomerId,
-            value: formData.amount,
-            dueDate: formData.due_date.toISOString().split('T')[0],
-            billingType: formData.transaction_type.toUpperCase() === 'BOLETO' ? 'BOLETO' : 
-                        formData.transaction_type.toUpperCase() === 'PIX' ? 'PIX' : 'BOLETO',
-            description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
-            externalReference: transaction.id
-          }
+      console.log('💳 Creating charge with customer ID:', asaasCustomerId);
+      
+      const chargeData = {
+        action: 'create_charge',
+        data: {
+          customerId: asaasCustomerId,
+          value: formData.amount,
+          dueDate: formData.due_date.toISOString().split('T')[0],
+          billingType: formData.transaction_type.toUpperCase() === 'BOLETO' ? 'BOLETO' : 
+                      formData.transaction_type.toUpperCase() === 'PIX' ? 'PIX' : 'BOLETO',
+          description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
+          externalReference: transaction.id
         }
+      };
+      
+      console.log('💳 Charge data:', chargeData);
+
+      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke('asaas-integration', {
+        body: chargeData
       });
 
+      console.log('💳 Payment response:', paymentResponse);
+      console.log('💳 Payment error:', paymentError);
+
       if (paymentError) {
-        console.error('Payment error:', paymentError);
+        console.error('❌ Payment error:', paymentError);
         throw new Error(paymentError.message || 'Erro na integração com gateway de pagamento');
       }
 
       if (!paymentResponse?.success) {
-        console.error('Payment response error:', paymentResponse);
+        console.error('❌ Payment response error:', paymentResponse);
         throw new Error(paymentResponse?.error || 'Falha ao gerar cobrança no gateway');
       }
 
       const charge = paymentResponse.charge;
+      console.log('✅ Charge created:', charge);
 
       // Update transaction with gateway response
       const updateData = {
@@ -262,6 +295,8 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         updated_at: new Date().toISOString()
       };
 
+      console.log('🔄 Updating transaction with:', updateData);
+
       await supabase
         .from('payment_transactions')
         .update(updateData)
@@ -270,23 +305,28 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       toast({
         title: "Cobrança gerada",
         description: `${getPaymentTypeLabel(formData.transaction_type)} gerado com sucesso!`
-      })
+      });
+
+      console.log('✅ Payment generation completed successfully');
 
       // Auto-send WhatsApp notification
-      await sendWhatsAppNotification(transaction.client_id, transaction.id, formData.transaction_type, formData.amount)
+      await sendWhatsAppNotification(transaction.client_id, transaction.id, formData.transaction_type, formData.amount);
 
-      onSuccess?.()
+      onSuccess?.();
     } catch (error) {
-      console.error('Error:', error)
+      console.error('💥 DETAILED ERROR:', error);
+      console.error('💥 Error stack:', error.stack);
+      console.error('💥 Error message:', error.message);
+      
       toast({
         title: "Erro",
-        description: "Erro ao gerar cobrança",
+        description: `Erro ao gerar cobrança: ${error.message}`,
         variant: "destructive"
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const sendWhatsAppNotification = async (clientId: string, paymentId: string, type: string, amount: number) => {
     try {
