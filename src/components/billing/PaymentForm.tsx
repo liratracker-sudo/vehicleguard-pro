@@ -105,21 +105,28 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
       if (error) throw error
 
-      // Simulate payment gateway integration
-      const mockResponse = {
-        payment_url: `https://checkout.${formData.payment_gateway}.com/pay/${transaction.id}`,
-        pix_code: formData.transaction_type === 'pix' ? '00020126580014br.gov.bcb.pix013636313739316363' : null,
-        barcode: formData.transaction_type === 'boleto' ? '34191790010104351004791020150008291070026000' : null
-      }
+      // Generate payment using Asaas integration
+      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke('asaas-integration', {
+        body: {
+          action: 'create_payment',
+          customer_id: formData.client_id,
+          value: formData.amount,
+          dueDate: formData.due_date.toISOString().split('T')[0],
+          billingType: formData.transaction_type.toUpperCase(),
+          description: `Cobrança gerada via sistema`
+        }
+      })
+
+      if (paymentError) throw paymentError
 
       // Update transaction with gateway response
       await supabase
         .from('payment_transactions')
         .update({
-          payment_url: mockResponse.payment_url,
-          pix_code: mockResponse.pix_code,
-          barcode: mockResponse.barcode,
-          external_id: `${formData.payment_gateway}_${Date.now()}`
+          payment_url: paymentResponse.invoiceUrl || paymentResponse.bankSlipUrl,
+          pix_code: paymentResponse.pixQrCodeId,
+          barcode: paymentResponse.identificationField,
+          external_id: paymentResponse.id
         })
         .eq('id', transaction.id)
 
@@ -128,7 +135,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         description: `${getPaymentTypeLabel(formData.transaction_type)} gerado com sucesso!`
       })
 
-      // Auto-send WhatsApp notification (autônoma)
+      // Auto-send WhatsApp notification
       await sendWhatsAppNotification(transaction.client_id, transaction.id, formData.transaction_type, formData.amount)
 
       onSuccess?.()
@@ -149,14 +156,11 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       const client = clients.find(c => c.id === clientId)
       if (!client || !client.phone) return
 
-      const message = `Olá ${client.name}! Sua cobrança de R$ ${amount.toFixed(2)} via ${getPaymentTypeLabel(type)} foi gerada. Vencimento: ${format(formData.due_date, 'dd/MM/yyyy')}.`
-
-      // Envio autônomo via Edge Function centralizada
       const { error } = await supabase.functions.invoke('notify-whatsapp', {
         body: {
           client_id: clientId,
           payment_id: paymentId,
-          message,
+          event_type: 'manual',
         }
       })
 
@@ -178,20 +182,20 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
   const getPaymentTypeLabel = (type: string) => {
     switch (type) {
-      case 'boleto': return 'Boleto'
-      case 'pix': return 'PIX'
-      case 'link': return 'Link de Pagamento'
-      case 'card': return 'Cartão'
+      case 'BOLETO': return 'Boleto'
+      case 'PIX': return 'PIX'
+      case 'CREDIT_CARD': return 'Cartão'
+      case 'DEBIT_CARD': return 'Débito'
       default: return type
     }
   }
 
   const getPaymentIcon = (type: string) => {
     switch (type) {
-      case 'boleto': return <Receipt className="h-4 w-4" />
-      case 'pix': return <QrCode className="h-4 w-4" />
-      case 'link': return <Link2 className="h-4 w-4" />
-      case 'card': return <CreditCard className="h-4 w-4" />
+      case 'BOLETO': return <Receipt className="h-4 w-4" />
+      case 'PIX': return <QrCode className="h-4 w-4" />
+      case 'CREDIT_CARD': return <CreditCard className="h-4 w-4" />
+      case 'DEBIT_CARD': return <CreditCard className="h-4 w-4" />
       default: return null
     }
   }
@@ -265,10 +269,10 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                  <SelectItem value="pix">PIX</SelectItem>
-                  <SelectItem value="link">Link de Pagamento</SelectItem>
-                  <SelectItem value="card">Cartão</SelectItem>
+                  <SelectItem value="BOLETO">Boleto Bancário</SelectItem>
+                  <SelectItem value="PIX">PIX</SelectItem>
+                  <SelectItem value="CREDIT_CARD">Cartão de Crédito</SelectItem>
+                  <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -316,7 +320,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {formData.due_date ? (
-                    format(formData.due_date, "PPP")
+                    format(formData.due_date, "dd/MM/yyyy")
                   ) : (
                     <span>Selecione a data</span>
                   )}

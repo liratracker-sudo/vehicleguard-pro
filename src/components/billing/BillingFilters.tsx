@@ -15,10 +15,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Filter, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { format } from "date-fns"
+import { CalendarIcon, Filter, X } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export interface BillingFiltersState {
   search: string;
@@ -125,7 +124,7 @@ export function BillingFilters({
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {filters.dateFrom ? (
-                    format(filters.dateFrom, "dd/MM/yyyy", { locale: ptBR })
+                    format(filters.dateFrom, "dd/MM/yyyy")
                   ) : (
                     "Selecione..."
                   )}
@@ -136,7 +135,6 @@ export function BillingFilters({
                   mode="single"
                   selected={filters.dateFrom}
                   onSelect={(date) => updateFilter('dateFrom', date)}
-                  locale={ptBR}
                   initialFocus
                 />
               </PopoverContent>
@@ -157,7 +155,7 @@ export function BillingFilters({
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {filters.dateTo ? (
-                    format(filters.dateTo, "dd/MM/yyyy", { locale: ptBR })
+                    format(filters.dateTo, "dd/MM/yyyy")
                   ) : (
                     "Selecione..."
                   )}
@@ -168,7 +166,6 @@ export function BillingFilters({
                   mode="single"
                   selected={filters.dateTo}
                   onSelect={(date) => updateFilter('dateTo', date)}
-                  locale={ptBR}
                   initialFocus
                 />
               </PopoverContent>

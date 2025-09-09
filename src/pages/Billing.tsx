@@ -6,6 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, DollarSign, AlertCircle, Calendar, RefreshCw, Zap } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { BillingHistory } from "@/components/billing/BillingHistory"
+import { PaymentForm } from "@/components/billing/PaymentForm"
+import { BillingActions } from "@/components/billing/BillingActions"
+import { BillingFilters, BillingFiltersState } from "@/components/billing/BillingFilters"
+import { usePayments } from "@/hooks/usePayments"
+import { useBillingManagement } from "@/hooks/useBillingManagement"
 import {
   Table,
   TableBody,
@@ -15,46 +21,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Lazy imports para evitar problemas de dependência
-const BillingHistory = () => <div>Histórico em desenvolvimento...</div>
-const PaymentForm = ({ onSuccess, onCancel }: any) => (
-  <div className="p-4">
-    <h3>Formulário de pagamento em desenvolvimento...</h3>
-    <div className="mt-4 space-x-2">
-      <Button onClick={onSuccess}>Simular Sucesso</Button>
-      <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-    </div>
-  </div>
-)
-const BillingActions = ({ payment, onUpdate }: any) => (
-  <div className="space-x-2">
-    <Badge variant="outline">{payment.status}</Badge>
-    <Button size="sm" onClick={onUpdate}>Atualizar</Button>
-  </div>
-)
-const BillingFilters = ({ filters, onFiltersChange, onClearFilters }: any) => (
-  <div className="p-4 border rounded-lg">
-    <p>Filtros em desenvolvimento...</p>
-    <Button variant="outline" onClick={onClearFilters}>Limpar</Button>
-  </div>
-)
-
-// Hook simplificado
-const usePayments = () => ({
-  payments: [],
-  loading: false,
-  loadPayments: () => {}
-})
-
-const useBillingManagement = () => ({
-  loading: false,
-  generateAutomaticCharges: async () => {},
-  getCompanyBalance: async () => ({ total_received: 0, total_pending: 0, total_overdue: 0, total_balance: 0 })
-})
-
 const BillingPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<BillingFiltersState>({
     search: "",
     status: "",
     gateway: "",
