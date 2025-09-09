@@ -46,6 +46,8 @@ Deno.serve(async (req) => {
     const companyId = profile.company_id
 
     switch (action) {
+      case 'save_settings':
+        return await saveSettings(supabaseClient, companyId, data)
       case 'test_connection':
         return await testConnection(supabaseClient, companyId, data)
       case 'create_customer':
@@ -76,6 +78,7 @@ Deno.serve(async (req) => {
 })
 
 async function getAsaasSettings(supabaseClient: any, companyId: string) {
+  await ensureEncryptionKey(supabaseClient)
   const { data: settings } = await supabaseClient
     .from('asaas_settings')
     .select('*')
@@ -172,6 +175,7 @@ async function testConnection(supabaseClient: any, companyId: string, data: any)
       method: 'GET',
       headers: {
         'access_token': settings.api_token,
+        'access-token': settings.api_token,
         'Content-Type': 'application/json'
       }
     })
@@ -237,6 +241,7 @@ async function createCustomer(supabaseClient: any, companyId: string, data: any)
       method: 'POST',
       headers: {
         'access_token': settings.api_token,
+        'access-token': settings.api_token,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(customerData)
@@ -285,6 +290,7 @@ async function createCharge(supabaseClient: any, companyId: string, data: any) {
       method: 'POST',
       headers: {
         'access_token': settings.api_token,
+        'access-token': settings.api_token,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(chargeData)
@@ -319,6 +325,7 @@ async function getCustomer(supabaseClient: any, companyId: string, data: any) {
       method: 'GET',
       headers: {
         'access_token': settings.api_token,
+        'access-token': settings.api_token,
         'Content-Type': 'application/json'
       }
     })
@@ -358,6 +365,7 @@ async function listCharges(supabaseClient: any, companyId: string, data: any) {
       method: 'GET',
       headers: {
         'access_token': settings.api_token,
+        'access-token': settings.api_token,
         'Content-Type': 'application/json'
       }
     })
@@ -379,4 +387,58 @@ async function listCharges(supabaseClient: any, companyId: string, data: any) {
     
     throw error
   }
+}
+
+async function ensureEncryptionKey(supabaseClient: any) {
+  const key = Deno.env.get('EVOLUTION_ENCRYPTION_KEY')
+  if (!key) {
+    console.warn('EVOLUTION_ENCRYPTION_KEY não configurada')
+    return
+  }
+  await supabaseClient.rpc('set_encryption_key_guc', { p_key: key })
+}
+
+async function saveSettings(supabaseClient: any, companyId: string, data: any) {
+  if (!data?.api_token) {
+    return new Response(
+      JSON.stringify({ success: false, message: 'API key é obrigatória' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    )
+  }
+
+  await ensureEncryptionKey(supabaseClient)
+
+  const { data: encryptedToken, error: encErr } = await supabaseClient
+    .rpc('encrypt_asaas_token', { p_token: data.api_token })
+  if (encErr || !encryptedToken) {
+    console.error('Erro ao criptografar token:', encErr)
+    return new Response(
+      JSON.stringify({ success: false, message: 'Falha ao criptografar API key' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    )
+  }
+
+  const { error } = await supabaseClient
+    .from('asaas_settings')
+    .upsert({
+      company_id: companyId,
+      api_token_encrypted: encryptedToken,
+      is_sandbox: data.is_sandbox ?? true,
+      is_active: true,
+      last_test_at: null,
+      test_result: null
+    }, { onConflict: 'company_id' })
+
+  if (error) {
+    console.error('Erro ao salvar asaas_settings:', error)
+    return new Response(
+      JSON.stringify({ success: false, message: 'Falha ao salvar configurações' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, message: 'Configurações salvas com sucesso' }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }

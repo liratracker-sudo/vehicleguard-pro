@@ -879,6 +879,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      set_encryption_key_guc: {
+        Args: { p_key: string }
+        Returns: undefined
+      }
       validate_whatsapp_session: {
         Args: { p_company_id: string }
         Returns: {

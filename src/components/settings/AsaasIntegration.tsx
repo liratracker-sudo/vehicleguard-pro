@@ -87,32 +87,32 @@ export function AsaasIntegration() {
     try {
       setSaving(true)
 
-      // Criptografar token
-      const { data: encryptedToken } = await supabase
-        .rpc('encrypt_asaas_token', { p_token: config.apiToken })
+      // Salvar via Edge Function (criptografia no servidor)
+      const response = await supabase.functions.invoke('asaas-integration', {
+        body: {
+          action: 'save_settings',
+          data: {
+            api_token: config.apiToken.trim(),
+            is_sandbox: config.isSandbox
+          }
+        }
+      })
 
-      if (!encryptedToken) {
-        throw new Error('Erro ao criptografar token')
+      if (response.error) {
+        throw new Error(response.error.message)
       }
 
-      // Salvar configurações
-      const { error } = await supabase
-        .from('asaas_settings')
-        .upsert({
-          company_id: companyId,
-          api_token_encrypted: encryptedToken,
-          is_sandbox: config.isSandbox,
-          is_active: true
-        }, { onConflict: 'company_id' })
-
-      if (error) throw error
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Falha ao salvar configurações')
+      }
 
       toast({ 
         title: "Sucesso", 
         description: "Configurações do Asaas salvas com sucesso!" 
       })
-      
-      setConfig(prev => ({ ...prev, isConfigured: true }))
+
+      setConfig(prev => ({ ...prev, isConfigured: true, apiToken: "••••••••••••••••••••••••••••••••" }))
+      await loadSettings()
       
     } catch (error: any) {
       toast({ 
