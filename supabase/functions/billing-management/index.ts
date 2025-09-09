@@ -118,16 +118,13 @@ serve(async (req) => {
         const paymentUrl = payment.payment_url || payment.pix_code || 'Contacte-nos para obter o link de pagamento';
         const message = `Olá ${payment.clients?.name || 'Cliente'}, lembramos que você tem um pagamento no valor de R$ ${payment.amount} com vencimento em ${payment.due_date}. ${paymentUrl.startsWith('http') ? `Link para pagamento: ${paymentUrl}` : paymentUrl}`;
 
-        // Send notification via WhatsApp with service role authorization
-        const notificationResponse = await supabaseService.functions.invoke('notify-whatsapp', {
+        // Send notification via WhatsApp using the user's JWT (RLS-aware)
+        const notificationResponse = await supabase.functions.invoke('notify-whatsapp', {
           body: {
             client_id: payment.client_id,
             message: message,
             payment_id: payment_id,
             phone: payment.clients?.phone
-          },
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey}`
           }
         });
 
