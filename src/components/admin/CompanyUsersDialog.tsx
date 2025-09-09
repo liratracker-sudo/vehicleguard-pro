@@ -85,10 +85,38 @@ export function CompanyUsersDialog({
       return
     }
 
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newUser.email)) {
+      toast({
+        title: "Erro",
+        description: "Digite um email válido",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validar senha (mínimo 6 caracteres)
+    if (newUser.password.length < 6) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive"
+      })
+      return
+    }
+
     setLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Não autenticado')
+
+      console.log('Creating user with data:', {
+        email: newUser.email,
+        full_name: newUser.full_name,
+        company_id: companyId,
+        role: newUser.role
+      })
 
       const response = await supabase.functions.invoke('admin-user-management', {
         body: {
@@ -104,20 +132,31 @@ export function CompanyUsersDialog({
         }
       })
 
-      if (response.error) throw response.error
+      console.log('Edge function response:', response)
+
+      if (response.error) {
+        console.error('Edge function error:', response.error)
+        throw new Error(response.error.message || 'Erro desconhecido')
+      }
+
+      if (response.data?.error) {
+        console.error('Response error:', response.data.error)
+        throw new Error(response.data.error)
+      }
 
       toast({
         title: "Sucesso",
-        description: "Usuário criado com sucesso! Ele pode fazer login imediatamente."
+        description: response.data?.message || "Usuário criado com sucesso! Ele pode fazer login imediatamente com a senha fornecida."
       })
 
       setNewUser({ email: '', password: '', full_name: '', role: 'admin' })
       setShowCreateForm(false)
       await loadUsers()
     } catch (error: any) {
+      console.error('Create user error:', error)
       toast({
         title: "Erro",
-        description: error.message,
+        description: error.message || "Erro ao criar usuário",
         variant: "destructive"
       })
     } finally {
@@ -238,7 +277,7 @@ export function CompanyUsersDialog({
                   Criar Novo Usuário
                 </CardTitle>
                 <CardDescription>
-                  O usuário poderá fazer login imediatamente, sem confirmação por e-mail
+                  O usuário poderá fazer login imediatamente com email/senha, sem precisar confirmar o email
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
