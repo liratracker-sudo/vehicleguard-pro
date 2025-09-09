@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, data } = await req.json()
+    const { action, data, company_id } = await req.json()
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -67,24 +67,29 @@ Deno.serve(async (req) => {
       }
     )
 
-    // Verificar autenticação
-    const { data: { user } } = await supabaseClient.auth.getUser()
-    if (!user) {
-      throw new Error('Usuário não autenticado')
+    let companyId = company_id
+
+    // If company_id not provided (regular user call), verify authentication
+    if (!company_id) {
+      // Verificar autenticação
+      const { data: { user } } = await supabaseClient.auth.getUser()
+      if (!user) {
+        throw new Error('Usuário não autenticado')
+      }
+
+      // Buscar empresa do usuário
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!profile?.company_id) {
+        throw new Error('Empresa não encontrada')
+      }
+
+      companyId = profile.company_id
     }
-
-    // Buscar empresa do usuário
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('company_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (!profile?.company_id) {
-      throw new Error('Empresa não encontrada')
-    }
-
-    const companyId = profile.company_id
 
     switch (action) {
       case 'save_settings':
@@ -101,6 +106,8 @@ Deno.serve(async (req) => {
         return await listCharges(supabaseClient, companyId, data)
       case 'find_charges_by_cpf':
         return await findChargesByCpf(supabaseClient, companyId, data)
+      case 'get_charge':
+        return await getCharge(supabaseClient, companyId, data)
       default:
         throw new Error('Ação não suportada')
     }
@@ -594,4 +601,42 @@ async function saveSettings(supabaseClient: any, companyId: string, data: any) {
     JSON.stringify({ success: true, message: 'Configurações salvas com sucesso' }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+async function getCharge(supabaseClient: any, companyId: string, data: any) {
+  console.log('Buscando cobrança no Asaas')
+  
+  const settings = await getAsaasSettings(supabaseClient, companyId)
+  
+  if (!data?.chargeId) {
+    throw new Error('ID da cobrança é obrigatório')
+  }
+  
+  try {
+    const responseData = await makeAsaasRequest(`${settings.base_url}/payments/${data.chargeId}`, {
+      method: 'GET',
+      headers: {
+        'access_token': settings.api_token,
+        'access-token': settings.api_token,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    await logAsaasOperation(supabaseClient, companyId, 'get_charge', { chargeId: data.chargeId }, responseData, 'success')
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        charge: responseData
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('Erro ao buscar cobrança:', error)
+    
+    await logAsaasOperation(supabaseClient, companyId, 'get_charge', { chargeId: data.chargeId }, null, 'error', error.message)
+    
+    throw error
+  }
 }

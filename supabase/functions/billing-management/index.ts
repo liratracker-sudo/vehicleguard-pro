@@ -17,10 +17,14 @@ serve(async (req) => {
   }
 
   try {
-    const { action, payment_id, data } = await req.json();
+    const { action, payment_id, data, company_id } = await req.json();
     
     // Create authenticated client
     const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Authorization header missing');
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
@@ -31,18 +35,23 @@ serve(async (req) => {
     // Verify user authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      console.error('Auth error:', authError);
       throw new Error('Unauthorized');
     }
 
-    // Get user's company
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id, role')
-      .eq('user_id', user.id)
-      .single();
+    // Get user's company - use company_id if provided for service calls
+    let userCompanyId = company_id;
+    if (!userCompanyId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id, role')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    if (!profile?.company_id) {
-      throw new Error('Company not found');
+      if (!profile?.company_id) {
+        throw new Error('Company not found');
+      }
+      userCompanyId = profile.company_id;
     }
 
     console.log(`Billing management action: ${action} by user ${user.id}`);
@@ -64,7 +73,7 @@ serve(async (req) => {
             updated_at: new Date().toISOString()
           })
           .eq('id', payment_id)
-          .eq('company_id', profile.company_id);
+          .eq('company_id', userCompanyId);
 
         if (error) throw error;
 
@@ -87,7 +96,7 @@ serve(async (req) => {
             updated_at: new Date().toISOString()
           })
           .eq('id', payment_id)
-          .eq('company_id', profile.company_id);
+          .eq('company_id', userCompanyId);
 
         if (error) throw error;
 
@@ -107,7 +116,7 @@ serve(async (req) => {
           .from('payment_transactions')
           .select('*, clients(*)')
           .eq('id', payment_id)
-          .eq('company_id', profile.company_id)
+          .eq('company_id', userCompanyId)
           .single();
 
         if (paymentError || !payment) {
@@ -161,7 +170,7 @@ serve(async (req) => {
           .from('payment_transactions')
           .select('*')
           .eq('id', payment_id)
-          .eq('company_id', profile.company_id)
+          .eq('company_id', userCompanyId)
           .single();
 
         if (paymentError || !payment) {
@@ -174,7 +183,7 @@ serve(async (req) => {
             const asaasResponse = await supabaseService.functions.invoke('asaas-integration', {
               body: {
                 action: 'get_charge',
-                company_id: profile.company_id,
+                company_id: userCompanyId,
                 data: { chargeId: payment.external_id }
               }
             });
@@ -231,7 +240,7 @@ serve(async (req) => {
         const { data: payments, error: paymentsError } = await supabase
           .from('payment_transactions')
           .select('amount, status, due_date')
-          .eq('company_id', profile.company_id);
+          .eq('company_id', userCompanyId);
 
         if (paymentsError) throw paymentsError;
 
@@ -282,7 +291,7 @@ serve(async (req) => {
           .from('payment_transactions')
           .delete()
           .eq('id', payment_id)
-          .eq('company_id', profile.company_id);
+          .eq('company_id', userCompanyId);
 
         if (error) throw error;
 
