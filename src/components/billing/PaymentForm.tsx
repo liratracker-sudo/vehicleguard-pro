@@ -189,30 +189,83 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
       if (error) throw error
 
+      // First, create or get customer in Asaas
+      const client = clients.find(c => c.id === formData.client_id);
+      if (!client) throw new Error('Cliente não encontrado');
+
+      // Try to create customer in Asaas first
+      let asaasCustomerId;
+      try {
+        const { data: customerResponse, error: customerError } = await supabase.functions.invoke('asaas-integration', {
+          body: {
+            action: 'create_customer',
+            data: {
+              name: client.name,
+              email: client.email,
+              phone: client.phone,
+              document: client.document,
+              externalReference: client.id
+            }
+          }
+        });
+
+        if (customerError) {
+          console.error('Customer creation error:', customerError);
+        }
+
+        if (customerResponse?.success && customerResponse.customer?.id) {
+          asaasCustomerId = customerResponse.customer.id;
+        } else {
+          // If customer creation fails, we'll use the document to search
+          console.log('Using fallback: searching by document');
+          asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
+        }
+      } catch (error) {
+        console.error('Customer handling error:', error);
+        asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
+      }
+
       // Generate payment using Asaas integration
       const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke('asaas-integration', {
         body: {
-          action: 'create_payment',
-          customer_id: formData.client_id,
-          value: formData.amount,
-          dueDate: formData.due_date.toISOString().split('T')[0],
-          billingType: formData.transaction_type.toUpperCase(),
-          description: `Cobrança gerada via sistema`
+          action: 'create_charge',
+          data: {
+            customerId: asaasCustomerId,
+            value: formData.amount,
+            dueDate: formData.due_date.toISOString().split('T')[0],
+            billingType: formData.transaction_type.toUpperCase() === 'BOLETO' ? 'BOLETO' : 
+                        formData.transaction_type.toUpperCase() === 'PIX' ? 'PIX' : 'BOLETO',
+            description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
+            externalReference: transaction.id
+          }
         }
-      })
+      });
 
-      if (paymentError) throw paymentError
+      if (paymentError) {
+        console.error('Payment error:', paymentError);
+        throw new Error(paymentError.message || 'Erro na integração com gateway de pagamento');
+      }
+
+      if (!paymentResponse?.success) {
+        console.error('Payment response error:', paymentResponse);
+        throw new Error(paymentResponse?.error || 'Falha ao gerar cobrança no gateway');
+      }
+
+      const charge = paymentResponse.charge;
 
       // Update transaction with gateway response
+      const updateData = {
+        external_id: charge.id,
+        payment_url: charge.invoiceUrl,
+        barcode: charge.bankSlipUrl,
+        pix_code: charge.pixCode || charge.pixQrCodeId,
+        updated_at: new Date().toISOString()
+      };
+
       await supabase
         .from('payment_transactions')
-        .update({
-          payment_url: paymentResponse.invoiceUrl || paymentResponse.bankSlipUrl,
-          pix_code: paymentResponse.pixQrCodeId,
-          barcode: paymentResponse.identificationField,
-          external_id: paymentResponse.id
-        })
-        .eq('id', transaction.id)
+        .update(updateData)
+        .eq('id', transaction.id);
 
       toast({
         title: "Cobrança gerada",
