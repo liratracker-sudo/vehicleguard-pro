@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Users, Shield, Bell, Plug, MessageSquare, FileText } from "lucide-react"
 import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { AutentiqueIntegration } from "@/components/settings/AutentiqueIntegration"
+import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -44,6 +45,7 @@ const SettingsPage = () => {
             <TabsTrigger value="users">Usuários</TabsTrigger>
             <TabsTrigger value="security">Segurança</TabsTrigger>
             <TabsTrigger value="notifications">Notificações</TabsTrigger>
+            <TabsTrigger value="billing">Cobrança Automática</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="autentique">Autentique</TabsTrigger>
@@ -142,6 +144,10 @@ const SettingsPage = () => {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="billing" className="space-y-6">
+            <BillingNotifications />
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">

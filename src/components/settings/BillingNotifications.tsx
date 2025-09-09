@@ -1,0 +1,412 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Bell, Clock, MessageSquare, Users, Calendar, History } from "lucide-react";
+import { NotificationHistory } from "@/components/billing/NotificationHistory";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+
+interface NotificationSettings {
+  id: string;
+  company_id: string;
+  active: boolean;
+  pre_due_days: number[];
+  on_due: boolean;
+  post_due_days: number[];
+  send_hour: string;
+  template_pre_due: string;
+  template_on_due: string;
+  template_post_due: string;
+}
+
+export function BillingNotifications() {
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"settings" | "history">("settings");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.company_id) {
+        throw new Error('Perfil da empresa não encontrado');
+      }
+
+      const { data, error } = await supabase
+        .from('payment_notification_settings')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        setSettings(data);
+      } else {
+        // Create default settings
+        const defaultSettings = {
+          company_id: profile.company_id,
+          active: true,
+          pre_due_days: [3],
+          on_due: true,
+          post_due_days: [2],
+          send_hour: '09:00',
+          template_pre_due: 'Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}). Pague aqui: {{link_pagamento}}',
+          template_on_due: 'Olá {{cliente}}, seu pagamento de R$ {{valor}} vence hoje ({{vencimento}}). Pague aqui: {{link_pagamento}}',
+          template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}'
+        };
+        
+        const { data: created, error: createError } = await supabase
+          .from('payment_notification_settings')
+          .insert(defaultSettings)
+          .select()
+          .single();
+
+        if (createError) {
+          throw createError;
+        }
+
+        setSettings(created);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar configurações:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao carregar configurações de notificação",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    if (!settings) return;
+
+    try {
+      setSaving(true);
+      
+      const { error } = await supabase
+        .from('payment_notification_settings')
+        .update({
+          active: settings.active,
+          pre_due_days: settings.pre_due_days,
+          on_due: settings.on_due,
+          post_due_days: settings.post_due_days,
+          send_hour: settings.send_hour,
+          template_pre_due: settings.template_pre_due,
+          template_on_due: settings.template_on_due,
+          template_post_due: settings.template_post_due
+        })
+        .eq('id', settings.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Configurações de notificação salvas com sucesso!"
+      });
+    } catch (error: any) {
+      console.error('Erro ao salvar configurações:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao salvar configurações",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePreDueDaysChange = (value: string) => {
+    if (!settings) return;
+    
+    const days = value.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
+    setSettings({ ...settings, pre_due_days: days });
+  };
+
+  const handlePostDueDaysChange = (value: string) => {
+    if (!settings) return;
+    
+    const days = value.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
+    setSettings({ ...settings, post_due_days: days });
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-32 bg-muted rounded animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Erro ao carregar configurações</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Notificações de Cobrança</h2>
+          <p className="text-muted-foreground">
+            Configure o envio automatizado de notificações via WhatsApp
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={activeTab === "settings" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("settings")}
+            >
+              Configurações
+            </Button>
+            <Button
+              variant={activeTab === "history" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("history")}
+            >
+              <History className="h-4 w-4 mr-2" />
+              Histórico
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={settings.active}
+              onCheckedChange={(checked) => setSettings({ ...settings, active: checked })}
+            />
+            <Label>Ativo</Label>
+          </div>
+        </div>
+      </div>
+
+      {activeTab === "history" ? (
+        <NotificationHistory />
+      ) : (
+        <div className="space-y-6">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Antes do Vencimento</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{settings.pre_due_days.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {settings.pre_due_days.join(', ')} dias antes
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">No Vencimento</CardTitle>
+            <Bell className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{settings.on_due ? '1' : '0'}</div>
+            <p className="text-xs text-muted-foreground">
+              {settings.on_due ? 'Ativo' : 'Inativo'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Após Vencimento</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{settings.post_due_days.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {settings.post_due_days.join(', ')} dias depois
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Horário de Envio</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{settings.send_hour}</div>
+            <p className="text-xs text-muted-foreground">Todos os dias</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Configuração de Timing
+          </CardTitle>
+          <CardDescription>
+            Defina quando as notificações devem ser enviadas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="pre_due_days">Dias antes do vencimento</Label>
+              <Input
+                id="pre_due_days"
+                type="text"
+                placeholder="3, 7, 15"
+                value={settings.pre_due_days.join(', ')}
+                onChange={(e) => handlePreDueDaysChange(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Separe os dias por vírgula (ex: 3, 7, 15)
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="on_due"
+                checked={settings.on_due}
+                onCheckedChange={(checked) => setSettings({ ...settings, on_due: checked })}
+              />
+              <Label htmlFor="on_due">Enviar no dia do vencimento</Label>
+            </div>
+
+            <div>
+              <Label htmlFor="post_due_days">Dias após o vencimento</Label>
+              <Input
+                id="post_due_days"
+                type="text"
+                placeholder="2, 5, 10"
+                value={settings.post_due_days.join(', ')}
+                onChange={(e) => handlePostDueDaysChange(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Separe os dias por vírgula (ex: 2, 5, 10)
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="send_hour">Horário de envio</Label>
+            <Input
+              id="send_hour"
+              type="time"
+              value={settings.send_hour}
+              onChange={(e) => setSettings({ ...settings, send_hour: e.target.value })}
+              className="w-40"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Templates de Mensagem
+          </CardTitle>
+          <CardDescription>
+            Personalize as mensagens que serão enviadas aos clientes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="template_pre_due">Mensagem antes do vencimento</Label>
+            <Textarea
+              id="template_pre_due"
+              value={settings.template_pre_due}
+              onChange={(e) => setSettings({ ...settings, template_pre_due: e.target.value })}
+              rows={3}
+            />
+            <div className="flex flex-wrap gap-1">
+              <Badge variant="secondary">{"{{cliente}}"}</Badge>
+              <Badge variant="secondary">{"{{valor}}"}</Badge>
+              <Badge variant="secondary">{"{{dias}}"}</Badge>
+              <Badge variant="secondary">{"{{vencimento}}"}</Badge>
+              <Badge variant="secondary">{"{{link_pagamento}}"}</Badge>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label htmlFor="template_on_due">Mensagem no vencimento</Label>
+            <Textarea
+              id="template_on_due"
+              value={settings.template_on_due}
+              onChange={(e) => setSettings({ ...settings, template_on_due: e.target.value })}
+              rows={3}
+            />
+            <div className="flex flex-wrap gap-1">
+              <Badge variant="secondary">{"{{cliente}}"}</Badge>
+              <Badge variant="secondary">{"{{valor}}"}</Badge>
+              <Badge variant="secondary">{"{{vencimento}}"}</Badge>
+              <Badge variant="secondary">{"{{link_pagamento}}"}</Badge>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label htmlFor="template_post_due">Mensagem após vencimento</Label>
+            <Textarea
+              id="template_post_due"
+              value={settings.template_post_due}
+              onChange={(e) => setSettings({ ...settings, template_post_due: e.target.value })}
+              rows={3}
+            />
+            <div className="flex flex-wrap gap-1">
+              <Badge variant="secondary">{"{{cliente}}"}</Badge>
+              <Badge variant="secondary">{"{{valor}}"}</Badge>
+              <Badge variant="secondary">{"{{dias}}"}</Badge>
+              <Badge variant="secondary">{"{{vencimento}}"}</Badge>
+              <Badge variant="secondary">{"{{link_pagamento}}"}</Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+          <div className="flex justify-end">
+            <Button onClick={saveSettings} disabled={saving}>
+              {saving ? "Salvando..." : "Salvar Configurações"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

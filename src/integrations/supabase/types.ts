@@ -300,6 +300,132 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_notification_settings: {
+        Row: {
+          active: boolean
+          company_id: string
+          created_at: string
+          id: string
+          on_due: boolean
+          post_due_days: number[]
+          pre_due_days: number[]
+          send_hour: string
+          template_on_due: string
+          template_post_due: string
+          template_pre_due: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          company_id: string
+          created_at?: string
+          id?: string
+          on_due?: boolean
+          post_due_days?: number[]
+          pre_due_days?: number[]
+          send_hour?: string
+          template_on_due?: string
+          template_post_due?: string
+          template_pre_due?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          on_due?: boolean
+          post_due_days?: number[]
+          pre_due_days?: number[]
+          send_hour?: string
+          template_on_due?: string
+          template_post_due?: string
+          template_pre_due?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_notification_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_notifications: {
+        Row: {
+          attempts: number
+          client_id: string
+          company_id: string
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          message_body: string | null
+          offset_days: number
+          payment_id: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          client_id: string
+          company_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          message_body?: string | null
+          offset_days: number
+          payment_id: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          client_id?: string
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          message_body?: string | null
+          offset_days?: number
+          payment_id?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_notifications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_notifications_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_transactions: {
         Row: {
           amount: number
