@@ -99,11 +99,39 @@ serve(async (req) => {
     }
 
     if (!webhookSettings) {
-      console.error('Token de webhook inválido:', authToken);
-      return new Response(
-        JSON.stringify({ error: 'Token de webhook inválido' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Fallback: empresa sem token configurado ou token divergente, autorizar via payment.id
+      try {
+        if (!webhookData) {
+          webhookData = await req.json();
+        }
+      } catch(_) {}
+      const paymentId = webhookData?.payment?.id;
+      if (paymentId) {
+        const { data: tx } = await supabase
+          .from('payment_transactions')
+          .select('company_id')
+          .eq('external_id', paymentId)
+          .single();
+        if (tx?.company_id) {
+          const { data: s } = await supabase
+            .from('asaas_settings')
+            .select('company_id, webhook_auth_token, webhook_enabled')
+            .eq('company_id', tx.company_id)
+            .eq('webhook_enabled', true)
+            .maybeSingle();
+          if (s && (!s.webhook_auth_token || s.webhook_auth_token === authToken)) {
+            webhookSettings = { company_id: tx.company_id };
+          }
+        }
+      }
+
+      if (!webhookSettings) {
+        console.error('Token de webhook inválido:', authToken);
+        return new Response(
+          JSON.stringify({ error: 'Token de webhook inválido' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Find the payment transaction by external_id (Asaas payment ID)
