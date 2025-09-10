@@ -98,6 +98,8 @@ Deno.serve(async (req) => {
         return await testConnection(supabaseClient, companyId, data)
       case 'setup_webhook':
         return await setupWebhook(supabaseClient, companyId, data)
+      case 'save_webhook_token':
+        return await saveWebhookToken(supabaseClient, companyId, data)
       case 'create_customer':
         return await createCustomer(supabaseClient, companyId, data)
       case 'create_charge':
@@ -601,6 +603,40 @@ async function saveSettings(supabaseClient: any, companyId: string, data: any) {
 
   return new Response(
     JSON.stringify({ success: true, message: 'Configurações salvas com sucesso' }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function saveWebhookToken(supabaseClient: any, companyId: string, data: any) {
+  const token = String(data?.webhook_auth_token || '').trim()
+  if (!token) {
+    return new Response(
+      JSON.stringify({ success: false, message: 'Token do webhook é obrigatório' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const webhookUrl = `https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/asaas-webhook`
+
+  const { error } = await supabaseClient
+    .from('asaas_settings')
+    .update({
+      webhook_auth_token: token,
+      webhook_enabled: true,
+      webhook_url: webhookUrl
+    })
+    .eq('company_id', companyId)
+
+  if (error) {
+    console.error('Erro ao salvar token do webhook:', error)
+    return new Response(
+      JSON.stringify({ success: false, message: 'Falha ao salvar token do webhook' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, message: 'Token do webhook salvo com sucesso' }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }

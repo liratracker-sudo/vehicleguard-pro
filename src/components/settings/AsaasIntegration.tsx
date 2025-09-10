@@ -244,6 +244,26 @@ export function AsaasIntegration() {
     }
   }
 
+  const handleSaveWebhookToken = async () => {
+    if (!config.webhookToken.trim()) {
+      toast({ title: 'Erro', description: 'Informe um token para salvar', variant: 'destructive' })
+      return
+    }
+    try {
+      const response = await supabase.functions.invoke('asaas-integration', {
+        body: {
+          action: 'save_webhook_token',
+          data: { webhook_auth_token: config.webhookToken.trim() }
+        }
+      })
+      if (response.error) throw new Error(response.error.message)
+      if (!response.data?.success) throw new Error(response.data?.message || 'Falha ao salvar token')
+      toast({ title: 'Sucesso', description: 'Token do webhook salvo' })
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -332,6 +352,21 @@ export function AsaasIntegration() {
               <p className="text-xs text-muted-foreground mt-1">
                 Se deixar em branco, geraremos um token automaticamente ao configurar o webhook.
               </p>
+
+              <div className="flex gap-2 mt-3">
+                <Button variant="outline" onClick={handleSaveWebhookToken}>Salvar Token do Webhook</Button>
+                <Button variant="secondary" onClick={handleSetupWebhook} disabled={settingWebhook || !config.isConfigured}>
+                  {settingWebhook ? 'Configurando...' : 'Configurar Webhook no Asaas'}
+                </Button>
+              </div>
+
+              <div className="mt-3 text-xs text-muted-foreground">
+                URL do webhook para configurar no Asaas:
+                <div className="mt-1 font-mono select-all">
+                  https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/asaas-webhook
+                </div>
+                <div className="mt-1">Observação: "/functions/v1" é do Supabase e não da API do Asaas.</div>
+              </div>
             </div>
           </div>
 
@@ -346,15 +381,6 @@ export function AsaasIntegration() {
             >
               {testing ? "Testando..." : "Testar Conexão"}
             </Button>
-            {config.isConfigured && (
-              <Button 
-                onClick={handleSetupWebhook} 
-                disabled={settingWebhook || webhookConfigured} 
-                variant={webhookConfigured ? "default" : "secondary"}
-              >
-                {settingWebhook ? "Configurando..." : webhookConfigured ? "Webhook Ativo" : "Configurar Webhook"}
-              </Button>
-            )}
           </div>
 
           <div className="pt-4 border-t">

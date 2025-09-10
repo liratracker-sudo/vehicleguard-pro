@@ -12,7 +12,7 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const ASAAS_API_BASE = "https://api.asaas.com/v3";
-const ASAAS_SANDBOX_BASE = "https://sandbox.asaas.com/api/v3";
+const ASAAS_SANDBOX_BASE = "https://api-sandbox.asaas.com/v3";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -85,6 +85,7 @@ serve(async (req) => {
             const response = await fetch(`${baseUrl}/payments/${payment.external_id}`, {
               headers: {
                 'access_token': decryptedToken,
+                'access-token': decryptedToken,
                 'Content-Type': 'application/json'
               }
             });
