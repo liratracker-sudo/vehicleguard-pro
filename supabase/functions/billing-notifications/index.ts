@@ -74,6 +74,13 @@ async function sendPendingNotifications() {
 
   for (const notification of pendingNotifications || []) {
     try {
+      // Get notification settings for the company to use retry settings
+      const { data: notificationSettings } = await supabase
+        .from('payment_notification_settings')
+        .select('max_attempts_per_notification, retry_interval_hours')
+        .eq('company_id', notification.company_id)
+        .single();
+
       await sendSingleNotification(notification);
       
       // Mark as sent with retry limit
@@ -90,9 +97,18 @@ async function sendPendingNotifications() {
     } catch (error) {
       console.error(`Failed to send notification ${notification.id}:`, error);
       
+      // Get notification settings for retry logic
+      const { data: notificationSettings } = await supabase
+        .from('payment_notification_settings')
+        .select('max_attempts_per_notification, retry_interval_hours')
+        .eq('company_id', notification.company_id)
+        .single();
+      
       // Update attempts and mark as failed if too many attempts
       const newAttempts = notification.attempts + 1;
-      const status = newAttempts >= 3 ? 'failed' : 'pending';
+      const maxAttempts = notificationSettings?.max_attempts_per_notification || 3;
+      const retryInterval = notificationSettings?.retry_interval_hours || 1;
+      const status = newAttempts >= maxAttempts ? 'failed' : 'pending';
       
       await supabase
         .from('payment_notifications')
@@ -100,9 +116,9 @@ async function sendPendingNotifications() {
           status,
           attempts: newAttempts,
           last_error: error.message,
-          // Reschedule for 1 hour later if not failed
+          // Reschedule based on retry_interval_hours if not failed
           scheduled_for: status === 'pending' 
-            ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
+            ? new Date(Date.now() + retryInterval * 60 * 60 * 1000).toISOString()
             : notification.scheduled_for
         })
         .eq('id', notification.id);
@@ -284,20 +300,33 @@ async function createNotificationsForCompany(settings: any) {
       });
     }
 
-    // On-due notification
-    if (settings.on_due && !existingKeys.has('on_due_0')) {
-      const scheduledDate = new Date(dueDate);
-      scheduledDate.setHours(parseInt(settings.send_hour.split(':')[0]), parseInt(settings.send_hour.split(':')[1]), 0, 0);
+    // On-due notifications (múltiplos disparos no dia do vencimento)
+    if (settings.on_due) {
+      const onDueTimes = settings.on_due_times || 1;
+      const intervalHours = settings.on_due_interval_hours || 2;
       
-      notifications.push({
-        company_id: settings.company_id,
-        payment_id: payment.id,
-        client_id: payment.client_id,
-        event_type: 'on_due',
-        offset_days: 0,
-        scheduled_for: scheduledDate.toISOString(),
-        status: scheduledDate <= now ? 'pending' : 'pending'
-      });
+      for (let i = 0; i < onDueTimes; i++) {
+        const key = `on_due_${i}`;
+        if (existingKeys.has(key)) continue;
+        
+        const scheduledDate = new Date(dueDate);
+        scheduledDate.setHours(parseInt(settings.send_hour.split(':')[0]), parseInt(settings.send_hour.split(':')[1]), 0, 0);
+        
+        // Adicionar intervalo para disparos subsequentes
+        if (i > 0) {
+          scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
+        }
+        
+        notifications.push({
+          company_id: settings.company_id,
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          event_type: 'on_due',
+          offset_days: i, // Usando offset_days para identificar o número do disparo
+          scheduled_for: scheduledDate.toISOString(),
+          status: scheduledDate <= now ? 'pending' : 'pending'
+        });
+      }
     }
 
     // Post-due notifications

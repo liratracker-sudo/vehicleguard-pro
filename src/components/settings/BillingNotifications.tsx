@@ -23,6 +23,10 @@ interface NotificationSettings {
   template_pre_due: string;
   template_on_due: string;
   template_post_due: string;
+  on_due_times: number;
+  on_due_interval_hours: number;
+  max_attempts_per_notification: number;
+  retry_interval_hours: number;
 }
 
 export function BillingNotifications() {
@@ -78,7 +82,11 @@ export function BillingNotifications() {
           send_hour: '09:00',
           template_pre_due: 'Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}). Pague aqui: {{link_pagamento}}',
           template_on_due: 'Olá {{cliente}}, seu pagamento de R$ {{valor}} vence hoje ({{vencimento}}). Pague aqui: {{link_pagamento}}',
-          template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}'
+          template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}',
+          on_due_times: 1,
+          on_due_interval_hours: 2,
+          max_attempts_per_notification: 3,
+          retry_interval_hours: 1
         };
         
         const { data: created, error: createError } = await supabase
@@ -111,7 +119,7 @@ export function BillingNotifications() {
     try {
       setSaving(true);
       
-      const { error } = await supabase
+        const { error } = await supabase
         .from('payment_notification_settings')
         .update({
           active: settings.active,
@@ -121,7 +129,11 @@ export function BillingNotifications() {
           send_hour: settings.send_hour,
           template_pre_due: settings.template_pre_due,
           template_on_due: settings.template_on_due,
-          template_post_due: settings.template_post_due
+          template_post_due: settings.template_post_due,
+          on_due_times: settings.on_due_times,
+          on_due_interval_hours: settings.on_due_interval_hours,
+          max_attempts_per_notification: settings.max_attempts_per_notification,
+          retry_interval_hours: settings.retry_interval_hours
         })
         .eq('id', settings.id);
 
@@ -238,9 +250,9 @@ export function BillingNotifications() {
             <Bell className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{settings.on_due ? '1' : '0'}</div>
+            <div className="text-2xl font-bold">{settings.on_due ? settings.on_due_times : '0'}</div>
             <p className="text-xs text-muted-foreground">
-              {settings.on_due ? 'Ativo' : 'Inativo'}
+              {settings.on_due ? `${settings.on_due_times}x a cada ${settings.on_due_interval_hours}h` : 'Inativo'}
             </p>
           </CardContent>
         </Card>
@@ -296,13 +308,42 @@ export function BillingNotifications() {
               </p>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="on_due"
-                checked={settings.on_due}
-                onCheckedChange={(checked) => setSettings({ ...settings, on_due: checked })}
-              />
-              <Label htmlFor="on_due">Enviar no dia do vencimento</Label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="on_due"
+                  checked={settings.on_due}
+                  onCheckedChange={(checked) => setSettings({ ...settings, on_due: checked })}
+                />
+                <Label htmlFor="on_due">Enviar no dia do vencimento</Label>
+              </div>
+              
+              {settings.on_due && (
+                <div className="grid grid-cols-2 gap-2 ml-6">
+                  <div>
+                    <Label htmlFor="on_due_times">Quantidade de disparos</Label>
+                    <Input
+                      id="on_due_times"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={settings.on_due_times}
+                      onChange={(e) => setSettings({ ...settings, on_due_times: parseInt(e.target.value) || 1 })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="on_due_interval_hours">Intervalo (horas)</Label>
+                    <Input
+                      id="on_due_interval_hours"
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={settings.on_due_interval_hours}
+                      onChange={(e) => setSettings({ ...settings, on_due_interval_hours: parseInt(e.target.value) || 2 })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -320,15 +361,40 @@ export function BillingNotifications() {
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="send_hour">Horário de envio</Label>
-            <Input
-              id="send_hour"
-              type="time"
-              value={settings.send_hour}
-              onChange={(e) => setSettings({ ...settings, send_hour: e.target.value })}
-              className="w-40"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="send_hour">Horário de envio</Label>
+              <Input
+                id="send_hour"
+                type="time"
+                value={settings.send_hour}
+                onChange={(e) => setSettings({ ...settings, send_hour: e.target.value })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="max_attempts">Máx. tentativas por notificação</Label>
+              <Input
+                id="max_attempts"
+                type="number"
+                min="1"
+                max="10"
+                value={settings.max_attempts_per_notification}
+                onChange={(e) => setSettings({ ...settings, max_attempts_per_notification: parseInt(e.target.value) || 3 })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="retry_interval">Intervalo de nova tentativa (h)</Label>
+              <Input
+                id="retry_interval"
+                type="number"
+                min="1"
+                max="24"
+                value={settings.retry_interval_hours}
+                onChange={(e) => setSettings({ ...settings, retry_interval_hours: parseInt(e.target.value) || 1 })}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
