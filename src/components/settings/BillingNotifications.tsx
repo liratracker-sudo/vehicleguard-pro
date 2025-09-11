@@ -119,7 +119,16 @@ export function BillingNotifications() {
     try {
       setSaving(true);
       
-        const { error } = await supabase
+      // Validate required fields
+      if (settings.pre_due_days.length === 0 && !settings.on_due && settings.post_due_days.length === 0) {
+        throw new Error('Configure pelo menos um tipo de notificação');
+      }
+
+      if (settings.on_due && (!settings.on_due_times || settings.on_due_times < 1)) {
+        throw new Error('Quantidade de disparos deve ser pelo menos 1');
+      }
+
+      const { error } = await supabase
         .from('payment_notification_settings')
         .update({
           active: settings.active,
@@ -133,13 +142,17 @@ export function BillingNotifications() {
           on_due_times: settings.on_due_times,
           on_due_interval_hours: settings.on_due_interval_hours,
           max_attempts_per_notification: settings.max_attempts_per_notification,
-          retry_interval_hours: settings.retry_interval_hours
+          retry_interval_hours: settings.retry_interval_hours,
+          updated_at: new Date().toISOString()
         })
         .eq('id', settings.id);
 
       if (error) {
         throw error;
       }
+
+      // Reload settings to ensure sync
+      await loadSettings();
 
       toast({
         title: "Sucesso",
@@ -160,14 +173,22 @@ export function BillingNotifications() {
   const handlePreDueDaysChange = (value: string) => {
     if (!settings) return;
     
-    const days = value.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
+    const days = value.split(',')
+      .map(d => parseInt(d.trim()))
+      .filter(d => !isNaN(d) && d > 0 && d <= 30)
+      .sort((a, b) => a - b);
+    
     setSettings({ ...settings, pre_due_days: days });
   };
 
   const handlePostDueDaysChange = (value: string) => {
     if (!settings) return;
     
-    const days = value.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
+    const days = value.split(',')
+      .map(d => parseInt(d.trim()))
+      .filter(d => !isNaN(d) && d > 0 && d <= 30)
+      .sort((a, b) => a - b);
+    
     setSettings({ ...settings, post_due_days: days });
   };
 
@@ -328,7 +349,10 @@ export function BillingNotifications() {
                       min="1"
                       max="10"
                       value={settings.on_due_times}
-                      onChange={(e) => setSettings({ ...settings, on_due_times: parseInt(e.target.value) || 1 })}
+                      onChange={(e) => {
+                        const value = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+                        setSettings({ ...settings, on_due_times: value });
+                      }}
                     />
                   </div>
                   <div>
@@ -339,7 +363,10 @@ export function BillingNotifications() {
                       min="1"
                       max="12"
                       value={settings.on_due_interval_hours}
-                      onChange={(e) => setSettings({ ...settings, on_due_interval_hours: parseInt(e.target.value) || 2 })}
+                      onChange={(e) => {
+                        const value = Math.max(1, Math.min(12, parseInt(e.target.value) || 2));
+                        setSettings({ ...settings, on_due_interval_hours: value });
+                      }}
                     />
                   </div>
                 </div>
@@ -380,7 +407,10 @@ export function BillingNotifications() {
                 min="1"
                 max="10"
                 value={settings.max_attempts_per_notification}
-                onChange={(e) => setSettings({ ...settings, max_attempts_per_notification: parseInt(e.target.value) || 3 })}
+                onChange={(e) => {
+                  const value = Math.max(1, Math.min(10, parseInt(e.target.value) || 3));
+                  setSettings({ ...settings, max_attempts_per_notification: value });
+                }}
               />
             </div>
             
@@ -392,7 +422,10 @@ export function BillingNotifications() {
                 min="1"
                 max="24"
                 value={settings.retry_interval_hours}
-                onChange={(e) => setSettings({ ...settings, retry_interval_hours: parseInt(e.target.value) || 1 })}
+                onChange={(e) => {
+                  const value = Math.max(1, Math.min(24, parseInt(e.target.value) || 1));
+                  setSettings({ ...settings, retry_interval_hours: value });
+                }}
               />
             </div>
           </div>
