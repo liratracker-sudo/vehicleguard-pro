@@ -651,9 +651,13 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          max_attempts_per_notification: number | null
           on_due: boolean
+          on_due_interval_hours: number | null
+          on_due_times: number | null
           post_due_days: number[]
           pre_due_days: number[]
+          retry_interval_hours: number | null
           send_hour: string
           template_on_due: string
           template_post_due: string
@@ -665,9 +669,13 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          max_attempts_per_notification?: number | null
           on_due?: boolean
+          on_due_interval_hours?: number | null
+          on_due_times?: number | null
           post_due_days?: number[]
           pre_due_days?: number[]
+          retry_interval_hours?: number | null
           send_hour?: string
           template_on_due?: string
           template_post_due?: string
@@ -679,9 +687,13 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          max_attempts_per_notification?: number | null
           on_due?: boolean
+          on_due_interval_hours?: number | null
+          on_due_times?: number | null
           post_due_days?: number[]
           pre_due_days?: number[]
+          retry_interval_hours?: number | null
           send_hour?: string
           template_on_due?: string
           template_post_due?: string
