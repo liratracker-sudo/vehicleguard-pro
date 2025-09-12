@@ -15,6 +15,7 @@ export interface Contract {
   contract_type: string;
   signature_status: string;
   document_url: string | null;
+  assinafy_document_id: string | null;
   autentique_document_id: string | null;
   signed_at: string | null;
   created_at: string;
@@ -23,9 +24,13 @@ export interface Contract {
   clients?: {
     name: string;
     phone: string;
+    email: string;
+    document?: string;
   } | null;
   plans?: {
     name: string;
+    description?: string;
+    price: number;
   } | null;
   vehicles?: {
     license_plate: string;
@@ -74,11 +79,11 @@ export function useContracts() {
       const [clientsData, plansData, vehiclesData] = await Promise.all([
         supabase
           .from('clients')
-          .select('id, name, phone')
+          .select('id, name, phone, email, document')
           .eq('company_id', profile.company_id),
         supabase
           .from('plans')
-          .select('id, name')
+          .select('id, name, description, price')
           .eq('company_id', profile.company_id),
         supabase
           .from('vehicles')
@@ -243,7 +248,7 @@ export function useContracts() {
       // Get client details
       const { data: client } = await supabase
         .from('clients')
-        .select('name, email, phone')
+        .select('name, email, phone, document')
         .eq('id', contract.client_id)
         .single()
 
@@ -260,47 +265,45 @@ export function useContracts() {
       // Get plan details  
       const { data: plan } = await supabase
         .from('plans')
-        .select('name')
+        .select('name, description, price')
         .eq('id', contract.plan_id)
         .single()
 
-      // Call Autentique integration
-      console.log('Chamando API Autentique para criar documento...')
+      // Call Assinafy integration
+      console.log('Chamando API Assinafy para criar documento...')
       
-      const response = await supabase.functions.invoke('autentique-integration', {
+      const response = await supabase.functions.invoke('assinafy-integration', {
         body: {
-          action: 'create_document',
-          contractData: {
-            client_name: client.name,
-            client_email: client.email,
-            client_phone: client.phone || '',
-            contract_title: `Contrato ${contract.id.substring(0, 8)} - ${client.name}`,
-            contract_content: generateContractContent(contract, client, plan)
-          }
+          action: 'createDocument',
+          client_name: client.name,
+          client_email: client.email,
+          client_cpf: client.document,
+          content: generateContractContent(contract, client, plan),
+          title: `Contrato ${contract.id.substring(0, 8)} - ${client.name}`
         }
       })
 
-      console.log('Resposta da API Autentique:', response)
+      console.log('Resposta da API Assinafy:', response)
 
       if (response.error) {
         console.error('Erro na edge function:', response.error)
-        throw new Error(`Erro ao conectar com Autentique: ${response.error.message}`)
+        throw new Error(`Erro ao conectar com Assinafy: ${response.error.message}`)
       }
 
       if (!response.data?.success) {
-        console.error('Erro retornado pela API Autentique:', response.data)
-        throw new Error(response.data?.error || 'Erro ao criar documento no Autentique. Verifique se o token da API está configurado corretamente.')
+        console.error('Erro retornado pela API Assinafy:', response.data)
+        throw new Error(response.data?.error || 'Erro ao criar documento no Assinafy. Verifique se a chave da API está configurada corretamente.')
       }
 
-      const documentId = response.data.document.id
+      const documentId = response.data.document_id
       console.log('Documento criado com sucesso. ID:', documentId)
 
-      // Update contract with Autentique document ID
+      // Update contract with Assinafy document ID
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
           signature_status: 'pending',
-          autentique_document_id: documentId
+          assinafy_document_id: documentId
         })
         .eq('id', contractId)
 
@@ -333,8 +336,10 @@ CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 CONTRATANTE: ${client.name}
 E-mail: ${client.email}
 Telefone: ${client.phone}
+${client.document ? `CPF/CNPJ: ${client.document}` : ''}
 
 PLANO: ${plan?.name || 'Não especificado'}
+${plan?.description ? `DESCRIÇÃO: ${plan.description}` : ''}
 VALOR MENSAL: R$ ${contract.monthly_value.toFixed(2)}
 
 ${contract.vehicles ? `VEÍCULO: ${contract.vehicles.license_plate} - ${contract.vehicles.brand} ${contract.vehicles.model}` : ''}

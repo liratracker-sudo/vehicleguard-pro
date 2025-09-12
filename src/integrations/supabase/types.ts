@@ -167,6 +167,8 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          assinafy_api_key: string | null
+          assinafy_workspace_id: string | null
           created_at: string
           domain: string | null
           email: string | null
@@ -183,6 +185,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          assinafy_api_key?: string | null
+          assinafy_workspace_id?: string | null
           created_at?: string
           domain?: string | null
           email?: string | null
@@ -199,6 +203,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          assinafy_api_key?: string | null
+          assinafy_workspace_id?: string | null
           created_at?: string
           domain?: string | null
           email?: string | null
@@ -459,6 +465,7 @@ export type Database = {
       }
       contracts: {
         Row: {
+          assinafy_document_id: string | null
           autentique_document_id: string | null
           client_id: string
           company_id: string
@@ -477,6 +484,7 @@ export type Database = {
           vehicle_id: string | null
         }
         Insert: {
+          assinafy_document_id?: string | null
           autentique_document_id?: string | null
           client_id: string
           company_id: string
@@ -495,6 +503,7 @@ export type Database = {
           vehicle_id?: string | null
         }
         Update: {
+          assinafy_document_id?: string | null
           autentique_document_id?: string | null
           client_id?: string
           company_id?: string

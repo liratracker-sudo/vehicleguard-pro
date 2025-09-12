@@ -210,9 +210,9 @@ const SettingsPage = () => {
             <WhatsAppIntegration />
           </TabsContent>
 
-          <TabsContent value="autentique" className="space-y-6">
-            <AutentiqueIntegration />
-          </TabsContent>
+            <TabsContent value="assinafy" className="space-y-6">
+              <AssinafyIntegration />
+            </TabsContent>
 
           <TabsContent value="asaas" className="space-y-6">
             <AsaasIntegration />
