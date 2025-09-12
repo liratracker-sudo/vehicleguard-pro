@@ -70,6 +70,14 @@ const ContractsPage = () => {
     }
   }
 
+  const handleViewDocument = (contract: any) => {
+    if (contract.document_url) {
+      window.open(contract.document_url, '_blank')
+    } else {
+      alert('Documento não disponível')
+    }
+  }
+
   const handleEdit = (contractId: string) => {
     setEditingContract(contractId)
     setShowForm(true)
@@ -257,9 +265,9 @@ const ContractsPage = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleViewDocument(contract)}>
                                 <Eye className="mr-2 h-4 w-4" />
-                                Ver detalhes
+                                {contract.signature_status === 'signed' ? 'Ver documento' : 'Acessar para assinar'}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleEdit(contract.id)}>
                                 <Edit className="mr-2 h-4 w-4" />

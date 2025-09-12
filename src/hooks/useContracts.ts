@@ -296,14 +296,16 @@ export function useContracts() {
       }
 
       const documentId = response.data.document_id
+      const signingUrl = response.data.signing_url
       console.log('Documento criado com sucesso. ID:', documentId)
 
-      // Update contract with Assinafy document ID
+      // Update contract with Assinafy document ID and signing URL
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
           signature_status: 'pending',
-          assinafy_document_id: documentId
+          assinafy_document_id: documentId,
+          document_url: signingUrl
         })
         .eq('id', contractId)
 

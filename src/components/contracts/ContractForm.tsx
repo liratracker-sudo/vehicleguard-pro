@@ -193,12 +193,13 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         throw new Error(response.data?.error || 'Erro ao criar documento no Assinafy')
       }
 
-      // Update contract with Assinafy document ID
+      // Update contract with Assinafy document ID and signing URL
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
           signature_status: 'pending',
-          assinafy_document_id: response.data.document_id
+          assinafy_document_id: response.data.document_id,
+          document_url: response.data.signing_url
         })
         .eq('id', contractId)
 
