@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Settings, MessageSquare } from "lucide-react";
+import { Settings, MessageSquare, Plus, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface NotificationSettings {
@@ -36,41 +36,55 @@ interface BillingNotificationsModalProps {
 
 export function BillingNotificationsModal({ settings, onSave, saving }: BillingNotificationsModalProps) {
   const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
-  const [preDueInput, setPreDueInput] = useState(settings.pre_due_days.join(', '));
-  const [postDueInput, setPostDueInput] = useState(settings.post_due_days.join(', '));
   const [open, setOpen] = useState(false);
+  const [newPreDay, setNewPreDay] = useState('');
+  const [newPostDay, setNewPostDay] = useState('');
 
-  // Sync inputs when settings change or modal opens
+  // Sync settings when modal opens
   React.useEffect(() => {
     setLocalSettings(settings);
-    setPreDueInput(settings.pre_due_days.join(', '));
-    setPostDueInput(settings.post_due_days.join(', '));
   }, [settings, open]);
 
-  const handlePreDueDaysChange = (value: string) => {
-    console.log('Pre-due input value:', value);
-    setPreDueInput(value); // Update input state immediately
-    
-    const days = value.split(',')
-      .map(d => parseInt(d.trim()))
-      .filter(d => !isNaN(d) && d > 0 && d <= 30)
-      .sort((a, b) => a - b);
-    
-    console.log('Parsed pre-due days:', days);
-    setLocalSettings({ ...localSettings, pre_due_days: days });
+  const addPreDueDay = () => {
+    const day = parseInt(newPreDay);
+    if (!isNaN(day) && day > 0 && day <= 30 && !localSettings.pre_due_days.includes(day)) {
+      const updatedDays = [...localSettings.pre_due_days, day].sort((a, b) => a - b);
+      setLocalSettings({ ...localSettings, pre_due_days: updatedDays });
+      setNewPreDay('');
+    }
   };
 
-  const handlePostDueDaysChange = (value: string) => {
-    console.log('Post-due input value:', value);
-    setPostDueInput(value); // Update input state immediately
-    
-    const days = value.split(',')
-      .map(d => parseInt(d.trim()))
-      .filter(d => !isNaN(d) && d > 0 && d <= 30)
-      .sort((a, b) => a - b);
-    
-    console.log('Parsed post-due days:', days);
-    setLocalSettings({ ...localSettings, post_due_days: days });
+  const removePreDueDay = (dayToRemove: number) => {
+    const updatedDays = localSettings.pre_due_days.filter(day => day !== dayToRemove);
+    setLocalSettings({ ...localSettings, pre_due_days: updatedDays });
+  };
+
+  const addPostDueDay = () => {
+    const day = parseInt(newPostDay);
+    if (!isNaN(day) && day > 0 && day <= 30 && !localSettings.post_due_days.includes(day)) {
+      const updatedDays = [...localSettings.post_due_days, day].sort((a, b) => a - b);
+      setLocalSettings({ ...localSettings, post_due_days: updatedDays });
+      setNewPostDay('');
+    }
+  };
+
+  const removePostDueDay = (dayToRemove: number) => {
+    const updatedDays = localSettings.post_due_days.filter(day => day !== dayToRemove);
+    setLocalSettings({ ...localSettings, post_due_days: updatedDays });
+  };
+
+  const addQuickDay = (days: number[], type: 'pre' | 'post', day: number) => {
+    if (type === 'pre') {
+      if (!localSettings.pre_due_days.includes(day)) {
+        const updatedDays = [...localSettings.pre_due_days, day].sort((a, b) => a - b);
+        setLocalSettings({ ...localSettings, pre_due_days: updatedDays });
+      }
+    } else {
+      if (!localSettings.post_due_days.includes(day)) {
+        const updatedDays = [...localSettings.post_due_days, day].sort((a, b) => a - b);
+        setLocalSettings({ ...localSettings, post_due_days: updatedDays });
+      }
+    }
   };
 
   const handleSave = () => {
@@ -107,18 +121,65 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="pre_due_days">Dias antes do vencimento</Label>
-                  <Input
-                    id="pre_due_days"
-                    type="text"
-                    placeholder="3, 7, 15"
-                    value={preDueInput}
-                    onChange={(e) => handlePreDueDaysChange(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Separe os dias por vírgula (ex: 3, 7, 15)
-                  </p>
+                <div className="space-y-3">
+                  <Label>Dias antes do vencimento</Label>
+                  
+                  {/* Tags dos dias selecionados */}
+                  <div className="flex flex-wrap gap-2 min-h-[2.5rem] p-2 border rounded-md bg-muted/30">
+                    {localSettings.pre_due_days.length === 0 ? (
+                      <span className="text-sm text-muted-foreground">Nenhum dia configurado</span>
+                    ) : (
+                      localSettings.pre_due_days.map((day) => (
+                        <Badge key={day} variant="secondary" className="gap-1">
+                          {day} dia{day > 1 ? 's' : ''}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto p-0 w-4 h-4 hover:bg-destructive/20"
+                            onClick={() => removePreDueDay(day)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Botões rápidos */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">Adicionar rapidamente:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {[1, 2, 3, 5, 7, 10, 15].map((day) => (
+                        <Button
+                          key={day}
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          disabled={localSettings.pre_due_days.includes(day)}
+                          onClick={() => addQuickDay(localSettings.pre_due_days, 'pre', day)}
+                        >
+                          {day}d
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Campo para adicionar dias customizados */}
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="30"
+                      placeholder="Dias"
+                      value={newPreDay}
+                      onChange={(e) => setNewPreDay(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addPreDueDay()}
+                      className="flex-1"
+                    />
+                    <Button size="sm" onClick={addPreDueDay} disabled={!newPreDay}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -165,18 +226,65 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                   )}
                 </div>
 
-                <div>
-                  <Label htmlFor="post_due_days">Dias após o vencimento</Label>
-                  <Input
-                    id="post_due_days"
-                    type="text"
-                    placeholder="2, 5, 10"
-                    value={postDueInput}
-                    onChange={(e) => handlePostDueDaysChange(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Separe os dias por vírgula (ex: 2, 5, 10)
-                  </p>
+                <div className="space-y-3">
+                  <Label>Dias após o vencimento</Label>
+                  
+                  {/* Tags dos dias selecionados */}
+                  <div className="flex flex-wrap gap-2 min-h-[2.5rem] p-2 border rounded-md bg-muted/30">
+                    {localSettings.post_due_days.length === 0 ? (
+                      <span className="text-sm text-muted-foreground">Nenhum dia configurado</span>
+                    ) : (
+                      localSettings.post_due_days.map((day) => (
+                        <Badge key={day} variant="secondary" className="gap-1">
+                          {day} dia{day > 1 ? 's' : ''}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto p-0 w-4 h-4 hover:bg-destructive/20"
+                            onClick={() => removePostDueDay(day)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Botões rápidos */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">Adicionar rapidamente:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {[1, 2, 3, 5, 7, 10, 15].map((day) => (
+                        <Button
+                          key={day}
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          disabled={localSettings.post_due_days.includes(day)}
+                          onClick={() => addQuickDay(localSettings.post_due_days, 'post', day)}
+                        >
+                          {day}d
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Campo para adicionar dias customizados */}
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="30"
+                      placeholder="Dias"
+                      value={newPostDay}
+                      onChange={(e) => setNewPostDay(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addPostDueDay()}
+                      className="flex-1"
+                    />
+                    <Button size="sm" onClick={addPostDueDay} disabled={!newPostDay}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
