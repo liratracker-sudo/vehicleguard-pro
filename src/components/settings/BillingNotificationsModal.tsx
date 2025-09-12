@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,10 +36,21 @@ interface BillingNotificationsModalProps {
 
 export function BillingNotificationsModal({ settings, onSave, saving }: BillingNotificationsModalProps) {
   const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
+  const [preDueInput, setPreDueInput] = useState(settings.pre_due_days.join(', '));
+  const [postDueInput, setPostDueInput] = useState(settings.post_due_days.join(', '));
   const [open, setOpen] = useState(false);
+
+  // Sync inputs when settings change or modal opens
+  React.useEffect(() => {
+    setLocalSettings(settings);
+    setPreDueInput(settings.pre_due_days.join(', '));
+    setPostDueInput(settings.post_due_days.join(', '));
+  }, [settings, open]);
 
   const handlePreDueDaysChange = (value: string) => {
     console.log('Pre-due input value:', value);
+    setPreDueInput(value); // Update input state immediately
+    
     const days = value.split(',')
       .map(d => parseInt(d.trim()))
       .filter(d => !isNaN(d) && d > 0 && d <= 30)
@@ -50,6 +62,8 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
 
   const handlePostDueDaysChange = (value: string) => {
     console.log('Post-due input value:', value);
+    setPostDueInput(value); // Update input state immediately
+    
     const days = value.split(',')
       .map(d => parseInt(d.trim()))
       .filter(d => !isNaN(d) && d > 0 && d <= 30)
@@ -99,7 +113,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     id="pre_due_days"
                     type="text"
                     placeholder="3, 7, 15"
-                    value={localSettings.pre_due_days.join(', ')}
+                    value={preDueInput}
                     onChange={(e) => handlePreDueDaysChange(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
@@ -157,7 +171,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     id="post_due_days"
                     type="text"
                     placeholder="2, 5, 10"
-                    value={localSettings.post_due_days.join(', ')}
+                    value={postDueInput}
                     onChange={(e) => handlePostDueDaysChange(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
