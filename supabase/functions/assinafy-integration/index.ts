@@ -31,7 +31,10 @@ serve(async (req) => {
   );
 
   try {
-    const { action, apiKey, workspaceId, ...data } = await req.json();
+    console.log("Received request:", req.method);
+    const requestBody = await req.json();
+    console.log("Request body:", requestBody);
+    const { action, apiKey, workspaceId, ...data } = requestBody;
 
     // Get API key from headers, user profile, or request body
     let assinafyApiKey = apiKey || req.headers.get("x-assinafy-api-key");
@@ -61,6 +64,9 @@ serve(async (req) => {
         }
       }
     }
+
+    console.log("Using API Key:", assinafyApiKey ? "***configured***" : "NOT FOUND");
+    console.log("Action requested:", action);
 
     if (!assinafyApiKey) {
       return new Response(

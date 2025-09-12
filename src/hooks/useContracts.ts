@@ -16,7 +16,7 @@ export interface Contract {
   signature_status: string;
   document_url: string | null;
   assinafy_document_id: string | null;
-  autentique_document_id: string | null;
+  // Removido: autentique_document_id (migrado para assinafy_document_id)
   signed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -287,7 +287,7 @@ export function useContracts() {
 
       if (response.error) {
         console.error('Erro na edge function:', response.error)
-        throw new Error(`Erro ao conectar com Assinafy: ${response.error.message}`)
+        throw new Error(`Erro no Assinafy: ${response.error.message}`)
       }
 
       if (!response.data?.success) {
