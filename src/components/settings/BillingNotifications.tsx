@@ -339,6 +339,20 @@ export function BillingNotifications() {
                 placeholder="3, 7, 15"
                 value={settings.pre_due_days.join(', ')}
                 onChange={(e) => handlePreDueDaysChange(e.target.value)}
+                onKeyDown={(e) => {
+                  // Permitir números, vírgulas, espaços e teclas de navegação
+                  const allowedKeys = [
+                    'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+                    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'
+                  ];
+                  const isNumber = e.key >= '0' && e.key <= '9';
+                  const isComma = e.key === ',' || e.key === '.';
+                  const isSpace = e.key === ' ';
+                  
+                  if (!allowedKeys.includes(e.key) && !isNumber && !isComma && !isSpace) {
+                    e.preventDefault();
+                  }
+                }}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Separe os dias por vírgula (ex: 3, 7, 15)
@@ -397,6 +411,20 @@ export function BillingNotifications() {
                 placeholder="2, 5, 10"
                 value={settings.post_due_days.join(', ')}
                 onChange={(e) => handlePostDueDaysChange(e.target.value)}
+                onKeyDown={(e) => {
+                  // Permitir números, vírgulas, espaços e teclas de navegação
+                  const allowedKeys = [
+                    'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+                    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'
+                  ];
+                  const isNumber = e.key >= '0' && e.key <= '9';
+                  const isComma = e.key === ',' || e.key === '.';
+                  const isSpace = e.key === ' ';
+                  
+                  if (!allowedKeys.includes(e.key) && !isNumber && !isComma && !isSpace) {
+                    e.preventDefault();
+                  }
+                }}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Separe os dias por vírgula (ex: 2, 5, 10)
