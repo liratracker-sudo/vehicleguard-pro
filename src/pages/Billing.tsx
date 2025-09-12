@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, RefreshCw, Zap } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, RefreshCw, Zap, Settings } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { BillingHistory } from "@/components/billing/BillingHistory"
 import { PaymentForm } from "@/components/billing/PaymentForm"
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/table"
 
 const BillingPage = () => {
+  const navigate = useNavigate()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filters, setFilters] = useState<BillingFiltersState>({
     search: "",
@@ -151,6 +153,14 @@ const BillingPage = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="secondary" 
+              onClick={() => navigate('/settings?tab=billing')}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Config. Notificações
+            </Button>
+            
             <Button 
               variant="outline" 
               onClick={loadPayments}
