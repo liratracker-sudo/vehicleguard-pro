@@ -173,17 +173,15 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         throw new Error("Cliente não encontrado")
       }
 
-      // Call Autentique integration
-      const response = await supabase.functions.invoke('autentique-integration', {
+      // Call Assinafy integration
+      const response = await supabase.functions.invoke('assinafy-integration', {
         body: {
-          action: 'create_document',
-          contractData: {
-            client_name: selectedClient.name,
-            client_email: selectedClient.email,
-            client_phone: selectedClient.phone,
-            contract_title: `Contrato de Prestação de Serviços - ${selectedClient.name}`,
-            contract_content: generateContractContent(selectedClient)
-          }
+          action: 'createDocument',
+          client_name: selectedClient.name,
+          client_email: selectedClient.email,
+          client_cpf: selectedClient.document,
+          content: generateContractContent(selectedClient),
+          title: `Contrato de Prestação de Serviços - ${selectedClient.name}`
         }
       })
 
@@ -191,13 +189,16 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         throw new Error(response.error.message)
       }
 
-      // Update contract with Autentique document ID
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Erro ao criar documento no Assinafy')
+      }
+
+      // Update contract with Assinafy document ID
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
-          signature_status: 'sent',
-          autentique_document_id: response.data.document.id,
-          document_url: `https://app.autentique.com.br/document/${response.data.document.id}`
+          signature_status: 'pending',
+          assinafy_document_id: response.data.document_id
         })
         .eq('id', contractId)
 
@@ -205,7 +206,7 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
 
       toast({
         title: "Enviado para assinatura",
-        description: "Contrato enviado com sucesso via Autentique!"
+        description: "Contrato enviado com sucesso via Assinafy!"
       })
         
     } catch (error: any) {
@@ -379,7 +380,7 @@ Assinatura do Contratante
           )}
         </CardTitle>
         <CardDescription>
-          Crie contratos digitais com assinatura eletrônica via Autentique
+          Crie contratos digitais com assinatura eletrônica via Assinafy
         </CardDescription>
       </CardHeader>
       <CardContent>
