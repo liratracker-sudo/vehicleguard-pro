@@ -101,19 +101,6 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     placeholder="3, 7, 15"
                     value={localSettings.pre_due_days.join(', ')}
                     onChange={(e) => handlePreDueDaysChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      const allowedKeys = [
-                        'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
-                        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'
-                      ];
-                      const isNumber = e.key >= '0' && e.key <= '9';
-                      const isComma = e.key === ',' || e.key === '.';
-                      const isSpace = e.key === ' ';
-                      
-                      if (!allowedKeys.includes(e.key) && !isNumber && !isComma && !isSpace) {
-                        e.preventDefault();
-                      }
-                    }}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Separe os dias por vírgula (ex: 3, 7, 15)
@@ -172,19 +159,6 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     placeholder="2, 5, 10"
                     value={localSettings.post_due_days.join(', ')}
                     onChange={(e) => handlePostDueDaysChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      const allowedKeys = [
-                        'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
-                        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'
-                      ];
-                      const isNumber = e.key >= '0' && e.key <= '9';
-                      const isComma = e.key === ',' || e.key === '.';
-                      const isSpace = e.key === ' ';
-                      
-                      if (!allowedKeys.includes(e.key) && !isNumber && !isComma && !isSpace) {
-                        e.preventDefault();
-                      }
-                    }}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Separe os dias por vírgula (ex: 2, 5, 10)
