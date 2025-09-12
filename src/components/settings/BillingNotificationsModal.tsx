@@ -35,6 +35,7 @@ interface BillingNotificationsModalProps {
 }
 
 export function BillingNotificationsModal({ settings, onSave, saving }: BillingNotificationsModalProps) {
+  console.log('🚀 BillingNotificationsModal renderizando - NOVA VERSÃO');
   const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
   const [open, setOpen] = useState(false);
   const [newPreDay, setNewPreDay] = useState('');
@@ -42,6 +43,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
 
   // Sync settings when modal opens
   React.useEffect(() => {
+    console.log('🔄 Sincronizando configurações:', settings);
     setLocalSettings(settings);
   }, [settings, open]);
 
@@ -102,7 +104,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Configurações Detalhadas de Notificação</DialogTitle>
+          <DialogTitle>🔧 Configurações Detalhadas de Notificação (NOVA VERSÃO)</DialogTitle>
           <DialogDescription>
             Configure quando e como as notificações devem ser enviadas aos clientes
           </DialogDescription>
