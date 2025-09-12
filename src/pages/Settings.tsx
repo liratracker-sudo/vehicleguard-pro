@@ -53,7 +53,7 @@ const SettingsPage = () => {
             <TabsTrigger value="billing">Cobrança Automática</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-            <TabsTrigger value="autentique">Autentique</TabsTrigger>
+            <TabsTrigger value="assinafy">Assinafy</TabsTrigger>
             <TabsTrigger value="asaas">Asaas</TabsTrigger>
           </TabsList>
 
@@ -181,12 +181,12 @@ const SettingsPage = () => {
                   </Card>
                   
                   <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("autentique")}>
+                        onClick={() => setActiveTab("assinafy")}>
                     <CardContent className="flex items-center gap-3 p-4">
                       <FileText className="w-8 h-8 text-blue-600" />
                       <div>
-                        <h4 className="font-medium">Autentique</h4>
-                        <p className="text-sm text-muted-foreground">Documentos Digitais</p>
+                        <h4 className="font-medium">Assinafy</h4>
+                        <p className="text-sm text-muted-foreground">Assinatura Digital</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -210,9 +210,9 @@ const SettingsPage = () => {
             <WhatsAppIntegration />
           </TabsContent>
 
-            <TabsContent value="assinafy" className="space-y-6">
-              <AssinafyIntegration />
-            </TabsContent>
+          <TabsContent value="assinafy" className="space-y-6">
+            <AssinafyIntegration />
+          </TabsContent>
 
           <TabsContent value="asaas" className="space-y-6">
             <AsaasIntegration />
