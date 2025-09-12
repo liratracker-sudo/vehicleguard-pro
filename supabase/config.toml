@@ -3,7 +3,7 @@ project_id = "mcdidffxwtnqhawqilln"
 [functions.whatsapp-evolution]
 verify_jwt = false
 
-[functions.autentique-integration]
+[functions.assinafy-integration]
 verify_jwt = true
 
 [functions.asaas-integration]
@@ -24,5 +24,5 @@ verify_jwt = false
 [functions.asaas-sync-payments]
 verify_jwt = false
 
-[functions.autentique-webhook]
+[functions.assinafy-webhook]
 verify_jwt = false
