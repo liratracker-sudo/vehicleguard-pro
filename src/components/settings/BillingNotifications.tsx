@@ -128,7 +128,19 @@ export function BillingNotifications() {
         throw new Error('Quantidade de disparos deve ser pelo menos 1');
       }
 
-      const { error } = await supabase
+    console.log('Saving notification settings:', {
+      active: settings.active,
+      pre_due_days: settings.pre_due_days,
+      on_due: settings.on_due,
+      post_due_days: settings.post_due_days,
+      send_hour: settings.send_hour,
+      on_due_times: settings.on_due_times,
+      on_due_interval_hours: settings.on_due_interval_hours,
+      max_attempts_per_notification: settings.max_attempts_per_notification,
+      retry_interval_hours: settings.retry_interval_hours
+    });
+
+    const { error } = await supabase
         .from('payment_notification_settings')
         .update({
           active: settings.active,
@@ -173,22 +185,26 @@ export function BillingNotifications() {
   const handlePreDueDaysChange = (value: string) => {
     if (!settings) return;
     
+    console.log('Pre-due input value:', value);
     const days = value.split(',')
       .map(d => parseInt(d.trim()))
       .filter(d => !isNaN(d) && d > 0 && d <= 30)
       .sort((a, b) => a - b);
     
+    console.log('Parsed pre-due days:', days);
     setSettings({ ...settings, pre_due_days: days });
   };
 
   const handlePostDueDaysChange = (value: string) => {
     if (!settings) return;
     
+    console.log('Post-due input value:', value);
     const days = value.split(',')
       .map(d => parseInt(d.trim()))
       .filter(d => !isNaN(d) && d > 0 && d <= 30)
       .sort((a, b) => a - b);
     
+    console.log('Parsed post-due days:', days);
     setSettings({ ...settings, post_due_days: days });
   };
 

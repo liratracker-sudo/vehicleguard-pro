@@ -73,6 +73,7 @@ async function sendPendingNotifications() {
   console.log(`Found ${pendingNotifications?.length || 0} pending notifications to send`);
 
   for (const notification of pendingNotifications || []) {
+    console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
     try {
       // Get notification settings for the company to use retry settings
       const { data: notificationSettings } = await supabase
@@ -296,7 +297,9 @@ async function createNotificationsForCompany(settings: any) {
         event_type: 'pre_due',
         offset_days: days,
         scheduled_for: scheduledDate.toISOString(),
-        status: scheduledDate <= now ? 'pending' : 'pending'
+        status: scheduledDate <= now ? 'pending' : 'pending',
+        notification_settings_id: settings.id,
+        attempts: 0
       });
     }
 
@@ -324,7 +327,9 @@ async function createNotificationsForCompany(settings: any) {
           event_type: 'on_due',
           offset_days: i, // Usando offset_days para identificar o número do disparo
           scheduled_for: scheduledDate.toISOString(),
-          status: scheduledDate <= now ? 'pending' : 'pending'
+          status: scheduledDate <= now ? 'pending' : 'pending',
+          notification_settings_id: settings.id,
+          attempts: 0
         });
       }
     }
@@ -345,7 +350,9 @@ async function createNotificationsForCompany(settings: any) {
         event_type: 'post_due',
         offset_days: days,
         scheduled_for: scheduledDate.toISOString(),
-        status: scheduledDate <= now ? 'pending' : 'pending'
+        status: scheduledDate <= now ? 'pending' : 'pending',
+        notification_settings_id: settings.id,
+        attempts: 0
       });
     }
   }
