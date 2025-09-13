@@ -175,17 +175,17 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     const signerData = await signerResponse.json();
     console.log("Signer created:", signerData);
 
-    // Generate HTML content for the document
-    const htmlContent = generateContractHTML(contractData);
+    // Generate plain text content for the document
+    const textContent = generateContractText(contractData);
     
-    // Create a temporary file with the HTML content
+    // Create a temporary file with the text content
     const encoder = new TextEncoder();
-    const htmlBuffer = encoder.encode(htmlContent);
+    const textBuffer = encoder.encode(textContent);
     
     // Upload document
     const formData = new FormData();
-    const blob = new Blob([htmlBuffer], { type: 'text/html' });
-    formData.append('file', blob, `${contractData.title}.html`);
+    const blob = new Blob([textBuffer], { type: 'text/plain' });
+    formData.append('file', blob, `${contractData.title}.txt`);
 
     const uploadResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
       method: 'POST',
@@ -301,6 +301,23 @@ async function makeAssinafyRequest(url: string, method: string, apiKey: string, 
   }
 
   return response;
+}
+
+function generateContractText(contractData: ContractData): string {
+  const today = new Date().toLocaleDateString('pt-BR');
+  
+  return `${contractData.title}
+
+Data: ${today}
+
+CONTRATANTE: ${contractData.client_name}
+E-mail: ${contractData.client_email}${contractData.client_cpf ? `\nCPF: ${contractData.client_cpf}` : ''}
+
+${contractData.content}
+
+_________________________________
+${contractData.client_name}
+Assinatura Digital`;
 }
 
 function generateContractHTML(contractData: ContractData): string {

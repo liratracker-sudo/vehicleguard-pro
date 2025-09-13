@@ -1300,6 +1300,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      mask_sensitive_data: {
+        Args: { input_text: string }
+        Returns: string
+      }
       set_encryption_key_guc: {
         Args: { p_key: string }
         Returns: undefined
