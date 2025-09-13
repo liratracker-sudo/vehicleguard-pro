@@ -36,36 +36,55 @@ serve(async (req) => {
     console.log("Request body:", requestBody);
     const { action, apiKey, workspaceId, ...data } = requestBody;
 
-    // Get API key from headers, user profile, or request body
+    // Get API key and workspace ID from headers, user profile, or request body
     let assinafyApiKey = apiKey || req.headers.get("x-assinafy-api-key");
+    let assinafyWorkspaceId = workspaceId;
     
-    if (!assinafyApiKey) {
+    if (!assinafyApiKey || !assinafyWorkspaceId) {
       const authHeader = req.headers.get("authorization");
       if (authHeader?.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
-        const { data: { user } } = await supabase.auth.getUser(token);
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+        
+        if (userError) {
+          console.error("Auth error:", userError);
+          return new Response(
+            JSON.stringify({ error: "Erro de autenticação" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         
         if (user) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('company_id')
             .eq('user_id', user.id)
             .single();
             
+          if (profileError) {
+            console.error("Profile error:", profileError);
+          }
+            
           if (profile?.company_id) {
-            const { data: company } = await supabase
+            const { data: company, error: companyError } = await supabase
               .from('companies')
               .select('assinafy_api_key, assinafy_workspace_id')
               .eq('id', profile.company_id)
               .single();
               
-            assinafyApiKey = company?.assinafy_api_key;
+            if (companyError) {
+              console.error("Company error:", companyError);
+            }
+              
+            assinafyApiKey = assinafyApiKey || company?.assinafy_api_key;
+            assinafyWorkspaceId = assinafyWorkspaceId || company?.assinafy_workspace_id;
           }
         }
       }
     }
 
     console.log("Using API Key:", assinafyApiKey ? "***configured***" : "NOT FOUND");
+    console.log("Using Workspace ID:", assinafyWorkspaceId ? "***configured***" : "NOT FOUND");
     console.log("Action requested:", action);
 
     if (!assinafyApiKey) {
@@ -75,11 +94,18 @@ serve(async (req) => {
       );
     }
 
+    if (!assinafyWorkspaceId && action !== 'testConnection') {
+      return new Response(
+        JSON.stringify({ error: "Workspace ID do Assinafy não encontrado" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     switch (action) {
       case "testConnection":
-        return await testConnection(assinafyApiKey, workspaceId);
+        return await testConnection(assinafyApiKey, assinafyWorkspaceId);
       case "createDocument":
-        return await createDocument(assinafyApiKey, workspaceId, data as ContractData);
+        return await createDocument(assinafyApiKey, assinafyWorkspaceId, data as ContractData);
       case "sendForSignature":
         return await sendForSignature(assinafyApiKey, data.documentId, data.signerEmail, data.signerName);
       case "getDocumentStatus":
@@ -101,6 +127,13 @@ serve(async (req) => {
 
 async function testConnection(apiKey: string, workspaceId: string): Promise<Response> {
   try {
+    console.log("Testing connection with API key:", apiKey ? "present" : "missing");
+    console.log("Testing connection with workspace ID:", workspaceId ? "present" : "missing");
+    
+    if (!workspaceId) {
+      throw new Error("Workspace ID não configurado");
+    }
+    
     // Test API connection by getting workspace info
     const response = await makeAssinafyRequest(
       `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?per-page=1`,
