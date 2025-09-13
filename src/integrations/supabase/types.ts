@@ -458,6 +458,13 @@ export type Database = {
             foreignKeyName: "company_subscriptions_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
+            referencedRelation: "public_subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
             referencedRelation: "subscription_plans"
             referencedColumns: ["id"]
           },
@@ -1206,7 +1213,57 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_subscription_plans: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          features: Json | null
+          id: string | null
+          is_active: boolean | null
+          max_api_calls_per_day: number | null
+          max_messages_per_month: number | null
+          max_storage_mb: number | null
+          max_users: number | null
+          max_vehicles: number | null
+          name: string | null
+          price_monthly: number | null
+          price_yearly: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string | null
+          is_active?: boolean | null
+          max_api_calls_per_day?: number | null
+          max_messages_per_month?: number | null
+          max_storage_mb?: number | null
+          max_users?: number | null
+          max_vehicles?: number | null
+          name?: string | null
+          price_monthly?: never
+          price_yearly?: never
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string | null
+          is_active?: boolean | null
+          max_api_calls_per_day?: number | null
+          max_messages_per_month?: number | null
+          max_storage_mb?: number | null
+          max_users?: number | null
+          max_vehicles?: number | null
+          name?: string | null
+          price_monthly?: never
+          price_yearly?: never
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       check_super_admin_access: {
