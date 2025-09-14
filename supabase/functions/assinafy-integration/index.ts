@@ -160,20 +160,68 @@ async function testConnection(apiKey: string, workspaceId: string): Promise<Resp
 
 async function createDocument(apiKey: string, workspaceId: string, contractData: ContractData): Promise<Response> {
   try {
-    // First, create/get signer
-    const signerResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers`,
-      'POST',
-      apiKey,
-      {
-        full_name: contractData.client_name,
-        email: contractData.client_email,
-        government_id: contractData.client_cpf || undefined
+    let signerId: string;
+    
+    try {
+      // First, try to get existing signer by email
+      const existingSignerResponse = await makeAssinafyRequest(
+        `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(contractData.client_email)}`,
+        'GET',
+        apiKey
+      );
+      
+      const existingSignerData = await existingSignerResponse.json();
+      
+      if (existingSignerData.data && existingSignerData.data.length > 0) {
+        // Signer already exists, use existing ID
+        signerId = existingSignerData.data[0].id;
+        console.log("Using existing signer:", signerId);
+      } else {
+        throw new Error("Signer not found, will create new one");
       }
-    );
+    } catch (getSignerError) {
+      // Signer doesn't exist, create new one
+      console.log("Creating new signer...");
+      
+      try {
+        const createSignerResponse = await makeAssinafyRequest(
+          `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers`,
+          'POST',
+          apiKey,
+          {
+            full_name: contractData.client_name,
+            email: contractData.client_email,
+            government_id: contractData.client_cpf || undefined
+          }
+        );
 
-    const signerData = await signerResponse.json();
-    console.log("Signer created:", signerData);
+        const signerData = await createSignerResponse.json();
+        signerId = signerData.data.id;
+        console.log("New signer created:", signerId);
+      } catch (createError: any) {
+        // If creation fails because signer already exists, try to get it again
+        if (createError.message.includes("já existe")) {
+          console.log("Signer already exists, attempting to get existing signer...");
+          
+          const retrySignerResponse = await makeAssinafyRequest(
+            `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(contractData.client_email)}`,
+            'GET',
+            apiKey
+          );
+          
+          const retrySignerData = await retrySignerResponse.json();
+          
+          if (retrySignerData.data && retrySignerData.data.length > 0) {
+            signerId = retrySignerData.data[0].id;
+            console.log("Retrieved existing signer after failed creation:", signerId);
+          } else {
+            throw new Error("Failed to create or retrieve signer");
+          }
+        } else {
+          throw createError;
+        }
+      }
+    }
 
     // Generate plain text content for the document
     const textContent = generateContractText(contractData);
@@ -210,7 +258,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       apiKey,
       {
         method: "virtual",
-        signer_ids: [signerData.data.id],
+        signer_ids: [signerId],
         message: `Olá ${contractData.client_name}, por favor assine este contrato.`,
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
       }
@@ -223,7 +271,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       JSON.stringify({
         success: true,
         document_id: documentData.id,
-        signer_id: signerData.data.id,
+        signer_id: signerId,
         assignment_id: assignmentData.id,
         signing_url: `https://app.assinafy.com.br/sign/${documentData.id}`
       }),
