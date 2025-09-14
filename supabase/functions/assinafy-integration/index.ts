@@ -16,45 +16,72 @@ interface ContractData {
 }
 
 serve(async (req) => {
+  console.log("=== ASSINAFY INTEGRATION START ===");
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+    console.log("Method not allowed:", req.method);
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }), 
+      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-  );
+  console.log("Initializing Supabase client...");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  
+  console.log("Supabase URL:", supabaseUrl ? "✓ Present" : "✗ Missing");
+  console.log("Supabase Key:", supabaseKey ? "✓ Present" : "✗ Missing");
+  
+  const supabase = createClient(supabaseUrl ?? "", supabaseKey ?? "");
 
   try {
-    console.log("Received request:", req.method);
+    console.log("Reading request body...");
     const requestBody = await req.json();
-    console.log("Request body:", requestBody);
+    console.log("Request body received:", JSON.stringify(requestBody, null, 2));
     const { action, apiKey, workspaceId, ...data } = requestBody;
+    console.log("Extracted action:", action);
+    console.log("API Key from request:", apiKey ? "✓ Present" : "✗ Missing");
+    console.log("Workspace ID from request:", workspaceId ? "✓ Present" : "✗ Missing");
 
     // Get API key and workspace ID from headers, user profile, or request body
     let assinafyApiKey = apiKey || req.headers.get("x-assinafy-api-key");
     let assinafyWorkspaceId = workspaceId;
     
+    console.log("Initial API Key:", assinafyApiKey ? "✓ Present" : "✗ Missing");
+    console.log("Initial Workspace ID:", assinafyWorkspaceId ? "✓ Present" : "✗ Missing");
+    
     if (!assinafyApiKey || !assinafyWorkspaceId) {
+      console.log("Attempting to get credentials from user profile...");
       const authHeader = req.headers.get("authorization");
+      console.log("Auth header present:", authHeader ? "✓ Yes" : "✗ No");
+      
       if (authHeader?.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
+        console.log("Token extracted, length:", token.length);
+        
         const { data: { user }, error: userError } = await supabase.auth.getUser(token);
         
         if (userError) {
-          console.error("Auth error:", userError);
+          console.error("❌ Auth error:", userError);
           return new Response(
-            JSON.stringify({ error: "Erro de autenticação" }),
+            JSON.stringify({ error: "Erro de autenticação", details: userError.message }),
             { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
         
+        console.log("User authenticated:", user?.id);
+        
         if (user) {
+          console.log("Fetching user profile...");
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('company_id')
@@ -62,10 +89,17 @@ serve(async (req) => {
             .single();
             
           if (profileError) {
-            console.error("Profile error:", profileError);
+            console.error("❌ Profile error:", profileError);
+            return new Response(
+              JSON.stringify({ error: "Erro ao buscar perfil do usuário", details: profileError.message }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
           }
+          
+          console.log("Profile found, company_id:", profile?.company_id);
             
           if (profile?.company_id) {
+            console.log("Fetching company credentials...");
             const { data: company, error: companyError } = await supabase
               .from('companies')
               .select('assinafy_api_key, assinafy_workspace_id')
@@ -73,8 +107,16 @@ serve(async (req) => {
               .single();
               
             if (companyError) {
-              console.error("Company error:", companyError);
+              console.error("❌ Company error:", companyError);
+              return new Response(
+                JSON.stringify({ error: "Erro ao buscar dados da empresa", details: companyError.message }),
+                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
             }
+            
+            console.log("Company data found:");
+            console.log("- API Key:", company?.assinafy_api_key ? "✓ Present" : "✗ Missing");
+            console.log("- Workspace ID:", company?.assinafy_workspace_id ? "✓ Present" : "✗ Missing");
               
             assinafyApiKey = assinafyApiKey || company?.assinafy_api_key;
             assinafyWorkspaceId = assinafyWorkspaceId || company?.assinafy_workspace_id;
@@ -83,45 +125,67 @@ serve(async (req) => {
       }
     }
 
-    console.log("Using API Key:", assinafyApiKey ? "***configured***" : "NOT FOUND");
-    console.log("Using Workspace ID:", assinafyWorkspaceId ? "***configured***" : "NOT FOUND");
+    console.log("=== FINAL CREDENTIALS CHECK ===");
+    console.log("Final API Key:", assinafyApiKey ? "✓ Present" : "❌ NOT FOUND");
+    console.log("Final Workspace ID:", assinafyWorkspaceId ? "✓ Present" : "❌ NOT FOUND");
     console.log("Action requested:", action);
 
     if (!assinafyApiKey) {
+      console.error("❌ API key not found after all attempts");
       return new Response(
-        JSON.stringify({ error: "API key do Assinafy não encontrada" }),
+        JSON.stringify({ 
+          error: "API key do Assinafy não encontrada", 
+          debug: "Verifique se a API key está configurada nas configurações da empresa" 
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!assinafyWorkspaceId && action !== 'testConnection') {
+      console.error("❌ Workspace ID not found for action:", action);
       return new Response(
-        JSON.stringify({ error: "Workspace ID do Assinafy não encontrado" }),
+        JSON.stringify({ 
+          error: "Workspace ID do Assinafy não encontrado", 
+          debug: "Verifique se o Workspace ID está configurado nas configurações da empresa" 
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log("=== EXECUTING ACTION ===");
     switch (action) {
       case "testConnection":
+        console.log("🔄 Testing connection...");
         return await testConnection(assinafyApiKey, assinafyWorkspaceId);
       case "createDocument":
+        console.log("📄 Creating document...");
         return await createDocument(assinafyApiKey, assinafyWorkspaceId, data as ContractData);
       case "sendForSignature":
+        console.log("✍️ Sending for signature...");
         return await sendForSignature(assinafyApiKey, data.documentId, data.signerEmail, data.signerName);
       case "getDocumentStatus":
+        console.log("📊 Getting document status...");
         return await getDocumentStatus(assinafyApiKey, data.documentId);
       default:
+        console.error("❌ Invalid action:", action);
         return new Response(
-          JSON.stringify({ error: "Ação inválida" }),
+          JSON.stringify({ error: "Ação inválida", action: action }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
     }
   } catch (error: any) {
-    console.error("Assinafy integration error:", error);
+    console.error("❌ FATAL ERROR in Assinafy integration:", error);
+    console.error("Error stack:", error.stack);
     return new Response(
-      JSON.stringify({ error: error.message || "Erro interno do servidor" }),
+      JSON.stringify({ 
+        error: error.message || "Erro interno do servidor",
+        stack: error.stack,
+        type: error.name 
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  } finally {
+    console.log("=== ASSINAFY INTEGRATION END ===");
   }
 });
 
@@ -323,12 +387,16 @@ async function getDocumentStatus(apiKey: string, documentId: string): Promise<Re
 }
 
 async function makeAssinafyRequest(url: string, method: string, apiKey: string, body?: any): Promise<Response> {
+  console.log(`🌐 Making Assinafy request: ${method} ${url}`);
+  console.log("Request headers: X-Api-Key present:", apiKey ? "✓" : "✗");
+  
   const headers: Record<string, string> = {
     'X-Api-Key': apiKey,
   };
 
   if (body && method !== 'GET') {
     headers['Content-Type'] = 'application/json';
+    console.log("Request body:", JSON.stringify(body, null, 2));
   }
 
   const config: RequestInit = {
@@ -340,14 +408,27 @@ async function makeAssinafyRequest(url: string, method: string, apiKey: string, 
     config.body = JSON.stringify(body);
   }
 
+  console.log("Sending request to Assinafy API...");
   const response = await fetch(url, config);
+  
+  console.log(`📥 Assinafy API response: ${response.status} ${response.statusText}`);
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`Assinafy API error (${response.status}):`, errorText);
-    throw new Error(`Erro da API Assinafy: ${response.status} - ${errorText}`);
+    console.error(`❌ Assinafy API error (${response.status}):`, errorText);
+    
+    let parsedError = errorText;
+    try {
+      const errorJson = JSON.parse(errorText);
+      parsedError = JSON.stringify(errorJson, null, 2);
+    } catch {
+      // Keep original text if not JSON
+    }
+    
+    throw new Error(`Erro da API Assinafy: ${response.status} - ${parsedError}`);
   }
 
+  console.log("✅ Assinafy API request successful");
   return response;
 }
 
