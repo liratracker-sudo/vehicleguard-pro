@@ -55,9 +55,9 @@ export function BillingFilters({
 
   return (
     <div className="space-y-4">
-      {/* Basic Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[200px]">
+      {/* Basic Filters - responsive layout */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <div className="flex-1 min-w-0">
           <Input
             placeholder="Buscar por cliente, ID..."
             value={filters.search}
@@ -65,49 +65,53 @@ export function BillingFilters({
           />
         </div>
         
-        <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="pending">Pendente</SelectItem>
-            <SelectItem value="paid">Pago</SelectItem>
-            <SelectItem value="overdue">Vencido</SelectItem>
-            <SelectItem value="cancelled">Cancelado</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
+            <SelectTrigger className="w-[120px] sm:w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="pending">Pendente</SelectItem>
+              <SelectItem value="paid">Pago</SelectItem>
+              <SelectItem value="overdue">Vencido</SelectItem>
+              <SelectItem value="cancelled">Cancelado</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select value={filters.gateway} onValueChange={(value) => updateFilter('gateway', value)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Gateway" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="asaas">Asaas</SelectItem>
-            <SelectItem value="pix">PIX</SelectItem>
-            <SelectItem value="boleto">Boleto</SelectItem>
-            <SelectItem value="credit_card">Cartão</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select value={filters.gateway} onValueChange={(value) => updateFilter('gateway', value)}>
+            <SelectTrigger className="w-[120px] sm:w-[140px]">
+              <SelectValue placeholder="Gateway" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="asaas">Asaas</SelectItem>
+              <SelectItem value="pix">PIX</SelectItem>
+              <SelectItem value="boleto">Boleto</SelectItem>
+              <SelectItem value="credit_card">Cartão</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Button
-          variant="outline"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-        >
-          <FilterIcon className="w-4 h-4 mr-2" />
-          Filtros
-        </Button>
-
-        {hasActiveFilters && (
           <Button
             variant="outline"
-            onClick={onClearFilters}
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex-shrink-0"
           >
-            <X className="w-4 h-4 mr-2" />
-            Limpar
+            <FilterIcon className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Filtros</span>
           </Button>
-        )}
+
+          {hasActiveFilters && (
+            <Button
+              variant="outline"
+              onClick={onClearFilters}
+              className="flex-shrink-0"
+            >
+              <X className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Limpar</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Advanced Filters */}

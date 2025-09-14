@@ -145,45 +145,52 @@ const BillingPage = () => {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Gestão de Cobranças</h1>
             <p className="text-muted-foreground">
               Controle completo de cobranças automáticas, notificações e inadimplência
             </p>
           </div>
-          <div className="flex gap-2">
+          
+          {/* Navigation buttons - responsive layout with proper spacing */}
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <Button 
               variant="secondary" 
               onClick={() => navigate('/settings?tab=billing')}
+              className="flex-shrink-0"
             >
-              <Settings className="w-4 h-4 mr-2" />
-              Config. Notificações
+              <Settings className="w-4 h-4 sm:mr-2" />
+              <span className="hidden xs:inline ml-1">Config. Notificações</span>
+              <span className="xs:hidden">Config</span>
             </Button>
             
             <Button 
               variant="outline" 
               onClick={loadPayments}
               disabled={loading}
+              className="flex-shrink-0"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
+              <RefreshCw className={`w-4 h-4 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline ml-1">Atualizar</span>
             </Button>
             
             <Button 
               variant="outline"
               onClick={handleGenerateCharges}
               disabled={managementLoading}
+              className="flex-shrink-0"
             >
-              <Zap className="w-4 h-4 mr-2" />
-              Gerar Cobranças
+              <Zap className="w-4 h-4 sm:mr-2" />
+              <span className="hidden xs:inline ml-1">Gerar Cobranças</span>
             </Button>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nova Cobrança
+                <Button className="flex-shrink-0">
+                  <Plus className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden xs:inline ml-1">Nova Cobrança</span>
+                  <span className="xs:hidden">Nova</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-3xl">
@@ -203,12 +210,14 @@ const BillingPage = () => {
         {/* Stats Cards */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-sm font-medium">Recebido</CardTitle>
-              <DollarSign className="h-4 w-4 text-success" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-success/20">
+                <DollarSign className="h-4 w-4 text-success" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-success">
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-success leading-none mb-2">
                 R$ {totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -217,12 +226,14 @@ const BillingPage = () => {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-sm font-medium">Pendente</CardTitle>
-              <Calendar className="h-4 w-4 text-warning" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-warning/20">
+                <Calendar className="h-4 w-4 text-warning" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-warning">
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-warning leading-none mb-2">
                 R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -231,12 +242,14 @@ const BillingPage = () => {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-sm font-medium">Vencido</CardTitle>
-              <AlertCircle className="h-4 w-4 text-destructive" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/20">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-destructive leading-none mb-2">
                 R$ {totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -245,12 +258,14 @@ const BillingPage = () => {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-sm font-medium">Saldo Devedor</CardTitle>
-              <AlertCircle className="h-4 w-4 text-primary" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20">
+                <AlertCircle className="h-4 w-4 text-primary" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-primary leading-none mb-2">
                 R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">

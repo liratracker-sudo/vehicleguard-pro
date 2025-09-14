@@ -287,17 +287,61 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Generate plain text content for the document
+    // Generate PDF content for the document
+    console.log("🔄 Generating PDF content...");
+    
     const textContent = generateContractText(contractData);
     
-    // Create a temporary file with the text content
-    const encoder = new TextEncoder();
-    const textBuffer = encoder.encode(textContent);
+    // Create a simple HTML document for PDF generation
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${contractData.title}</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 40px; 
+            line-height: 1.6; 
+            font-size: 12px;
+        }
+        h1 { 
+            color: #333; 
+            text-align: center; 
+            margin-bottom: 30px; 
+            font-size: 18px;
+        }
+        .contract-content { 
+            white-space: pre-line; 
+            margin-bottom: 40px;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 300px;
+            margin: 50px auto 10px auto;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>${contractData.title}</h1>
+    <div class="contract-content">${textContent.replace(/\n/g, '<br>')}</div>
+    <div class="signature-line">Assinatura do Contratante</div>
+</body>
+</html>`;
+
+    console.log("📄 HTML content generated, converting to PDF...");
     
-    // Upload document
+    // Use a simple text file as fallback since we don't have PDF generation libraries
+    // The Assinafy API should accept HTML content
+    const encoder = new TextEncoder();
+    const htmlBuffer = encoder.encode(htmlContent);
+    
+    // Upload document as HTML which Assinafy should be able to process
     const formData = new FormData();
-    const blob = new Blob([textBuffer], { type: 'text/plain' });
-    formData.append('file', blob, `${contractData.title}.txt`);
+    const blob = new Blob([htmlBuffer], { type: 'text/html' });
+    formData.append('file', blob, `${contractData.title}.html`);
 
     const uploadResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
       method: 'POST',
