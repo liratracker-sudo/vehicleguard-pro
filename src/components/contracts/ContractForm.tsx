@@ -185,12 +185,18 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         }
       })
 
+      console.log("📥 Resposta Assinafy:", response);
+
       if (response.error) {
-        throw new Error(response.error.message)
+        console.error("❌ Erro na resposta:", response.error);
+        throw new Error(`Erro na Edge Function: ${response.error.message}`);
       }
 
       if (!response.data?.success) {
-        throw new Error(response.data?.error || 'Erro ao criar documento no Assinafy')
+        const errorMsg = response.data?.error || 'Erro desconhecido ao criar documento no Assinafy';
+        const errorDetails = response.data?.details ? ` (${JSON.stringify(response.data.details)})` : '';
+        console.error("❌ Falha na criação do documento:", errorMsg, errorDetails);
+        throw new Error(errorMsg);
       }
 
       // Update contract with Assinafy document ID and signing URL
@@ -211,14 +217,25 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
       })
         
     } catch (error: any) {
-      console.error('Error sending for signature:', error)
+      console.error('❌ Erro detalhado ao enviar para assinatura:', error);
+      
+      let errorMessage = "Erro ao enviar para assinatura";
+      
+      if (error.message?.includes('API Assinafy:')) {
+        errorMessage = error.message;
+      } else if (error.message?.includes('Edge Function')) {
+        errorMessage = `Problema na integração: ${error.message}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Erro",
-        description: error.message || "Erro ao enviar para assinatura",
+        title: "Erro na Assinatura Eletrônica",
+        description: errorMessage,
         variant: "destructive"
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 

@@ -287,77 +287,33 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Generate PDF content for the document
-    console.log("🔄 Generating PDF content...");
+    // Generate text content for document creation via API
+    console.log("🔄 Generating document content...");
     
     const textContent = generateContractText(contractData);
     
-    // Create a simple HTML document for PDF generation
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>${contractData.title}</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            padding: 40px; 
-            line-height: 1.6; 
-            font-size: 12px;
-        }
-        h1 { 
-            color: #333; 
-            text-align: center; 
-            margin-bottom: 30px; 
-            font-size: 18px;
-        }
-        .contract-content { 
-            white-space: pre-line; 
-            margin-bottom: 40px;
-        }
-        .signature-line {
-            border-top: 1px solid #000;
-            width: 300px;
-            margin: 50px auto 10px auto;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <h1>${contractData.title}</h1>
-    <div class="contract-content">${textContent.replace(/\n/g, '<br>')}</div>
-    <div class="signature-line">Assinatura do Contratante</div>
-</body>
-</html>`;
-
-    console.log("📄 HTML content generated, converting to PDF...");
+    console.log("📄 Text content generated, creating document via API...");
     
-    // Use a simple text file as fallback since we don't have PDF generation libraries
-    // The Assinafy API should accept HTML content
-    const encoder = new TextEncoder();
-    const htmlBuffer = encoder.encode(htmlContent);
-    
-    // Upload document as HTML which Assinafy should be able to process
-    const formData = new FormData();
-    const blob = new Blob([htmlBuffer], { type: 'text/html' });
-    formData.append('file', blob, `${contractData.title}.html`);
+    // Create document directly via Assinafy API instead of uploading file
+    const createDocResponse = await makeAssinafyRequest(
+      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`,
+      'POST',
+      apiKey,
+      {
+        name: contractData.title,
+        content: textContent,
+        type: 'text'
+      }
+    );
 
-    const uploadResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': apiKey,
-      },
-      body: formData,
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Erro no upload do documento: ${errorText}`);
+    if (!createDocResponse.ok) {
+      const errorText = await createDocResponse.text();
+      console.error("❌ Document creation failed:", errorText);
+      throw new Error(`Erro na criação do documento: ${errorText}`);
     }
 
-    const documentData = await uploadResponse.json();
-    console.log("Document created:", documentData);
+    const documentData = await createDocResponse.json();
+    console.log("✅ Document created successfully:", documentData);
 
     // Create assignment for signature
     const assignmentResponse = await makeAssinafyRequest(
@@ -386,10 +342,40 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
-    console.error("Create document error:", error);
+    console.error("❌ Create document error:", error);
+    
+    // Extract detailed error information
+    let errorMessage = error.message || 'Erro desconhecido na criação do documento';
+    let statusCode = 400;
+    
+    // Parse Assinafy API errors
+    if (error.message?.includes('Erro na criação do documento:') || error.message?.includes('Erro no upload do documento:')) {
+      try {
+        const errorMatch = error.message.match(/\{.*\}/);
+        if (errorMatch) {
+          const apiError = JSON.parse(errorMatch[0]);
+          errorMessage = `API Assinafy: ${apiError.message || 'Erro não especificado'}`;
+          statusCode = apiError.status || 400;
+        }
+      } catch (parseError) {
+        console.error("Failed to parse API error:", parseError);
+      }
+    }
+    
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        details: {
+          originalError: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString()
+        }
+      }),
+      { 
+        status: statusCode, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
     );
   }
 }
