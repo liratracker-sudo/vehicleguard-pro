@@ -287,25 +287,41 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Generate HTML content for document creation
+    // Generate HTML content for document creation via file upload
     console.log("🔄 Generating document content...");
     
     const htmlContent = generateContractHTML(contractData);
     
-    console.log("📄 HTML content generated, creating document via multipart upload...");
+    console.log("📄 HTML content generated, creating document via file upload...");
+    console.log("HTML content length:", htmlContent.length);
     
-    // Create FormData for multipart upload
-    const formData = new FormData();
-    formData.append('name', contractData.title);
-    formData.append('file', new Blob([htmlContent], { type: 'text/html' }), `${contractData.title}.html`);
+    // Create document via file upload using fetch directly
+    const boundary = `----formdata-${Date.now()}`;
+    const formDataBody = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="name"',
+      '',
+      contractData.title,
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="${contractData.title}.html"`,
+      'Content-Type: text/html',
+      '',
+      htmlContent,
+      `--${boundary}--`,
+    ].join('\r\n');
     
-    // Create document via multipart upload
-    const createDocResponse = await makeAssinafyMultipartRequest(
-      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`,
-      'POST',
-      apiKey,
-      formData
-    );
+    console.log("Form data body created, length:", formDataBody.length);
+    
+    const createDocResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: formDataBody,
+    });
+    
+    console.log(`📥 Document creation response: ${createDocResponse.status} ${createDocResponse.statusText}`);
 
     if (!createDocResponse.ok) {
       const errorText = await createDocResponse.text();
@@ -314,11 +330,17 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     }
 
     const documentData = await createDocResponse.json();
-    console.log("✅ Document created successfully:", documentData);
+    console.log("✅ Document created successfully:", documentData.data?.id || documentData.id);
 
     // Create assignment for signature
+    const documentId = documentData.data?.id || documentData.id;
+    if (!documentId) {
+      throw new Error('Documento criado mas ID não encontrado na resposta');
+    }
+    
+    console.log("📝 Creating assignment for document:", documentId);
     const assignmentResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/documents/${documentData.id}/assignments`,
+      `https://api.assinafy.com.br/v1/documents/${documentId}/assignments`,
       'POST',
       apiKey,
       {
@@ -335,10 +357,10 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     return new Response(
       JSON.stringify({
         success: true,
-        document_id: documentData.id,
+        document_id: documentId,
         signer_id: signerId,
-        assignment_id: assignmentData.id,
-        signing_url: `https://app.assinafy.com.br/sign/${documentData.id}`
+        assignment_id: assignmentData.data?.id || assignmentData.id,
+        signing_url: `https://app.assinafy.com.br/sign/${documentId}`
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
