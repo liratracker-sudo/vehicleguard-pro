@@ -287,23 +287,24 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Generate text content for document creation via API
+    // Generate HTML content for document creation
     console.log("🔄 Generating document content...");
     
-    const textContent = generateContractText(contractData);
+    const htmlContent = generateContractHTML(contractData);
     
-    console.log("📄 Text content generated, creating document via API...");
+    console.log("📄 HTML content generated, creating document via multipart upload...");
     
-    // Create document directly via Assinafy API instead of uploading file
-    const createDocResponse = await makeAssinafyRequest(
+    // Create FormData for multipart upload
+    const formData = new FormData();
+    formData.append('name', contractData.title);
+    formData.append('file', new Blob([htmlContent], { type: 'text/html' }), `${contractData.title}.html`);
+    
+    // Create document via multipart upload
+    const createDocResponse = await makeAssinafyMultipartRequest(
       `https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`,
       'POST',
       apiKey,
-      {
-        name: contractData.title,
-        content: textContent,
-        type: 'text'
-      }
+      formData
     );
 
     if (!createDocResponse.ok) {
@@ -439,6 +440,54 @@ async function makeAssinafyRequest(url: string, method: string, apiKey: string, 
   }
 
   console.log("Sending request to Assinafy API...");
+  const response = await fetch(url, config);
+  
+  console.log(`📥 Assinafy API response: ${response.status} ${response.statusText}`);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ Assinafy API error (${response.status}):`, errorText);
+    
+    let parsedError = errorText;
+    try {
+      const errorJson = JSON.parse(errorText);
+      parsedError = JSON.stringify(errorJson, null, 2);
+    } catch {
+      // Keep original text if not JSON
+    }
+    
+    throw new Error(`Erro da API Assinafy: ${response.status} - ${parsedError}`);
+  }
+
+  console.log("✅ Assinafy API request successful");
+  return response;
+}
+
+async function makeAssinafyMultipartRequest(url: string, method: string, apiKey: string, formData: FormData): Promise<Response> {
+  console.log(`🌐 Making Assinafy multipart request: ${method} ${url}`);
+  console.log("Request headers: X-Api-Key present:", apiKey ? "✓" : "✗");
+  
+  const headers: Record<string, string> = {
+    'X-Api-Key': apiKey,
+    // Don't set Content-Type for FormData, let the browser set it with boundary
+  };
+
+  console.log("Form data entries:");
+  for (const [key, value] of formData.entries()) {
+    if (value instanceof File || value instanceof Blob) {
+      console.log(`- ${key}: ${value.constructor.name} (${value.size} bytes)`);
+    } else {
+      console.log(`- ${key}: ${value}`);
+    }
+  }
+
+  const config: RequestInit = {
+    method,
+    headers,
+    body: formData,
+  };
+
+  console.log("Sending multipart request to Assinafy API...");
   const response = await fetch(url, config);
   
   console.log(`📥 Assinafy API response: ${response.status} ${response.statusText}`);
