@@ -287,42 +287,24 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Generate HTML content for document creation via file upload
-    console.log("🔄 Generating document content...");
+    // Try creating document without file upload - using text content directly
+    console.log("🔄 Creating document with text content...");
     
-    const htmlContent = generateContractHTML(contractData);
+    const textContent = generateContractText(contractData);
+    console.log("📄 Text content generated, length:", textContent.length);
     
-    console.log("📄 HTML content generated, creating document via file upload...");
-    console.log("HTML content length:", htmlContent.length);
+    // Create document via API with text content
+    const createDocResponse = await makeAssinafyRequest(
+      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`,
+      'POST',
+      apiKey,
+      {
+        name: contractData.title,
+        content: textContent,
+        signers: [signerId]
+      }
+    );
     
-    // Create document via file upload using fetch directly
-    const boundary = `----formdata-${Date.now()}`;
-    const formDataBody = [
-      `--${boundary}`,
-      'Content-Disposition: form-data; name="name"',
-      '',
-      contractData.title,
-      `--${boundary}`,
-      `Content-Disposition: form-data; name="file"; filename="${contractData.title}.html"`,
-      'Content-Type: text/html',
-      '',
-      htmlContent,
-      `--${boundary}--`,
-    ].join('\r\n');
-    
-    console.log("Form data body created, length:", formDataBody.length);
-    
-    const createDocResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': apiKey,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body: formDataBody,
-    });
-    
-    console.log(`📥 Document creation response: ${createDocResponse.status} ${createDocResponse.statusText}`);
-
     if (!createDocResponse.ok) {
       const errorText = await createDocResponse.text();
       console.error("❌ Document creation failed:", errorText);
@@ -332,34 +314,16 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     const documentData = await createDocResponse.json();
     console.log("✅ Document created successfully:", documentData.data?.id || documentData.id);
 
-    // Create assignment for signature
     const documentId = documentData.data?.id || documentData.id;
     if (!documentId) {
       throw new Error('Documento criado mas ID não encontrado na resposta');
     }
-    
-    console.log("📝 Creating assignment for document:", documentId);
-    const assignmentResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/documents/${documentId}/assignments`,
-      'POST',
-      apiKey,
-      {
-        method: "virtual",
-        signer_ids: [signerId],
-        message: `Olá ${contractData.client_name}, por favor assine este contrato.`,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-      }
-    );
-
-    const assignmentData = await assignmentResponse.json();
-    console.log("Assignment created:", assignmentData);
 
     return new Response(
       JSON.stringify({
         success: true,
         document_id: documentId,
         signer_id: signerId,
-        assignment_id: assignmentData.data?.id || assignmentData.id,
         signing_url: `https://app.assinafy.com.br/sign/${documentId}`
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -485,53 +449,6 @@ async function makeAssinafyRequest(url: string, method: string, apiKey: string, 
   return response;
 }
 
-async function makeAssinafyMultipartRequest(url: string, method: string, apiKey: string, formData: FormData): Promise<Response> {
-  console.log(`🌐 Making Assinafy multipart request: ${method} ${url}`);
-  console.log("Request headers: X-Api-Key present:", apiKey ? "✓" : "✗");
-  
-  const headers: Record<string, string> = {
-    'X-Api-Key': apiKey,
-    // Don't set Content-Type for FormData, let the browser set it with boundary
-  };
-
-  console.log("Form data entries:");
-  for (const [key, value] of formData.entries()) {
-    if (value instanceof File || value instanceof Blob) {
-      console.log(`- ${key}: ${value.constructor.name} (${value.size} bytes)`);
-    } else {
-      console.log(`- ${key}: ${value}`);
-    }
-  }
-
-  const config: RequestInit = {
-    method,
-    headers,
-    body: formData,
-  };
-
-  console.log("Sending multipart request to Assinafy API...");
-  const response = await fetch(url, config);
-  
-  console.log(`📥 Assinafy API response: ${response.status} ${response.statusText}`);
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`❌ Assinafy API error (${response.status}):`, errorText);
-    
-    let parsedError = errorText;
-    try {
-      const errorJson = JSON.parse(errorText);
-      parsedError = JSON.stringify(errorJson, null, 2);
-    } catch {
-      // Keep original text if not JSON
-    }
-    
-    throw new Error(`Erro da API Assinafy: ${response.status} - ${parsedError}`);
-  }
-
-  console.log("✅ Assinafy API request successful");
-  return response;
-}
 
 function generateContractText(contractData: ContractData): string {
   const today = new Date().toLocaleDateString('pt-BR');
@@ -548,77 +465,4 @@ ${contractData.content}
 _________________________________
 ${contractData.client_name}
 Assinatura Digital`;
-}
-
-function generateContractHTML(contractData: ContractData): string {
-  const today = new Date().toLocaleDateString('pt-BR');
-  
-  return `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${contractData.title}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 40px;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .contract-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        .content {
-            text-align: justify;
-            margin-bottom: 40px;
-        }
-        .signature-section {
-            margin-top: 60px;
-            text-align: center;
-        }
-        .signature-line {
-            border-bottom: 1px solid #000;
-            width: 300px;
-            margin: 40px auto 10px;
-        }
-        .date {
-            text-align: right;
-            margin-bottom: 30px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1 class="contract-title">${contractData.title}</h1>
-    </div>
-    
-    <div class="date">
-        <p>Data: ${today}</p>
-    </div>
-    
-    <div class="content">
-        <p><strong>Contratante:</strong> ${contractData.client_name}</p>
-        <p><strong>Email:</strong> ${contractData.client_email}</p>
-        ${contractData.client_cpf ? `<p><strong>CPF:</strong> ${contractData.client_cpf}</p>` : ''}
-        
-        <br>
-        
-        <div>${contractData.content.replace(/\n/g, '<br>')}</div>
-    </div>
-    
-    <div class="signature-section">
-        <div class="signature-line"></div>
-        <p><strong>${contractData.client_name}</strong><br>Assinatura Digital</p>
-    </div>
-</body>
-</html>
-  `;
 }
