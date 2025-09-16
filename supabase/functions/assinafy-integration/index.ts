@@ -287,36 +287,74 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Try creating document without file upload - using text content directly
-    console.log("🔄 Creating document with text content...");
+    // Generate HTML content for the document
+    console.log("🔄 Creating document with file upload...");
     
-    const textContent = generateContractText(contractData);
-    console.log("📄 Text content generated, length:", textContent.length);
+    const htmlContent = generateContractHTML(contractData);
+    console.log("📄 HTML content generated, length:", htmlContent.length);
     
-    // Create document via API with text content
-    const createDocResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`,
+    // Create PDF file from HTML content
+    const boundary = '----formdata-boundary-' + Math.random().toString(36);
+    const fileName = `${contractData.title.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+    
+    let formBody = '';
+    formBody += `--${boundary}\r\n`;
+    formBody += `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`;
+    formBody += `Content-Type: text/html\r\n\r\n`;
+    formBody += htmlContent + '\r\n';
+    formBody += `--${boundary}--\r\n`;
+    
+    // Upload document file
+    const uploadResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: formBody
+    });
+    
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error("❌ Document upload failed:", errorText);
+      throw new Error(`Erro no upload do documento: ${errorText}`);
+    }
+
+    const documentData = await uploadResponse.json();
+    console.log("✅ Document uploaded successfully:", documentData);
+
+    const documentId = documentData.id;
+    if (!documentId) {
+      throw new Error('Documento criado mas ID não encontrado na resposta');
+    }
+
+    // Create assignment to assign the document to signers
+    console.log("🔄 Creating assignment for document:", documentId);
+    
+    const assignmentResponse = await makeAssinafyRequest(
+      `https://api.assinafy.com.br/v1/assignments`,
       'POST',
       apiKey,
       {
-        name: contractData.title,
-        content: textContent,
-        signers: [signerId]
+        document_id: documentId,
+        signers: [
+          {
+            signer_id: signerId,
+            role: "signer"
+          }
+        ],
+        method: "virtual",
+        message: `Contrato: ${contractData.title}`
       }
     );
     
-    if (!createDocResponse.ok) {
-      const errorText = await createDocResponse.text();
-      console.error("❌ Document creation failed:", errorText);
-      throw new Error(`Erro na criação do documento: ${errorText}`);
-    }
-
-    const documentData = await createDocResponse.json();
-    console.log("✅ Document created successfully:", documentData.data?.id || documentData.id);
-
-    const documentId = documentData.data?.id || documentData.id;
-    if (!documentId) {
-      throw new Error('Documento criado mas ID não encontrado na resposta');
+    if (!assignmentResponse.ok) {
+      const errorText = await assignmentResponse.text();
+      console.error("❌ Assignment creation failed:", errorText);
+      // Continue anyway, document was created
+    } else {
+      const assignmentData = await assignmentResponse.json();
+      console.log("✅ Assignment created successfully:", assignmentData);
     }
 
     return new Response(
@@ -450,19 +488,67 @@ async function makeAssinafyRequest(url: string, method: string, apiKey: string, 
 }
 
 
-function generateContractText(contractData: ContractData): string {
+function generateContractHTML(contractData: ContractData): string {
   const today = new Date().toLocaleDateString('pt-BR');
   
-  return `${contractData.title}
-
-Data: ${today}
-
-CONTRATANTE: ${contractData.client_name}
-E-mail: ${contractData.client_email}${contractData.client_cpf ? `\nCPF: ${contractData.client_cpf}` : ''}
-
-${contractData.content}
-
-_________________________________
-${contractData.client_name}
-Assinatura Digital`;
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${contractData.title}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 40px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+        }
+        .content {
+            margin: 20px 0;
+            text-align: justify;
+        }
+        .signature-area {
+            margin-top: 50px;
+            border-top: 1px solid #ccc;
+            padding-top: 30px;
+        }
+        .client-info {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${contractData.title}</h1>
+        <p><strong>Data:</strong> ${today}</p>
+    </div>
+    
+    <div class="client-info">
+        <h3>CONTRATANTE:</h3>
+        <p><strong>Nome:</strong> ${contractData.client_name}</p>
+        <p><strong>E-mail:</strong> ${contractData.client_email}</p>
+        ${contractData.client_cpf ? `<p><strong>CPF:</strong> ${contractData.client_cpf}</p>` : ''}
+    </div>
+    
+    <div class="content">
+        ${contractData.content.replace(/\n/g, '<br>')}
+    </div>
+    
+    <div class="signature-area">
+        <p>_________________________________</p>
+        <p><strong>${contractData.client_name}</strong></p>
+        <p>Assinatura Digital</p>
+    </div>
+</body>
+</html>`;
 }
