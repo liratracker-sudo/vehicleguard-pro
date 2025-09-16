@@ -532,14 +532,14 @@ Assinatura do Contratante
                 <div>
                   <Label htmlFor="template_id">Modelo de Contrato</Label>
                   <Select 
-                    value={formData.template_id}
-                    onValueChange={(value) => setFormData({...formData, template_id: value})}
+                    value={formData.template_id || "default"}
+                    onValueChange={(value) => setFormData({...formData, template_id: value === "default" ? "" : value})}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um modelo (opcional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Modelo padrão</SelectItem>
+                      <SelectItem value="default">Modelo padrão</SelectItem>
                       {templates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}
