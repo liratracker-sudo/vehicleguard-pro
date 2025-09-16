@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 
 // CORS headers
 const corsHeaders = {
@@ -287,31 +288,36 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
-    // Generate HTML content for the document
-    console.log("🔄 Creating document with file upload...");
+    // Generate PDF content for the document
+    console.log("🔄 Creating document with PDF generation...");
     
-    const htmlContent = generateContractHTML(contractData);
-    console.log("📄 HTML content generated, length:", htmlContent.length);
+    const pdfBytes = await generateContractPDF(contractData);
+    console.log("📄 PDF content generated, size:", pdfBytes.length, "bytes");
     
-    // Create PDF file from HTML content
+    // Create PDF file multipart form data
     const boundary = '----formdata-boundary-' + Math.random().toString(36);
-    const fileName = `${contractData.title.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+    const fileName = `${contractData.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
     
     let formBody = '';
     formBody += `--${boundary}\r\n`;
     formBody += `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`;
-    formBody += `Content-Type: text/html\r\n\r\n`;
-    formBody += htmlContent + '\r\n';
+    formBody += `Content-Type: application/pdf\r\n\r\n`;
+    formBody += pdfBytes + '\r\n';
     formBody += `--${boundary}--\r\n`;
     
-    // Upload document file
+    // Upload document file using FormData
+    const pdfBuffer = Uint8Array.from(atob(pdfBytes), c => c.charCodeAt(0));
+    const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
+    
+    const formData = new FormData();
+    formData.append('file', pdfBlob, fileName);
+    
     const uploadResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
-      body: formBody
+      body: formData
     });
     
     if (!uploadResponse.ok) {
@@ -485,6 +491,102 @@ async function makeAssinafyRequest(url: string, method: string, apiKey: string, 
 
   console.log("✅ Assinafy API request successful");
   return response;
+}
+
+async function generateContractPDF(contractData: ContractData): Promise<string> {
+  try {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    
+    // Set font
+    doc.setFont('helvetica');
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(0, 123, 255);
+    doc.text(contractData.title || 'Contrato de Prestação de Serviços', 105, 20, { align: 'center' });
+    
+    // Date
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 105, 30, { align: 'center' });
+    
+    // Client info section
+    let yPosition = 50;
+    doc.setFontSize(14);
+    doc.setTextColor(0, 123, 255);
+    doc.text('Informações do Cliente', 20, yPosition);
+    
+    yPosition += 10;
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    
+    // Client info box
+    doc.rect(15, yPosition - 5, 180, 25);
+    doc.text(`Nome: ${contractData.client_name}`, 20, yPosition + 5);
+    doc.text(`E-mail: ${contractData.client_email}`, 20, yPosition + 12);
+    if (contractData.client_cpf) {
+      doc.text(`CPF: ${contractData.client_cpf}`, 20, yPosition + 19);
+    }
+    
+    yPosition += 35;
+    
+    // Contract content section
+    doc.setFontSize(14);
+    doc.setTextColor(0, 123, 255);
+    doc.text('Conteúdo do Contrato', 20, yPosition);
+    
+    yPosition += 10;
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    
+    // Split content into lines and pages
+    const lines = doc.splitTextToSize(contractData.content, 170);
+    const pageHeight = 297; // A4 height in mm
+    const marginBottom = 40; // Space for signatures
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (yPosition > pageHeight - marginBottom) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(lines[i], 20, yPosition);
+      yPosition += 4;
+    }
+    
+    // Signature section
+    if (yPosition > pageHeight - 80) {
+      doc.addPage();
+      yPosition = 20;
+    }
+    
+    yPosition += 20;
+    
+    // Date line
+    doc.setFontSize(10);
+    doc.text(`________________, ${new Date().toLocaleDateString('pt-BR')}`, 140, yPosition);
+    
+    yPosition += 30;
+    
+    // Client signature
+    doc.line(20, yPosition, 90, yPosition);
+    doc.text(contractData.client_name, 55, yPosition + 6, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text('CONTRATANTE', 55, yPosition + 12, { align: 'center' });
+    
+    // Company signature
+    doc.line(110, yPosition, 180, yPosition);
+    doc.setFontSize(10);
+    doc.text('[Nome da Empresa]', 145, yPosition + 6, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text('CONTRATADA', 145, yPosition + 12, { align: 'center' });
+    
+    // Convert to base64 for transmission
+    const pdfData = doc.output('datauristring');
+    return pdfData.split(',')[1]; // Remove data URI prefix
+  } catch (error) {
+    console.error('❌ Error generating PDF:', error);
+    throw new Error('Erro na geração do PDF: ' + error.message);
+  }
 }
 
 
