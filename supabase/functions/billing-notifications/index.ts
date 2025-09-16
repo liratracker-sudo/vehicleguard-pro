@@ -20,8 +20,34 @@ serve(async (req) => {
   try {
     console.log('Billing notifications processor started');
     
-    // Process pending notifications and create new ones
-    await processNotifications();
+    // Parse request body to check for specific payment/company triggers
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    const { payment_id, company_id, trigger } = body;
+    
+    if (trigger === 'payment_created' && payment_id) {
+      // Handle specific payment notification creation
+      console.log(`Creating notifications for specific payment: ${payment_id}`);
+      
+      // Get payment details to identify company
+      const { data: payment } = await supabase
+        .from('payment_transactions')
+        .select('company_id')
+        .eq('id', payment_id)
+        .single();
+        
+      if (payment?.company_id) {
+        await createMissingNotifications(payment_id, payment.company_id);
+      }
+    } else {
+      // Process all pending notifications and create missing ones
+      await processNotifications();
+    }
     
     return new Response(
       JSON.stringify({ success: true, message: 'Billing notifications processed' }),
@@ -227,14 +253,21 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
     .replace(/\{\{link_pagamento\}\}/g, paymentLink);
 }
 
-async function createMissingNotifications() {
+async function createMissingNotifications(specificPaymentId?: string, specificCompanyId?: string) {
   console.log('Creating missing notifications...');
   
-  // Get active companies with notification settings
-  const { data: companiesWithSettings } = await supabase
+  // Build query for companies with notification settings
+  let query = supabase
     .from('payment_notification_settings')
     .select('*')
     .eq('active', true);
+
+  // If specific company ID provided, filter by it
+  if (specificCompanyId) {
+    query = query.eq('company_id', specificCompanyId);
+  }
+
+  const { data: companiesWithSettings } = await query;
 
   if (!companiesWithSettings?.length) {
     console.log('No active companies with notification settings');
@@ -242,15 +275,15 @@ async function createMissingNotifications() {
   }
 
   for (const settings of companiesWithSettings) {
-    await createNotificationsForCompany(settings);
+    await createNotificationsForCompany(settings, specificPaymentId);
   }
 }
 
-async function createNotificationsForCompany(settings: any) {
-  console.log(`Creating notifications for company: ${settings.company_id}`);
+async function createNotificationsForCompany(settings: any, specificPaymentId?: string) {
+  console.log(`Creating notifications for company: ${settings.company_id}${specificPaymentId ? `, payment: ${specificPaymentId}` : ''}`);
   
-  // Get pending/unpaid payments that don't have notifications yet
-  const { data: paymentsWithoutNotifications } = await supabase
+  // Build query for payments that need notifications
+  let query = supabase
     .from('payment_transactions')
     .select(`
       *,
@@ -259,6 +292,13 @@ async function createNotificationsForCompany(settings: any) {
     .eq('company_id', settings.company_id)
     .in('status', ['pending', 'overdue'])
     .not('due_date', 'is', null);
+
+  // If specific payment ID provided, filter by it
+  if (specificPaymentId) {
+    query = query.eq('id', specificPaymentId);
+  }
+
+  const { data: paymentsWithoutNotifications } = await query;
 
   if (!paymentsWithoutNotifications?.length) {
     console.log(`No payments without notifications for company ${settings.company_id}`);
