@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Clock, Users, Calendar, History } from "lucide-react";
+import { Bell, Clock, Users, Calendar, History, Activity } from "lucide-react";
 import { NotificationHistory } from "@/components/billing/NotificationHistory";
+import { NotificationSystemStatus } from "@/components/billing/NotificationSystemStatus";
 import { BillingNotificationsModal } from "./BillingNotificationsModal";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +31,7 @@ export function BillingNotifications() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"settings" | "history">("settings");
+  const [activeTab, setActiveTab] = useState<"settings" | "history" | "status">("settings");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -214,10 +215,14 @@ export function BillingNotifications() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setActiveTab(activeTab === "settings" ? "history" : "settings")}
+              onClick={() => setActiveTab(
+                activeTab === "settings" ? "status" :
+                activeTab === "status" ? "history" : "settings"
+              )}
             >
               <History className="h-4 w-4 mr-2" />
-              {activeTab === "settings" ? "Histórico" : "Configurações"}
+              {activeTab === "settings" ? "Status" : 
+               activeTab === "status" ? "Histórico" : "Configurações"}
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -236,6 +241,8 @@ export function BillingNotifications() {
 
       {activeTab === "history" ? (
         <NotificationHistory />
+      ) : activeTab === "status" ? (
+        <NotificationSystemStatus />
       ) : (
         <div className="space-y-6">
           {/* Status Cards */}

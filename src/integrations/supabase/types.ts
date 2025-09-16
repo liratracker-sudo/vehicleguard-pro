@@ -582,6 +582,39 @@ export type Database = {
           },
         ]
       }
+      cron_execution_logs: {
+        Row: {
+          error_message: string | null
+          execution_time_ms: number | null
+          finished_at: string | null
+          id: string
+          job_name: string
+          response_body: string | null
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          error_message?: string | null
+          execution_time_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          job_name: string
+          response_body?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          error_message?: string | null
+          execution_time_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          job_name?: string
+          response_body?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number

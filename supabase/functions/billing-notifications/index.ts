@@ -18,6 +18,7 @@ serve(async (req) => {
   }
 
   try {
+    const startTime = Date.now();
     console.log('Billing notifications processor started');
     
     // Parse request body to check for specific payment/company triggers
@@ -28,7 +29,19 @@ serve(async (req) => {
       body = {};
     }
 
-    const { payment_id, company_id, trigger } = body;
+    const { payment_id, company_id, trigger, force } = body;
+    
+    // Log execution start for monitoring
+    const { data: logEntry } = await supabase
+      .from('cron_execution_logs')
+      .insert({
+        job_name: 'billing-notifications-function',
+        status: 'running'
+      })
+      .select()
+      .single();
+    
+    let result;
     
     if (trigger === 'payment_created' && payment_id) {
       // Handle specific payment notification creation
@@ -42,19 +55,50 @@ serve(async (req) => {
         .single();
         
       if (payment?.company_id) {
-        await createMissingNotifications(payment_id, payment.company_id);
+        result = await createMissingNotifications(payment_id, payment.company_id);
       }
     } else {
       // Process all pending notifications and create missing ones
-      await processNotifications();
+      result = await processNotifications(force);
+    }
+    
+    const executionTime = Date.now() - startTime;
+    
+    // Update log entry with success
+    if (logEntry) {
+      await supabase
+        .from('cron_execution_logs')
+        .update({
+          status: 'success',
+          finished_at: new Date().toISOString(),
+          execution_time_ms: executionTime,
+          response_body: JSON.stringify(result || { success: true })
+        })
+        .eq('id', logEntry.id);
     }
     
     return new Response(
-      JSON.stringify({ success: true, message: 'Billing notifications processed' }),
+      JSON.stringify({ 
+        success: true, 
+        message: 'Billing notifications processed',
+        execution_time_ms: executionTime,
+        result
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('Error processing billing notifications:', error);
+    
+    // Log error for monitoring
+    await supabase
+      .from('cron_execution_logs')
+      .insert({
+        job_name: 'billing-notifications-function',
+        status: 'error',
+        finished_at: new Date().toISOString(),
+        error_message: error.message
+      });
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
@@ -65,20 +109,34 @@ serve(async (req) => {
   }
 });
 
-async function processNotifications() {
-  console.log('Starting notification processing...');
+async function processNotifications(force = false) {
+  console.log('Starting notification processing...', { force });
+  
+  const results = {
+    sent: 0,
+    failed: 0,
+    created: 0,
+    skipped: 0
+  };
   
   // 1. Send pending notifications that are due
-  await sendPendingNotifications();
+  const sentResults = await sendPendingNotifications();
+  results.sent = sentResults.sent;
+  results.failed = sentResults.failed;
   
   // 2. Create new notifications for payments without them
-  await createMissingNotifications();
+  const createdResults = await createMissingNotifications();
+  results.created = createdResults.created;
+  results.skipped = createdResults.skipped;
   
-  console.log('Notification processing completed');
+  console.log('Notification processing completed', results);
+  return results;
 }
 
 async function sendPendingNotifications() {
   console.log('Sending pending notifications...');
+  
+  const results = { sent: 0, failed: 0 };
   
   // Get all pending notifications that are due (including a 5-minute buffer for timing issues)
   const bufferTime = new Date();
@@ -97,13 +155,20 @@ async function sendPendingNotifications() {
 
   if (error) {
     console.error('Error fetching pending notifications:', error);
-    return;
+    return results;
   }
 
   console.log(`Found ${pendingNotifications?.length || 0} pending notifications to send`);
 
   for (const notification of pendingNotifications || []) {
     console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
+    
+    // Skip notifications that are too old or don't have valid payment data
+    if (!notification.payment_transactions || !notification.payment_transactions.clients) {
+      console.log(`Skipping notification ${notification.id} - invalid payment/client data`);
+      continue;
+    }
+    
     try {
       // Get notification settings for the company to use retry settings
       const { data: notificationSettings } = await supabase
@@ -125,6 +190,7 @@ async function sendPendingNotifications() {
         .eq('id', notification.id);
         
       console.log(`Notification sent successfully: ${notification.id}`);
+      results.sent++;
     } catch (error) {
       console.error(`Failed to send notification ${notification.id}:`, error);
       
@@ -153,8 +219,12 @@ async function sendPendingNotifications() {
             : notification.scheduled_for
         })
         .eq('id', notification.id);
+      
+      results.failed++;
     }
   }
+  
+  return results;
 }
 
 async function sendSingleNotification(notification: any) {
@@ -258,7 +328,9 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
 }
 
 async function createMissingNotifications(specificPaymentId?: string, specificCompanyId?: string) {
-  console.log('Creating missing notifications...');
+  console.log('Creating missing notifications...', { specificPaymentId, specificCompanyId });
+  
+  const results = { created: 0, skipped: 0 };
   
   // Build query for companies with notification settings
   let query = supabase
@@ -275,16 +347,22 @@ async function createMissingNotifications(specificPaymentId?: string, specificCo
 
   if (!companiesWithSettings?.length) {
     console.log('No active companies with notification settings');
-    return;
+    return results;
   }
 
   for (const settings of companiesWithSettings) {
-    await createNotificationsForCompany(settings, specificPaymentId);
+    const companyResults = await createNotificationsForCompany(settings, specificPaymentId);
+    results.created += companyResults.created;
+    results.skipped += companyResults.skipped;
   }
+  
+  return results;
 }
 
 async function createNotificationsForCompany(settings: any, specificPaymentId?: string) {
   console.log(`Creating notifications for company: ${settings.company_id}${specificPaymentId ? `, payment: ${specificPaymentId}` : ''}`);
+  
+  const results = { created: 0, skipped: 0 };
   
   // Build query for payments that need notifications
   let query = supabase
@@ -311,7 +389,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
 
   if (!paymentsWithoutNotifications?.length) {
     console.log(`No payments without notifications for company ${settings.company_id}`);
-    return;
+    return results;
   }
 
   const notifications = [];
@@ -462,6 +540,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       console.error(`Error creating notifications for company ${settings.company_id}:`, error);
     } else {
       console.log(`Created ${notifications.length} notifications for company ${settings.company_id}`);
+      results.created = notifications.length;
     }
   }
+  
+  return results;
 }
