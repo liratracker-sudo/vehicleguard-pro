@@ -80,7 +80,10 @@ async function processNotifications() {
 async function sendPendingNotifications() {
   console.log('Sending pending notifications...');
   
-  // Get all pending notifications that are due
+  // Get all pending notifications that are due (including a 5-minute buffer for timing issues)
+  const bufferTime = new Date();
+  bufferTime.setMinutes(bufferTime.getMinutes() + 5);
+  
   const { data: pendingNotifications, error } = await supabase
     .from('payment_notifications')
     .select(`
@@ -88,8 +91,9 @@ async function sendPendingNotifications() {
       payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('status', 'pending')
-    .lte('scheduled_for', new Date().toISOString())
-    .order('scheduled_for', { ascending: true });
+    .lte('scheduled_for', bufferTime.toISOString())
+    .order('scheduled_for', { ascending: true })
+    .limit(50); // Limit to avoid timeout
 
   if (error) {
     console.error('Error fetching pending notifications:', error);
@@ -296,6 +300,11 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
   // If specific payment ID provided, filter by it
   if (specificPaymentId) {
     query = query.eq('id', specificPaymentId);
+  } else {
+    // Only process payments from the last 30 days to avoid old data
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    query = query.gte('created_at', thirtyDaysAgo.toISOString());
   }
 
   const { data: paymentsWithoutNotifications } = await query;
@@ -310,6 +319,14 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
 
   for (const payment of paymentsWithoutNotifications) {
     const dueDate = new Date(payment.due_date);
+    const now = new Date();
+    
+    // Skip payments that are too old (more than 30 days past due)
+    const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysPastDue > 30) {
+      console.log(`Skipping payment ${payment.id} - too old (${daysPastDue} days past due)`);
+      continue;
+    }
     
     // Check if we already have notifications for this payment
     const { data: existingNotifications } = await supabase
@@ -328,7 +345,20 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       
       const scheduledDate = new Date(dueDate);
       scheduledDate.setDate(scheduledDate.getDate() - days);
-      scheduledDate.setHours(parseInt(settings.send_hour.split(':')[0]), parseInt(settings.send_hour.split(':')[1]), 0, 0);
+      
+      // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+      const timeParts = settings.send_hour.split(':');
+      const hour = parseInt(timeParts[0]) || 9;
+      const minute = parseInt(timeParts[1]) || 0;
+      
+      scheduledDate.setHours(hour, minute, 0, 0);
+      
+      // Only create if the scheduled date is not too far in the past
+      const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
+      if (hoursAgo > 48) {
+        console.log(`Skipping pre-due notification for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
+        continue;
+      }
       
       notifications.push({
         company_id: settings.company_id,
@@ -337,7 +367,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         event_type: 'pre_due',
         offset_days: days,
         scheduled_for: scheduledDate.toISOString(),
-        status: scheduledDate <= now ? 'pending' : 'pending',
+        status: 'pending',
         notification_settings_id: settings.id,
         attempts: 0
       });
@@ -353,11 +383,24 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         if (existingKeys.has(key)) continue;
         
         const scheduledDate = new Date(dueDate);
-        scheduledDate.setHours(parseInt(settings.send_hour.split(':')[0]), parseInt(settings.send_hour.split(':')[1]), 0, 0);
+        
+        // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+        const timeParts = settings.send_hour.split(':');
+        const hour = parseInt(timeParts[0]) || 9;
+        const minute = parseInt(timeParts[1]) || 0;
+        
+        scheduledDate.setHours(hour, minute, 0, 0);
         
         // Adicionar intervalo para disparos subsequentes
         if (i > 0) {
           scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
+        }
+        
+        // Only create if not too far in the past (same day or future)
+        const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
+        if (hoursAgo > 24) {
+          console.log(`Skipping on-due notification ${i+1} for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
+          continue;
         }
         
         notifications.push({
@@ -367,7 +410,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           event_type: 'on_due',
           offset_days: i, // Usando offset_days para identificar o número do disparo
           scheduled_for: scheduledDate.toISOString(),
-          status: scheduledDate <= now ? 'pending' : 'pending',
+          status: 'pending',
           notification_settings_id: settings.id,
           attempts: 0
         });
@@ -381,7 +424,20 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       
       const scheduledDate = new Date(dueDate);
       scheduledDate.setDate(scheduledDate.getDate() + days);
-      scheduledDate.setHours(parseInt(settings.send_hour.split(':')[0]), parseInt(settings.send_hour.split(':')[1]), 0, 0);
+      
+      // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+      const timeParts = settings.send_hour.split(':');
+      const hour = parseInt(timeParts[0]) || 9;
+      const minute = parseInt(timeParts[1]) || 0;
+      
+      scheduledDate.setHours(hour, minute, 0, 0);
+      
+      // Only create if not too far in the future (within next 30 days)
+      const daysInFuture = (scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysInFuture > 30) {
+        console.log(`Skipping post-due notification for payment ${payment.id} - too far in future (${Math.round(daysInFuture)} days)`);
+        continue;
+      }
       
       notifications.push({
         company_id: settings.company_id,
@@ -390,7 +446,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         event_type: 'post_due',
         offset_days: days,
         scheduled_for: scheduledDate.toISOString(),
-        status: scheduledDate <= now ? 'pending' : 'pending',
+        status: 'pending',
         notification_settings_id: settings.id,
         attempts: 0
       });
