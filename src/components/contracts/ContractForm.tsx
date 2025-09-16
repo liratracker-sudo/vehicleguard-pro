@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useContractTemplates } from "@/hooks/useContractTemplates"
 
 interface ContractFormProps {
   onSuccess?: () => void
@@ -30,7 +31,8 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
     start_date: new Date(),
     end_date: null as Date | null,
     contract_type: "service",
-    signature_status: "pending"
+    signature_status: "pending",
+    template_id: ""
   })
   
   const [clients, setClients] = useState<any[]>([])
@@ -40,6 +42,7 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
   const [dataLoading, setDataLoading] = useState(true)
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const { toast } = useToast()
+  const { templates } = useContractTemplates()
 
   const loadData = async () => {
     try {
@@ -107,7 +110,8 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
             start_date: new Date(contract.start_date),
             end_date: contract.end_date ? new Date(contract.end_date) : null,
             contract_type: contract.contract_type || "service",
-            signature_status: contract.signature_status
+            signature_status: contract.signature_status,
+            template_id: ""
           })
         }
       }
@@ -239,7 +243,30 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
     }
   }
 
+  const replaceTemplateVariables = (template: string, client: any) => {
+    const selectedPlan = plans.find(p => p.id === formData.plan_id)
+    const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id)
+    
+    return template
+      .replace(/\{\{cliente_nome\}\}/g, client.name || '')
+      .replace(/\{\{cliente_email\}\}/g, client.email || '')
+      .replace(/\{\{cliente_telefone\}\}/g, client.phone || '')
+      .replace(/\{\{cliente_documento\}\}/g, client.document || '')
+      .replace(/\{\{plano_nome\}\}/g, selectedPlan?.name || 'Não especificado')
+      .replace(/\{\{valor_mensal\}\}/g, `R$ ${formData.monthly_value.toFixed(2)}`)
+      .replace(/\{\{veiculo_info\}\}/g, selectedVehicle ? `${selectedVehicle.license_plate} - ${selectedVehicle.brand} ${selectedVehicle.model}` : 'Não especificado')
+      .replace(/\{\{data_inicio\}\}/g, format(formData.start_date, 'dd/MM/yyyy'))
+      .replace(/\{\{data_fim\}\}/g, formData.end_date ? `até ${format(formData.end_date, 'dd/MM/yyyy')}` : '(prazo indeterminado)')
+  }
+
   const generateContractContent = (client: any) => {
+    const selectedTemplate = templates.find(t => t.id === formData.template_id)
+    
+    if (selectedTemplate) {
+      return replaceTemplateVariables(selectedTemplate.content, client)
+    }
+    
+    // Fallback to default template
     const selectedPlan = plans.find(p => p.id === formData.plan_id)
     const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id)
     
@@ -501,6 +528,28 @@ Assinatura do Contratante
                   {errors.plan_id && (
                     <p className="text-sm text-destructive mt-1">{errors.plan_id}</p>
                   )}
+                </div>
+                <div>
+                  <Label htmlFor="template_id">Modelo de Contrato</Label>
+                  <Select 
+                    value={formData.template_id}
+                    onValueChange={(value) => setFormData({...formData, template_id: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um modelo (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Modelo padrão</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Escolha um modelo personalizado para o conteúdo do contrato
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="monthly_value">Valor Mensal *</Label>

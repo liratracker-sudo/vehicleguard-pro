@@ -27,6 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ContractForm } from "@/components/contracts/ContractForm"
+import { ContractTemplates } from "@/components/contracts/ContractTemplates"
 import { useContracts } from "@/hooks/useContracts"
 
 const ContractsPage = () => {
@@ -168,6 +169,8 @@ const ContractsPage = () => {
             </CardContent>
           </Card>
         </div>
+
+        <ContractTemplates />
 
         <Card>
           <CardHeader>
