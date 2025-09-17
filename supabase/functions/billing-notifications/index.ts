@@ -379,10 +379,10 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
   if (specificPaymentId) {
     query = query.eq('id', specificPaymentId);
   } else {
-    // Only process payments from the last 30 days to avoid old data
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    query = query.gte('created_at', thirtyDaysAgo.toISOString());
+    // Process payments from the last 60 days for overdue and pending ones
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    query = query.gte('due_date', sixtyDaysAgo.toISOString());
   }
 
   const { data: paymentsWithoutNotifications } = await query;
@@ -399,9 +399,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     const dueDate = new Date(payment.due_date);
     const now = new Date();
     
-    // Skip payments that are too old (more than 30 days past due)
+    // Skip payments that are too old (more than 60 days past due)  
     const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysPastDue > 30) {
+    if (daysPastDue > 60) {
       console.log(`Skipping payment ${payment.id} - too old (${daysPastDue} days past due)`);
       continue;
     }
@@ -431,9 +431,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       
       scheduledDate.setHours(hour, minute, 0, 0);
       
-      // Only create if the scheduled date is not too far in the past
+      // Only create if the scheduled date is not too far in the past (allow up to 7 days)
       const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
-      if (hoursAgo > 48) {
+      if (hoursAgo > 168) { // 7 days = 168 hours
         console.log(`Skipping pre-due notification for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
         continue;
       }
@@ -474,9 +474,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
         }
         
-        // Only create if not too far in the past (same day or future)
+        // Only create if not too far in the past (allow up to 48 hours)
         const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
-        if (hoursAgo > 24) {
+        if (hoursAgo > 48) {
           console.log(`Skipping on-due notification ${i+1} for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
           continue;
         }
@@ -510,9 +510,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       
       scheduledDate.setHours(hour, minute, 0, 0);
       
-      // Only create if not too far in the future (within next 30 days)
+      // Create post-due notifications for current and past dates
       const daysInFuture = (scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysInFuture > 30) {
+      if (daysInFuture > 1) { // Only skip if more than 1 day in the future
         console.log(`Skipping post-due notification for payment ${payment.id} - too far in future (${Math.round(daysInFuture)} days)`);
         continue;
       }
