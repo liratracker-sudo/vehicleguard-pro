@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Clock, Users, Calendar, History, Activity } from "lucide-react";
+import { Bell, Clock, Users, Calendar, History, Activity, Play } from "lucide-react";
 import { NotificationHistory } from "@/components/billing/NotificationHistory";
 import { NotificationSystemStatus } from "@/components/billing/NotificationSystemStatus";
 import { BillingNotificationsModal } from "./BillingNotificationsModal";
@@ -31,6 +31,7 @@ export function BillingNotifications() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [triggering, setTriggering] = useState(false);
   const [activeTab, setActiveTab] = useState<"settings" | "history" | "status">("settings");
   const { toast } = useToast();
 
@@ -178,6 +179,42 @@ export function BillingNotifications() {
     }
   };
 
+  const triggerNotificationsNow = async () => {
+    try {
+      setTriggering(true);
+      
+      console.log('🚀 Disparando notificações às 9:00...');
+      
+      const { data, error } = await supabase.functions.invoke('billing-notifications', {
+        body: { 
+          force: true,
+          trigger: 'manual_9am_start',
+          scheduled_time: '09:00'
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Resultado do disparo:', data);
+      
+      toast({
+        title: "Disparos Iniciados!",
+        description: `${data?.result?.sent || 0} notificações enviadas, ${data?.result?.created || 0} criadas.`,
+      });
+    } catch (error: any) {
+      console.error('❌ Erro ao disparar notificações:', error);
+      toast({
+        title: "Erro", 
+        description: error.message || "Erro ao iniciar disparos de notificação",
+        variant: "destructive"
+      });
+    } finally {
+      setTriggering(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -207,6 +244,20 @@ export function BillingNotifications() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={triggerNotificationsNow}
+              disabled={triggering || !settings.active}
+              className="flex items-center gap-2"
+            >
+              {triggering ? (
+                <Clock className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              Disparar 9h
+            </Button>
             <BillingNotificationsModal 
               settings={settings}
               onSave={saveSettings}

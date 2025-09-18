@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Settings, MessageSquare, Plus, X } from "lucide-react";
+import { Settings, MessageSquare, Plus, X, Clock, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface NotificationSettings {
   id: string;
@@ -40,6 +42,8 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
   const [open, setOpen] = useState(false);
   const [newPreDay, setNewPreDay] = useState('');
   const [newPostDay, setNewPostDay] = useState('');
+  const [triggering, setTriggering] = useState(false);
+  const { toast } = useToast();
 
   // Sync settings when modal opens
   React.useEffect(() => {
@@ -92,6 +96,43 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
   const handleSave = () => {
     onSave(localSettings);
     setOpen(false);
+  };
+
+  const triggerNotificationsNow = async () => {
+    try {
+      setTriggering(true);
+      
+      console.log('🚀 Disparando notificações manualmente...');
+      
+      // Chama a função de billing-notifications com force=true
+      const { data, error } = await supabase.functions.invoke('billing-notifications', {
+        body: { 
+          force: true,
+          trigger: 'manual_9am_start',
+          scheduled_time: '09:00'
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Resultado do disparo:', data);
+      
+      toast({
+        title: "Sucesso",
+        description: `Disparos iniciados! ${data?.result?.sent || 0} enviadas, ${data?.result?.created || 0} criadas.`,
+      });
+    } catch (error: any) {
+      console.error('❌ Erro ao disparar notificações:', error);
+      toast({
+        title: "Erro", 
+        description: error.message || "Erro ao iniciar disparos de notificação",
+        variant: "destructive"
+      });
+    } finally {
+      setTriggering(false);
+    }
   };
 
   return (
@@ -293,12 +334,33 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="send_hour">Horário de envio</Label>
-                  <Input
-                    id="send_hour"
-                    type="time"
-                    value={localSettings.send_hour}
-                    onChange={(e) => setLocalSettings({ ...localSettings, send_hour: e.target.value })}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="send_hour"
+                      type="time"
+                      value={localSettings.send_hour}
+                      onChange={(e) => setLocalSettings({ ...localSettings, send_hour: e.target.value })}
+                      className="flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={triggerNotificationsNow}
+                      disabled={triggering}
+                      className="flex items-center gap-1 px-3"
+                      title="Disparar notificações agora (9:00)"
+                    >
+                      {triggering ? (
+                        <Clock className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      9h
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Botão 9h dispara as notificações imediatamente
+                  </p>
                 </div>
                 
                 <div>

@@ -29,13 +29,15 @@ serve(async (req) => {
       body = {};
     }
 
-    const { payment_id, company_id, trigger, force } = body;
+    const { payment_id, company_id, trigger, force, scheduled_time } = body;
+    
+    console.log('📥 Request params:', { payment_id, company_id, trigger, force, scheduled_time });
     
     // Log execution start for monitoring
     const { data: logEntry } = await supabase
       .from('cron_execution_logs')
       .insert({
-        job_name: 'billing-notifications-function',
+        job_name: trigger === 'manual_9am_start' ? 'billing-notifications-manual-9am' : 'billing-notifications-function',
         status: 'running'
       })
       .select()
@@ -57,6 +59,10 @@ serve(async (req) => {
       if (payment?.company_id) {
         result = await createMissingNotifications(payment_id, payment.company_id);
       }
+    } else if (trigger === 'manual_9am_start') {
+      // Handle manual 9am trigger - force send all pending notifications and create missing ones
+      console.log('🚀 Manual 9AM trigger - processing all notifications with force=true');
+      result = await processNotifications(true);
     } else {
       // Process all pending notifications and create missing ones
       result = await processNotifications(force);
@@ -119,8 +125,8 @@ async function processNotifications(force = false) {
     skipped: 0
   };
   
-  // 1. Send pending notifications that are due
-  const sentResults = await sendPendingNotifications();
+  // 1. Send pending notifications that are due (or all if force=true)
+  const sentResults = await sendPendingNotifications(force);
   results.sent = sentResults.sent;
   results.failed = sentResults.failed;
   
@@ -133,25 +139,34 @@ async function processNotifications(force = false) {
   return results;
 }
 
-async function sendPendingNotifications() {
-  console.log('Sending pending notifications...');
+async function sendPendingNotifications(force = false) {
+  console.log('Sending pending notifications...', { force });
   
   const results = { sent: 0, failed: 0 };
   
   // Get all pending notifications that are due (including a 5-minute buffer for timing issues)
+  // If force=true, include all pending notifications regardless of scheduled time
   const bufferTime = new Date();
   bufferTime.setMinutes(bufferTime.getMinutes() + 5);
   
-  const { data: pendingNotifications, error } = await supabase
+  let query = supabase
     .from('payment_notifications')
     .select(`
       *,
       payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('status', 'pending')
-    .lte('scheduled_for', bufferTime.toISOString())
     .order('scheduled_for', { ascending: true })
-    .limit(50); // Limit to avoid timeout
+    .limit(100); // Increase limit for manual triggers
+
+  if (force) {
+    console.log('🚀 Force mode: processing ALL pending notifications');
+    // Don't filter by scheduled_for when force=true
+  } else {
+    query = query.lte('scheduled_for', bufferTime.toISOString());
+  }
+
+  const { data: pendingNotifications, error } = await query;
 
   if (error) {
     console.error('Error fetching pending notifications:', error);
