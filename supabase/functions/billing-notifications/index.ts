@@ -156,6 +156,7 @@ async function sendPendingNotifications(force = false) {
       payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('status', 'pending')
+    .in('payment_transactions.status', ['pending', 'overdue']) // Only active payments
     .order('scheduled_for', { ascending: true })
     .limit(100); // Increase limit for manual triggers
 
@@ -174,6 +175,9 @@ async function sendPendingNotifications(force = false) {
   }
 
   console.log(`Found ${pendingNotifications?.length || 0} pending notifications to send`);
+
+  // First, handle notifications for cancelled/paid payments by marking them as skipped
+  await cleanupInvalidNotifications();
 
   for (const notification of pendingNotifications || []) {
     console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
@@ -240,6 +244,32 @@ async function sendPendingNotifications(force = false) {
   }
   
   return results;
+}
+
+async function cleanupInvalidNotifications() {
+  console.log('Cleaning up notifications for cancelled/paid payments...');
+  
+  // Mark notifications for cancelled or paid payments as skipped
+  const { error } = await supabase
+    .from('payment_notifications')
+    .update({ 
+      status: 'skipped',
+      last_error: 'Payment was cancelled or already paid',
+      updated_at: new Date().toISOString()
+    })
+    .eq('status', 'pending')
+    .in('payment_id', 
+      supabase
+        .from('payment_transactions')
+        .select('id')
+        .in('status', ['cancelled', 'paid'])
+    );
+
+  if (error) {
+    console.error('Error cleaning up invalid notifications:', error);
+  } else {
+    console.log('Invalid notifications cleaned up successfully');
+  }
 }
 
 async function sendSingleNotification(notification: any) {
