@@ -1349,6 +1349,14 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      get_billing_cron_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active: boolean
+          jobname: string
+          schedule: string
+        }[]
+      }
       log_company_activity: {
         Args: {
           p_activity_type: string
