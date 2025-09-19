@@ -156,7 +156,6 @@ async function sendPendingNotifications(force = false) {
       payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('status', 'pending')
-    .in('payment_transactions.status', ['pending', 'overdue']) // Only active payments
     .order('scheduled_for', { ascending: true })
     .limit(100); // Increase limit for manual triggers
 
@@ -185,6 +184,24 @@ async function sendPendingNotifications(force = false) {
     // Skip notifications that are too old or don't have valid payment data
     if (!notification.payment_transactions || !notification.payment_transactions.clients) {
       console.log(`Skipping notification ${notification.id} - invalid payment/client data`);
+      continue;
+    }
+    
+    // Skip notifications for cancelled or paid payments
+    const paymentStatus = notification.payment_transactions.status;
+    if (!paymentStatus || !['pending', 'overdue'].includes(paymentStatus)) {
+      console.log(`Skipping notification ${notification.id} - payment status is ${paymentStatus}`);
+      
+      // Mark as skipped
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'skipped',
+          last_error: `Payment status is ${paymentStatus}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      
       continue;
     }
     
