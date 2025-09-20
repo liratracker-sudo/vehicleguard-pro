@@ -175,6 +175,39 @@ export default {
 				'slide-out-right': {
 					'0%': { transform: 'translateX(0)' },
 					'100%': { transform: 'translateX(100%)' }
+				},
+				moveHorizontal: {
+					'0%': {
+						transform: 'translateX(-50%) translateY(-10%)'
+					},
+					'50%': {
+						transform: 'translateX(50%) translateY(10%)'
+					},
+					'100%': {
+						transform: 'translateX(-50%) translateY(-10%)'
+					}
+				},
+				moveInCircle: {
+					'0%': {
+						transform: 'rotate(0deg)'
+					},
+					'50%': {
+						transform: 'rotate(180deg)'
+					},
+					'100%': {
+						transform: 'rotate(360deg)'
+					}
+				},
+				moveVertical: {
+					'0%': {
+						transform: 'translateY(-50%)'
+					},
+					'50%': {
+						transform: 'translateY(50%)'
+					},
+					'100%': {
+						transform: 'translateY(-50%)'
+					}
 				}
 			},
 			animation: {
@@ -187,7 +220,12 @@ export default {
 				'slide-in-right': 'slide-in-right 0.3s ease-out',
 				'slide-out-right': 'slide-out-right 0.3s ease-out',
 				'enter': 'fade-in 0.3s ease-out, scale-in 0.2s ease-out',
-				'exit': 'fade-out 0.3s ease-out, scale-out 0.2s ease-out'
+				'exit': 'fade-out 0.3s ease-out, scale-out 0.2s ease-out',
+				first: 'moveVertical 30s ease infinite',
+				second: 'moveInCircle 20s reverse infinite',
+				third: 'moveInCircle 40s linear infinite',
+				fourth: 'moveHorizontal 40s ease infinite',
+				fifth: 'moveInCircle 20s ease infinite'
 			}
 		}
 	},
