@@ -174,6 +174,12 @@ async function sendPendingNotifications(force = false) {
   }
 
   console.log(`Found ${pendingNotifications?.length || 0} pending notifications to send`);
+  console.log('Notification details:', pendingNotifications?.map(n => ({
+    id: n.id,
+    event_type: n.event_type,
+    payment_status: n.payment_transactions?.status,
+    scheduled_for: n.scheduled_for
+  })));
 
   // First, handle notifications for cancelled/paid payments by marking them as skipped
   await cleanupInvalidNotifications();
@@ -187,7 +193,7 @@ async function sendPendingNotifications(force = false) {
       continue;
     }
     
-    // Skip notifications for cancelled or paid payments
+    // Skip notifications for cancelled or paid payments and mark as skipped
     const paymentStatus = notification.payment_transactions.status;
     if (!paymentStatus || !['pending', 'overdue'].includes(paymentStatus)) {
       console.log(`Skipping notification ${notification.id} - payment status is ${paymentStatus}`);
@@ -283,9 +289,10 @@ async function cleanupInvalidNotifications() {
   }
 
   const paymentIds = cancelledPayments.map(p => p.id);
+  console.log(`Found ${paymentIds.length} cancelled/paid payments:`, paymentIds);
   
   // Mark notifications for cancelled or paid payments as skipped
-  const { error } = await supabase
+  const { data: updatedNotifications, error } = await supabase
     .from('payment_notifications')
     .update({ 
       status: 'skipped',
@@ -293,12 +300,13 @@ async function cleanupInvalidNotifications() {
       updated_at: new Date().toISOString()
     })
     .eq('status', 'pending')
-    .in('payment_id', paymentIds);
+    .in('payment_id', paymentIds)
+    .select('id');
 
   if (error) {
     console.error('Error cleaning up invalid notifications:', error);
   } else {
-    console.log(`Successfully cleaned up notifications for ${paymentIds.length} cancelled/paid payments`);
+    console.log(`Successfully cleaned up ${updatedNotifications?.length || 0} notifications for ${paymentIds.length} cancelled/paid payments`);
   }
 }
 
