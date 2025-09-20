@@ -144,6 +144,9 @@ async function sendPendingNotifications(force = false) {
   
   const results = { sent: 0, failed: 0 };
   
+  // First, cleanup notifications for cancelled/paid payments BEFORE querying
+  await cleanupInvalidNotifications();
+  
   // Get all pending notifications that are due (including a 5-minute buffer for timing issues)
   // If force=true, include all pending notifications regardless of scheduled time
   const bufferTime = new Date();
@@ -180,9 +183,6 @@ async function sendPendingNotifications(force = false) {
     payment_status: n.payment_transactions?.status,
     scheduled_for: n.scheduled_for
   })));
-
-  // First, handle notifications for cancelled/paid payments by marking them as skipped
-  await cleanupInvalidNotifications();
 
   for (const notification of pendingNotifications || []) {
     console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
