@@ -266,6 +266,24 @@ async function sendPendingNotifications(force = false) {
 async function cleanupInvalidNotifications() {
   console.log('Cleaning up notifications for cancelled/paid payments...');
   
+  // First get the payment IDs that are cancelled or paid
+  const { data: cancelledPayments, error: fetchError } = await supabase
+    .from('payment_transactions')
+    .select('id')
+    .in('status', ['cancelled', 'paid']);
+
+  if (fetchError) {
+    console.error('Error fetching cancelled/paid payments:', fetchError);
+    return;
+  }
+
+  if (!cancelledPayments || cancelledPayments.length === 0) {
+    console.log('No cancelled or paid payments found');
+    return;
+  }
+
+  const paymentIds = cancelledPayments.map(p => p.id);
+  
   // Mark notifications for cancelled or paid payments as skipped
   const { error } = await supabase
     .from('payment_notifications')
@@ -275,17 +293,12 @@ async function cleanupInvalidNotifications() {
       updated_at: new Date().toISOString()
     })
     .eq('status', 'pending')
-    .in('payment_id', 
-      supabase
-        .from('payment_transactions')
-        .select('id')
-        .in('status', ['cancelled', 'paid'])
-    );
+    .in('payment_id', paymentIds);
 
   if (error) {
     console.error('Error cleaning up invalid notifications:', error);
   } else {
-    console.log('Invalid notifications cleaned up successfully');
+    console.log(`Successfully cleaned up notifications for ${paymentIds.length} cancelled/paid payments`);
   }
 }
 
