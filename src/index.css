@@ -163,9 +163,9 @@
     text-rendering: optimizeLegibility;
   }
   
-  /* Custom Scrollbar */
+  /* Custom Scrollbar - Enhanced Visibility */
   ::-webkit-scrollbar {
-    @apply w-2;
+    @apply w-3;
   }
   
   ::-webkit-scrollbar-track {
@@ -173,11 +173,33 @@
   }
   
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full;
+    @apply bg-muted-foreground/40 rounded-full border border-background;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
+    @apply bg-muted-foreground/60;
+  }
+  
+  /* Ensure scrollbar is always visible */
+  html {
+    overflow-y: scroll;
+  }
+  
+  /* Force text contrast on dark backgrounds */
+  .bg-background,
+  .bg-card,
+  .bg-popover {
+    color: hsl(var(--foreground));
+  }
+  
+  /* Ensure all text elements use proper contrast */
+  h1, h2, h3, h4, h5, h6, p, span, div, label, button {
+    color: inherit;
+  }
+  
+  /* Dark mode text corrections */
+  .dark * {
+    color: hsl(var(--foreground));
   }
 }
 
@@ -281,15 +303,19 @@
   }
   
   .table-responsive::-webkit-scrollbar {
-    @apply h-2;
+    @apply h-3;
   }
   
   .table-responsive::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    @apply bg-muted/20;
   }
   
   .table-responsive::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full;
+    @apply bg-muted-foreground/50 rounded-full;
+  }
+  
+  .table-responsive::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/70;
   }
   
   /* Mobile Navigation */

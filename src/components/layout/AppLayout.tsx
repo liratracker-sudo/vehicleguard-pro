@@ -25,7 +25,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       containerClassName="fixed inset-0 z-0"
     >
       <SidebarProvider>
-        <div className="min-h-screen flex w-full relative z-10 bg-transparent overflow-x-hidden">
+        <div className="min-h-screen flex w-full relative z-10 bg-transparent overflow-x-hidden overflow-y-auto">
           <AppSidebar />
           
           <div className="flex-1 flex flex-col min-w-0">
@@ -46,7 +46,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-3 sm:p-6 overflow-auto container-responsive">
+            <main className="flex-1 p-3 sm:p-6 overflow-y-auto overflow-x-hidden container-responsive text-foreground">
               <div className="w-full max-w-full">
                 {children}
               </div>
