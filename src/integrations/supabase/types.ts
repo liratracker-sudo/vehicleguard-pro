@@ -1357,6 +1357,18 @@ export type Database = {
           schedule: string
         }[]
       }
+      insert_cron_log: {
+        Args: {
+          p_error_message?: string
+          p_execution_time_ms?: number
+          p_finished_at?: string
+          p_job_name: string
+          p_response_body?: string
+          p_started_at?: string
+          p_status?: string
+        }
+        Returns: string
+      }
       log_company_activity: {
         Args: {
           p_activity_type: string
@@ -1378,6 +1390,17 @@ export type Database = {
       set_encryption_key_guc: {
         Args: { p_key: string }
         Returns: undefined
+      }
+      update_cron_log: {
+        Args: {
+          p_error_message?: string
+          p_execution_time_ms?: number
+          p_finished_at?: string
+          p_log_id: string
+          p_response_body?: string
+          p_status?: string
+        }
+        Returns: boolean
       }
       validate_whatsapp_session: {
         Args: { p_company_id: string }
