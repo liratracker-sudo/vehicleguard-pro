@@ -163,7 +163,7 @@
     text-rendering: optimizeLegibility;
   }
   
-  /* Custom Scrollbar - Cross-browser compatibility with high contrast */
+  /* Custom Scrollbar - Cross-browser compatibility with orange color */
   ::-webkit-scrollbar {
     width: 14px;
     height: 14px;
@@ -175,7 +175,7 @@
   }
   
   ::-webkit-scrollbar-thumb {
-    background: #999 !important;
+    background: #ff8c00 !important;
     border-radius: 8px;
     border: 2px solid #f0f0f0;
     transition: all 0.2s ease;
@@ -183,7 +183,7 @@
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    background: #777 !important;
+    background: #ff7700 !important;
   }
   
   ::-webkit-scrollbar-corner {
@@ -193,7 +193,7 @@
   /* Firefox scrollbar styling */
   html, body, * {
     scrollbar-width: auto !important;
-    scrollbar-color: #999 #f0f0f0 !important;
+    scrollbar-color: #ff8c00 #f0f0f0 !important;
   }
   
   /* Force scrollbar visibility */
@@ -207,12 +207,12 @@
   }
   
   .dark ::-webkit-scrollbar-thumb {
-    background: #555 !important;
+    background: #ff9500 !important;
     border: 2px solid #2a2a2a;
   }
   
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: #666 !important;
+    background: #ffaa00 !important;
   }
   
   .dark ::-webkit-scrollbar-corner {
@@ -220,7 +220,7 @@
   }
   
   .dark html, .dark body, .dark * {
-    scrollbar-color: #555 #2a2a2a !important;
+    scrollbar-color: #ff9500 #2a2a2a !important;
   }
   
   /* Ensure scrollbar is always visible */
