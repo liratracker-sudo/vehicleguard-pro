@@ -456,36 +456,51 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     `)
     .eq('company_id', settings.company_id)
     .in('status', ['pending', 'overdue'])
-    .not('due_date', 'is', null);
+    .not('due_date', 'is', null)
+    .not('client_id', 'is', null); // Ensure we have a valid client
 
   // If specific payment ID provided, filter by it
   if (specificPaymentId) {
     query = query.eq('id', specificPaymentId);
   } else {
-    // Process payments from the last 60 days for overdue and pending ones
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-    query = query.gte('due_date', sixtyDaysAgo.toISOString());
+    // Process payments from the last 90 days for better coverage
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    query = query.gte('due_date', ninetyDaysAgo.toISOString().split('T')[0]);
   }
 
-  const { data: paymentsWithoutNotifications } = await query;
+  const { data: paymentsWithoutNotifications, error: paymentsError } = await query;
 
-  if (!paymentsWithoutNotifications?.length) {
-    console.log(`No payments without notifications for company ${settings.company_id}`);
+  if (paymentsError) {
+    console.error(`Error fetching payments for company ${settings.company_id}:`, paymentsError);
     return results;
   }
+
+  if (!paymentsWithoutNotifications?.length) {
+    console.log(`No payments found for company ${settings.company_id}`);
+    return results;
+  }
+
+  console.log(`Processing ${paymentsWithoutNotifications.length} payments for company ${settings.company_id}`);
 
   const notifications = [];
   const now = new Date();
 
   for (const payment of paymentsWithoutNotifications) {
+    // Skip payments without valid client data
+    if (!payment.clients || !payment.clients.phone) {
+      console.log(`Skipping payment ${payment.id} - no valid client or phone`);
+      results.skipped++;
+      continue;
+    }
+
     const dueDate = new Date(payment.due_date);
-    const now = new Date();
     
-    // Skip payments that are too old (more than 60 days past due)  
+    // Skip payments that are too old (more than 90 days past due)  
     const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysPastDue > 60) {
+    if (daysPastDue > 90) {
       console.log(`Skipping payment ${payment.id} - too old (${daysPastDue} days past due)`);
+      results.skipped++;
       continue;
     }
     
@@ -499,43 +514,52 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       existingNotifications?.map(n => `${n.event_type}_${n.offset_days}`) || []
     );
 
-    // Pre-due notifications
-    for (const days of settings.pre_due_days || []) {
-      const key = `pre_due_${days}`;
-      if (existingKeys.has(key)) continue;
-      
-      const scheduledDate = new Date(dueDate);
-      scheduledDate.setDate(scheduledDate.getDate() - days);
-      
-      // Parse send_hour properly (format: HH:MM:SS or HH:MM)
-      const timeParts = settings.send_hour.split(':');
-      const hour = parseInt(timeParts[0]) || 9;
-      const minute = parseInt(timeParts[1]) || 0;
-      
-      scheduledDate.setHours(hour, minute, 0, 0);
-      
-      // Only create if the scheduled date is not too far in the past (allow up to 7 days)
-      const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
-      if (hoursAgo > 168) { // 7 days = 168 hours
-        console.log(`Skipping pre-due notification for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
-        continue;
-      }
-      
-      notifications.push({
-        company_id: settings.company_id,
-        payment_id: payment.id,
-        client_id: payment.client_id,
-        event_type: 'pre_due',
-        offset_days: days,
-        scheduled_for: scheduledDate.toISOString(),
-        status: 'pending',
-        notification_settings_id: settings.id,
-        attempts: 0
-      });
+    // For overdue payments, prioritize post-due notifications
+    const isOverdue = daysPastDue > 0;
+    
+    if (isOverdue) {
+      console.log(`Payment ${payment.id} is ${daysPastDue} days overdue - prioritizing post-due notifications`);
     }
 
-    // On-due notifications (múltiplos disparos no dia do vencimento)
-    if (settings.on_due) {
+    // Pre-due notifications (only for future payments)
+    if (!isOverdue) {
+      for (const days of settings.pre_due_days || []) {
+        const key = `pre_due_${days}`;
+        if (existingKeys.has(key)) continue;
+        
+        const scheduledDate = new Date(dueDate);
+        scheduledDate.setDate(scheduledDate.getDate() - days);
+        
+        // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+        const timeParts = settings.send_hour.split(':');
+        const hour = parseInt(timeParts[0]) || 9;
+        const minute = parseInt(timeParts[1]) || 0;
+        
+        scheduledDate.setHours(hour, minute, 0, 0);
+        
+        // Only create if the scheduled date is not too far in the past (allow up to 3 days)
+        const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
+        if (hoursAgo > 72) { // 3 days = 72 hours
+          console.log(`Skipping pre-due notification for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
+          continue;
+        }
+        
+        notifications.push({
+          company_id: settings.company_id,
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          event_type: 'pre_due',
+          offset_days: days,
+          scheduled_for: scheduledDate.toISOString(),
+          status: 'pending',
+          notification_settings_id: settings.id,
+          attempts: 0
+        });
+      }
+    }
+
+    // On-due notifications (for due date or recently overdue)
+    if (settings.on_due && daysPastDue <= 7) { // Allow up to 7 days past due for on-due notifications
       const onDueTimes = settings.on_due_times || 1;
       const intervalHours = settings.on_due_interval_hours || 2;
       
@@ -557,11 +581,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
         }
         
-        // Only create if not too far in the past (allow up to 48 hours)
-        const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
-        if (hoursAgo > 48) {
-          console.log(`Skipping on-due notification ${i+1} for payment ${payment.id} - too old (${Math.round(hoursAgo)} hours ago)`);
-          continue;
+        // For overdue payments, schedule immediately if past due
+        if (isOverdue && i === 0) {
+          scheduledDate.setTime(now.getTime() + (5 * 60 * 1000)); // 5 minutes from now
         }
         
         notifications.push({
@@ -578,39 +600,42 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       }
     }
 
-    // Post-due notifications
-    for (const days of settings.post_due_days || []) {
-      const key = `post_due_${days}`;
-      if (existingKeys.has(key)) continue;
-      
-      const scheduledDate = new Date(dueDate);
-      scheduledDate.setDate(scheduledDate.getDate() + days);
-      
-      // Parse send_hour properly (format: HH:MM:SS or HH:MM)
-      const timeParts = settings.send_hour.split(':');
-      const hour = parseInt(timeParts[0]) || 9;
-      const minute = parseInt(timeParts[1]) || 0;
-      
-      scheduledDate.setHours(hour, minute, 0, 0);
-      
-      // Create post-due notifications for current and past dates
-      const daysInFuture = (scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysInFuture > 1) { // Only skip if more than 1 day in the future
-        console.log(`Skipping post-due notification for payment ${payment.id} - too far in future (${Math.round(daysInFuture)} days)`);
-        continue;
+    // Post-due notifications (for overdue payments)
+    if (isOverdue) {
+      for (const days of settings.post_due_days || []) {
+        // Only create post-due notifications if we're past that threshold
+        if (daysPastDue < days) continue;
+        
+        const key = `post_due_${days}`;
+        if (existingKeys.has(key)) continue;
+        
+        const scheduledDate = new Date(dueDate);
+        scheduledDate.setDate(scheduledDate.getDate() + days);
+        
+        // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+        const timeParts = settings.send_hour.split(':');
+        const hour = parseInt(timeParts[0]) || 9;
+        const minute = parseInt(timeParts[1]) || 0;
+        
+        scheduledDate.setHours(hour, minute, 0, 0);
+        
+        // If the scheduled date has already passed, schedule for immediate delivery
+        if (scheduledDate.getTime() < now.getTime()) {
+          scheduledDate.setTime(now.getTime() + (2 * 60 * 1000)); // 2 minutes from now
+        }
+        
+        notifications.push({
+          company_id: settings.company_id,
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          event_type: 'post_due',
+          offset_days: days,
+          scheduled_for: scheduledDate.toISOString(),
+          status: 'pending',
+          notification_settings_id: settings.id,
+          attempts: 0
+        });
       }
-      
-      notifications.push({
-        company_id: settings.company_id,
-        payment_id: payment.id,
-        client_id: payment.client_id,
-        event_type: 'post_due',
-        offset_days: days,
-        scheduled_for: scheduledDate.toISOString(),
-        status: 'pending',
-        notification_settings_id: settings.id,
-        attempts: 0
-      });
     }
   }
 

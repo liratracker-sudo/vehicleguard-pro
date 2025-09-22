@@ -69,12 +69,51 @@ serve(async (req) => {
           dueDate.setMonth(dueDate.getMonth() + 1);
         }
 
+        // Get or create a system client for the company
+        let systemClient;
+        const { data: existingSystemClient } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('company_id', subscription.company_id)
+          .eq('name', 'Sistema - Cobrança Automática')
+          .single();
+
+        if (existingSystemClient) {
+          systemClient = existingSystemClient;
+        } else {
+          // Create system client for automatic charges
+          const { data: company } = await supabase
+            .from('companies')
+            .select('name, email, phone')
+            .eq('id', subscription.company_id)
+            .single();
+
+          const { data: newSystemClient, error: clientError } = await supabase
+            .from('clients')
+            .insert({
+              company_id: subscription.company_id,
+              name: 'Sistema - Cobrança Automática',
+              email: company?.email || 'sistema@empresa.com',
+              phone: company?.phone || '11999999999',
+              document: 'SISTEMA',
+              status: 'active'
+            })
+            .select('id')
+            .single();
+
+          if (clientError) {
+            console.error(`Error creating system client for company ${subscription.company_id}:`, clientError);
+            continue;
+          }
+          systemClient = newSystemClient;
+        }
+
         // Create charge in payment_transactions
         const { data: charge, error: chargeError } = await supabase
           .from('payment_transactions')
           .insert({
             company_id: subscription.company_id,
-            client_id: null, // System generated
+            client_id: systemClient.id, // Use system client
             transaction_type: 'subscription',
             amount: amount,
             due_date: dueDate.toISOString().split('T')[0],
@@ -90,6 +129,24 @@ serve(async (req) => {
         }
 
         console.log(`Created charge ${charge.id} for company ${subscription.companies.name}`);
+
+        // Trigger notification creation for this specific charge
+        try {
+          const notificationResponse = await supabase.functions.invoke('billing-notifications', {
+            body: {
+              trigger: 'payment_created',
+              payment_id: charge.id
+            }
+          });
+          
+          if (notificationResponse.error) {
+            console.error(`Failed to trigger notifications for charge ${charge.id}:`, notificationResponse.error);
+          } else {
+            console.log(`Triggered notifications for charge ${charge.id}`);
+          }
+        } catch (notifError) {
+          console.error(`Error triggering notifications for charge ${charge.id}:`, notifError);
+        }
 
         // Try to create charge in Asaas if integration is active
         try {
