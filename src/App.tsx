@@ -17,6 +17,7 @@ import FinancialPage from "./pages/Financial";
 import ReportsPage from "./pages/Reports";
 import WhiteLabelPage from "./pages/WhiteLabel";
 import SettingsPage from "./pages/Settings";
+import BillingDiagnosticsPage from "./pages/BillingDiagnostics";
 import NotFound from "./pages/NotFound";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 
@@ -51,6 +52,7 @@ const App = () => {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/white-label" element={<WhiteLabelPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/billing-diagnostics" element={<BillingDiagnosticsPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

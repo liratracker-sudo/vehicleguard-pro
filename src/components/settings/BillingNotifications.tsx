@@ -32,6 +32,7 @@ export function BillingNotifications() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
   const [activeTab, setActiveTab] = useState<"settings" | "history" | "status">("settings");
   const { toast } = useToast();
 

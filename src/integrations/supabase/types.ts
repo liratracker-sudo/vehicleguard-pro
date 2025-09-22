@@ -1349,6 +1349,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
+      ensure_system_client_for_company: {
+        Args: { company_uuid: string }
+        Returns: string
+      }
       get_billing_cron_status: {
         Args: Record<PropertyKey, never>
         Returns: {

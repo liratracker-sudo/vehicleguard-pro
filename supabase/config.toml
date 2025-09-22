@@ -26,3 +26,18 @@ verify_jwt = false
 
 [functions.assinafy-webhook]
 verify_jwt = false
+
+[functions.billing-notifications]
+verify_jwt = false
+
+[functions.billing-diagnostics]
+verify_jwt = false
+
+[functions.generate-charges]
+verify_jwt = false
+
+[functions.billing-management]
+verify_jwt = false
+
+[functions.company-credentials]
+verify_jwt = true
