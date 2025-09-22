@@ -25,12 +25,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       containerClassName="fixed inset-0 z-0"
     >
       <SidebarProvider>
-        <div className="min-h-screen flex w-full relative z-10 bg-transparent overflow-x-hidden overflow-y-auto">
+        <div className="flex w-full relative z-10 bg-transparent">
           <AppSidebar />
           
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 min-h-screen">
             {/* Header */}
-            <header className="h-14 sm:h-16 bg-card/80 backdrop-blur-sm border-b border-card-border/50 flex items-center justify-between px-3 sm:px-6 shadow-sm card-futuristic">
+            <header className="h-14 sm:h-16 bg-card/80 backdrop-blur-sm border-b border-card-border/50 flex items-center justify-between px-3 sm:px-6 shadow-sm card-futuristic flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 <SidebarTrigger className="text-muted-foreground hover:text-foreground icon-hover flex-shrink-0" />
                 <div className="hidden xs:block min-w-0">
@@ -46,7 +46,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-3 sm:p-6 overflow-y-auto overflow-x-hidden container-responsive text-foreground">
+            <main className="flex-1 p-3 sm:p-6 container-responsive text-foreground">
               <div className="w-full max-w-full">
                 {children}
               </div>
