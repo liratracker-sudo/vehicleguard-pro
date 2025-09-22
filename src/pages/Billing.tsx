@@ -155,17 +155,7 @@ const BillingPage = () => {
           
           {/* Navigation buttons - responsive layout with proper spacing */}
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            <Button 
-              variant="secondary" 
-              onClick={() => navigate('/settings?tab=billing')}
-              className="flex-shrink-0"
-            >
-              <Settings className="w-4 h-4 sm:mr-2" />
-              <span className="hidden xs:inline ml-1">Config. Notificações</span>
-              <span className="xs:hidden">Config</span>
-            </Button>
-            
-            <Button 
+            <Button
               variant="outline" 
               onClick={loadPayments}
               disabled={loading}
