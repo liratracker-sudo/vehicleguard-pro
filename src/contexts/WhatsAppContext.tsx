@@ -9,6 +9,8 @@ interface WhatsAppConnectionState {
   sessionId: string | null;
   companyId: string | null;
   lastChecked: Date | null;
+  reconnectAttempts: number;
+  isChecking: boolean;
 }
 
 interface WhatsAppContextType {
@@ -36,7 +38,9 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     connectionStatus: 'disconnected',
     sessionId: null,
     companyId: null,
-    lastChecked: null
+    lastChecked: null,
+    reconnectAttempts: 0,
+    isChecking: false
   });
 
   const { toast } = useToast();
@@ -63,8 +67,18 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Função para verificar conexão com Evolution API
   const checkConnection = useCallback(async (): Promise<boolean> => {
     try {
+      // Evitar verificações simultâneas
+      if (connectionState.isChecking) {
+        return connectionState.isConnected;
+      }
+
+      setConnectionState(prev => ({ ...prev, isChecking: true }));
+
       const companyId = await getUserCompanyId();
-      if (!companyId) return false;
+      if (!companyId) {
+        setConnectionState(prev => ({ ...prev, isChecking: false }));
+        return false;
+      }
 
       // Buscar configurações do WhatsApp
       const { data: settings } = await supabase
@@ -74,13 +88,14 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         .eq('is_active', true)
         .maybeSingle();
 
-      if (!settings) {
+      if (!settings || !settings.instance_url || !settings.api_token || !settings.instance_name) {
         setConnectionState(prev => ({
           ...prev,
           isConnected: false,
           connectionStatus: 'disconnected',
           companyId,
-          lastChecked: new Date()
+          lastChecked: new Date(),
+          isChecking: false
         }));
         return false;
       }
@@ -88,14 +103,16 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Verificar conexão com Evolution API
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
-          action: 'check_connection',
-          instance_url: settings.instance_url,
-          api_token: settings.api_token,
-          instance_name: settings.instance_name
+          action: 'checkConnection',
+          payload: {
+            instance_url: settings.instance_url,
+            api_token: settings.api_token,
+            instance_name: settings.instance_name
+          }
         }
       });
 
-      const isConnected = response.data?.connected === true && response.data?.state === 'open';
+      const isConnected = response.data?.state === 'open';
 
       // Atualizar estado local
       setConnectionState(prev => ({
@@ -104,7 +121,9 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         instanceName: settings.instance_name,
         connectionStatus: isConnected ? 'connected' : 'disconnected',
         companyId,
-        lastChecked: new Date()
+        lastChecked: new Date(),
+        isChecking: false,
+        reconnectAttempts: isConnected ? 0 : prev.reconnectAttempts
       }));
 
       // Atualizar sessão no banco se mudou
@@ -137,16 +156,31 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...prev,
         isConnected: false,
         connectionStatus: 'disconnected',
-        lastChecked: new Date()
+        lastChecked: new Date(),
+        isChecking: false
       }));
       return false;
     }
-  }, []);
+  }, [connectionState.isChecking, connectionState.isConnected]);
 
-  // Função para reconectar
+  // Função para reconectar com backoff exponential
   const reconnect = useCallback(async (): Promise<boolean> => {
     try {
-      setConnectionState(prev => ({ ...prev, connectionStatus: 'reconnecting' }));
+      // Limitar tentativas de reconexão
+      if (connectionState.reconnectAttempts >= 5) {
+        toast({
+          title: "Muitas tentativas",
+          description: "Muitas tentativas de reconexão. Aguarde alguns minutos.",
+          variant: "destructive"
+        });
+        return false;
+      }
+
+      setConnectionState(prev => ({ 
+        ...prev, 
+        connectionStatus: 'reconnecting',
+        reconnectAttempts: prev.reconnectAttempts + 1
+      }));
 
       const companyId = await getUserCompanyId();
       if (!companyId) return false;
@@ -158,21 +192,21 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         .eq('is_active', true)
         .maybeSingle();
 
-      if (!settings) return false;
+      if (!settings || !settings.instance_url || !settings.api_token || !settings.instance_name) {
+        setConnectionState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        return false;
+      }
+
+      // Aguardar com backoff exponencial (2^tentativas segundos)
+      const delay = Math.min(1000 * Math.pow(2, connectionState.reconnectAttempts), 30000);
+      await new Promise(resolve => setTimeout(resolve, delay));
 
       // Tentar reconectar
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
-          action: 'createSession',
+          action: 'getQRCode',
           payload: {
-            instance_name: settings.instance_name,
-            token: settings.api_token,
-            webhooks: [
-              {
-                url: `${window.location.origin}/api/webhooks/whatsapp`,
-                events: ['messages.upsert', 'connection.update']
-              }
-            ]
+            instance_name: settings.instance_name
           }
         }
       });
@@ -181,16 +215,19 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         throw new Error(response.error.message || 'Erro ao reconectar');
       }
 
-      const success = await checkConnection();
-      
-      if (success) {
-        toast({
-          title: "Reconectado!",
-          description: "WhatsApp Evolution reconectado com sucesso"
-        });
-      }
+      // Verificar se conectou após a tentativa
+      setTimeout(async () => {
+        const success = await checkConnection();
+        if (success) {
+          setConnectionState(prev => ({ ...prev, reconnectAttempts: 0 }));
+          toast({
+            title: "Reconectado!",
+            description: "WhatsApp Evolution reconectado com sucesso"
+          });
+        }
+      }, 3000);
 
-      return success;
+      return true;
     } catch (error: any) {
       console.error('Erro ao reconectar:', error);
       setConnectionState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
@@ -201,7 +238,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
       return false;
     }
-  }, [checkConnection, toast]);
+  }, [connectionState.reconnectAttempts, checkConnection, toast]);
 
   // Função para validar sessão usando middleware do banco
   const validateSession = useCallback(async (): Promise<boolean> => {
@@ -219,23 +256,20 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const validation = data?.[0];
       if (!validation?.is_valid) {
-        // Sessão inválida - mostrar alerta e tentar reconectar
+        // Sessão inválida - apenas mostrar status, não reconectar automaticamente
         if (validation?.session_status === 'expired') {
-          toast({
-            title: "Sessão Expirada",
-            description: validation.message + " Tentando reconectar...",
-            variant: "destructive"
-          });
-          
-          // Tentar reconectar automaticamente
-          setTimeout(() => reconnect(), 2000);
+          setConnectionState(prev => ({
+            ...prev,
+            isConnected: false,
+            connectionStatus: 'expired'
+          }));
+        } else {
+          setConnectionState(prev => ({
+            ...prev,
+            isConnected: false,
+            connectionStatus: validation?.session_status as any || 'disconnected'
+          }));
         }
-        
-        setConnectionState(prev => ({
-          ...prev,
-          isConnected: false,
-          connectionStatus: validation?.session_status as any || 'disconnected'
-        }));
         
         return false;
       }
@@ -259,49 +293,55 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     checkConnection();
   }, [checkConnection]);
 
-  // Verificação inicial e periódica
+  // Verificação inicial e periódica (reduzida)
   useEffect(() => {
     // Verificar conexão imediatamente
     checkConnection();
 
-    // Verificar a cada 30 segundos
+    // Verificar a cada 2 minutos (reduzido de 30s)
     const interval = setInterval(() => {
-      checkConnection();
-    }, 30000);
-
-    // Verificar quando a aba ganhar foco
-    const handleFocus = () => {
-      checkConnection();
-    };
-
-    // Verificar quando houver mudança de rota (navegação)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      // Só verificar se não estiver já verificando
+      if (!connectionState.isChecking) {
         checkConnection();
       }
+    }, 120000);
+
+    // Verificar quando a aba ganhar foco (com debounce)
+    let focusTimeout: NodeJS.Timeout;
+    const handleFocus = () => {
+      clearTimeout(focusTimeout);
+      focusTimeout = setTimeout(() => {
+        if (!connectionState.isChecking) {
+          checkConnection();
+        }
+      }, 1000);
     };
 
     window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Cleanup
     return () => {
       clearInterval(interval);
+      clearTimeout(focusTimeout);
       window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkConnection]);
+  }, [checkConnection, connectionState.isChecking]);
 
-  // Validação mais profunda a cada 2 minutos
+  // Reset de tentativas de reconexão após um tempo
   useEffect(() => {
-    const validationInterval = setInterval(() => {
-      if (connectionState.isConnected) {
-        validateSession();
-      }
-    }, 120000); // 2 minutos
+    if (connectionState.reconnectAttempts > 0 && connectionState.connectionStatus === 'connected') {
+      setConnectionState(prev => ({ ...prev, reconnectAttempts: 0 }));
+    }
 
-    return () => clearInterval(validationInterval);
-  }, [connectionState.isConnected, validateSession]);
+    // Reset automático de tentativas após 10 minutos
+    if (connectionState.reconnectAttempts >= 5) {
+      const resetTimeout = setTimeout(() => {
+        setConnectionState(prev => ({ ...prev, reconnectAttempts: 0 }));
+      }, 600000); // 10 minutos
+
+      return () => clearTimeout(resetTimeout);
+    }
+  }, [connectionState.reconnectAttempts, connectionState.connectionStatus]);
 
   return (
     <WhatsAppContext.Provider value={{

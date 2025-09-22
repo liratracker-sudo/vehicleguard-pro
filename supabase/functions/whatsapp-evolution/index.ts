@@ -26,12 +26,14 @@ serve(async (req) => {
       case 'send_message':
         return await sendMessage(payload);
       case 'check_connection':
+      case 'checkConnection':
         return await checkConnection(payload);
       case 'send_status':
         return await sendStatus(payload);
       case 'get_instance_info':
         return await getInstanceInfo(payload);
       case 'get_qr_code':
+      case 'getQRCode':
         return await getQRCode(payload);
       case 'createSession': {
         // Compatibilidade com chamadas antigas que enviam payload aninhado e usam "token"
@@ -124,6 +126,19 @@ async function sendMessage(payload: any) {
 
 async function checkConnection(payload: any) {
   const { instance_url, api_token, instance_name } = payload;
+  
+  // Validar parâmetros obrigatórios
+  if (!instance_url || !api_token || !instance_name) {
+    console.error('Parâmetros inválidos para verificação de conexão:', { instance_url, api_token: !!api_token, instance_name });
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        connected: false,
+        error: 'Parâmetros obrigatórios faltando (instance_url, api_token, instance_name)'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
   
   console.log('Verificando conexão Evolution API:', { instance_name });
 
@@ -252,6 +267,18 @@ async function getInstanceInfo(payload: any) {
 
 async function getQRCode(payload: any) {
   const { instance_url, api_token, instance_name } = payload;
+  
+  // Validar parâmetros obrigatórios
+  if (!instance_url || !api_token || !instance_name) {
+    console.error('Parâmetros inválidos para obter QR Code:', { instance_url, api_token: !!api_token, instance_name });
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: 'Parâmetros obrigatórios faltando (instance_url, api_token, instance_name)'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
   
   console.log('Obtendo QR Code da instância:', { instance_name });
 

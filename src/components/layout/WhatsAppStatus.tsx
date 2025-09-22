@@ -51,9 +51,10 @@ export const WhatsAppStatus: React.FC = () => {
           variant="outline"
           onClick={reconnect}
           className="h-6 px-2 text-xs"
+          disabled={connectionState.reconnectAttempts >= 5}
         >
           <RefreshCw className="w-3 h-3 mr-1" />
-          Reconectar
+          {connectionState.reconnectAttempts >= 5 ? 'Aguarde' : 'Reconectar'}
         </Button>
       )}
       
@@ -63,15 +64,22 @@ export const WhatsAppStatus: React.FC = () => {
           variant="destructive"
           onClick={reconnect}
           className="h-6 px-2 text-xs"
+          disabled={connectionState.reconnectAttempts >= 5}
         >
           <RefreshCw className="w-3 h-3 mr-1" />
-          Reconectar
+          {connectionState.reconnectAttempts >= 5 ? 'Aguarde' : 'Reconectar'}
         </Button>
       )}
 
       {connectionState.lastChecked && (
         <span className="text-xs text-muted-foreground">
           Última verificação: {connectionState.lastChecked.toLocaleTimeString()}
+        </span>
+      )}
+
+      {connectionState.reconnectAttempts > 0 && (
+        <span className="text-xs text-warning">
+          Tentativas: {connectionState.reconnectAttempts}/5
         </span>
       )}
     </div>
