@@ -57,7 +57,9 @@ serve(async (req) => {
 });
 
 async function sendMessage(payload: any) {
-  const { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = payload;
+  // Handle nested payload structure
+  const actualPayload = payload.payload || payload;
+  const { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = actualPayload;
   
   console.log('Enviando mensagem via Evolution API:', { instance_name, phone_number });
 
@@ -200,7 +202,9 @@ async function sendMessage(payload: any) {
 }
 
 async function checkConnection(payload: any) {
-  const { instance_url, api_token, instance_name } = payload;
+  // Handle nested payload structure
+  const actualPayload = payload.payload || payload;
+  const { instance_url, api_token, instance_name } = actualPayload;
   
   // Validar parâmetros obrigatórios
   if (!instance_url || !api_token || !instance_name) {
@@ -253,7 +257,9 @@ async function checkConnection(payload: any) {
 }
 
 async function sendStatus(payload: any) {
-  const { instance_url, api_token, instance_name, message, company_id } = payload;
+  // Handle nested payload structure
+  const actualPayload = payload.payload || payload;
+  const { instance_url, api_token, instance_name, message, company_id } = actualPayload;
   
   console.log('Enviando status via Evolution API:', { instance_name });
 
@@ -305,7 +311,9 @@ async function sendStatus(payload: any) {
 }
 
 async function getInstanceInfo(payload: any) {
-  const { instance_url, api_token, instance_name } = payload;
+  // Handle nested payload structure
+  const actualPayload = payload.payload || payload;
+  const { instance_url, api_token, instance_name } = actualPayload;
   
   console.log('Obtendo informações da instância:', { instance_name });
 
@@ -341,7 +349,9 @@ async function getInstanceInfo(payload: any) {
 }
 
 async function getQRCode(payload: any) {
-  const { instance_url, api_token, instance_name } = payload;
+  // Handle nested payload structure
+  const actualPayload = payload.payload || payload;
+  const { instance_url, api_token, instance_name } = actualPayload;
   
   // Validar parâmetros obrigatórios
   if (!instance_url || !api_token || !instance_name) {
