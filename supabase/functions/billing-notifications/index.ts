@@ -333,14 +333,35 @@ async function sendSingleNotification(notification: any) {
     .eq('is_active', true)
     .single();
 
-  if (!whatsappSettings || whatsappSettings.connection_status !== 'connected') {
-    throw new Error('WhatsApp não está conectado para esta empresa');
+  if (!whatsappSettings) {
+    throw new Error('Configurações do WhatsApp não encontradas');
+  }
+
+  // First validate connection in real-time before sending
+  console.log(`Validating WhatsApp connection for company ${notification.company_id}...`);
+  const connectionCheck = await supabase.functions.invoke('whatsapp-evolution', {
+    body: {
+      action: 'checkConnection',
+      instance_url: whatsappSettings.instance_url,
+      api_token: whatsappSettings.api_token,
+      instance_name: whatsappSettings.instance_name
+    }
+  });
+
+  // Check if connection validation failed or connection is not active
+  if (connectionCheck.error || !connectionCheck.data?.connected) {
+    const errorMsg = connectionCheck.error?.message || 
+                    (connectionCheck.data?.error) || 
+                    'WhatsApp não está conectado';
+    console.error(`Connection check failed for company ${notification.company_id}:`, errorMsg);
+    throw new Error(`WhatsApp não está conectado para esta empresa: ${errorMsg}`);
   }
 
   // Render message template
   const message = renderTemplate(notification, payment, client, settings);
   
   // Send via WhatsApp Evolution API
+  console.log(`Sending WhatsApp message for notification ${notification.id}...`);
   const whatsappResponse = await supabase.functions.invoke('whatsapp-evolution', {
     body: {
       action: 'send_message',
@@ -354,9 +375,18 @@ async function sendSingleNotification(notification: any) {
     }
   });
 
+  // Check for errors or failed status
   if (whatsappResponse.error) {
     throw new Error(`WhatsApp API error: ${whatsappResponse.error.message}`);
   }
+
+  // Check if the response indicates failure
+  if (whatsappResponse.data && !whatsappResponse.data.success) {
+    const errorMsg = whatsappResponse.data.error || 'Falha no envio da mensagem';
+    throw new Error(`WhatsApp send failed: ${errorMsg}`);
+  }
+
+  console.log(`WhatsApp message sent successfully for notification ${notification.id}`);
 
   // Store rendered message for audit
   await supabase

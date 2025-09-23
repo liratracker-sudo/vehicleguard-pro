@@ -61,6 +61,72 @@ async function sendMessage(payload: any) {
   
   console.log('Enviando mensagem via Evolution API:', { instance_name, phone_number });
 
+  // First check connection before attempting to send
+  try {
+    const connectionCheck = await fetch(`${instance_url}/instance/connect/${instance_name}`, {
+      method: 'GET',
+      headers: {
+        'apikey': api_token
+      }
+    });
+
+    const connectionResult = await connectionCheck.json();
+    console.log('Connection check before send:', connectionResult);
+
+    // If connection is not open, fail immediately
+    if (!connectionCheck.ok || connectionResult.instance?.state !== 'open') {
+      const errorMsg = `WhatsApp instance not connected. State: ${connectionResult.instance?.state || 'unknown'}`;
+      console.error(errorMsg);
+
+      // Log failure
+      if (company_id) {
+        await supabase.from('whatsapp_logs').insert({
+          company_id,
+          client_id,
+          message_type: 'text',
+          phone_number,
+          message_content: message,
+          status: 'failed',
+          error_message: errorMsg
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: errorMsg,
+          status: 'failed'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (connectionError) {
+    console.error('Error checking connection:', connectionError);
+    const errorMsg = 'Falha ao verificar conexão WhatsApp';
+
+    // Log failure
+    if (company_id) {
+      await supabase.from('whatsapp_logs').insert({
+        company_id,
+        client_id,
+        message_type: 'text',
+        phone_number,
+        message_content: message,
+        status: 'failed',
+        error_message: errorMsg
+      });
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: errorMsg,
+        status: 'failed'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   const evolutionApiUrl = `${instance_url}/message/sendText/${instance_name}`;
   
   const messageData = {
@@ -82,6 +148,14 @@ async function sendMessage(payload: any) {
     const result = await response.json();
     console.log('Evolution API response:', result);
 
+    // Check for specific error patterns in the response
+    const hasError = !response.ok || 
+                    result.error || 
+                    (result.message && result.message.includes('error')) ||
+                    (result.status === 'error');
+
+    const success = response.ok && !hasError;
+
     // Log no banco de dados
     if (company_id) {
       await supabase.from('whatsapp_logs').insert({
@@ -90,17 +164,18 @@ async function sendMessage(payload: any) {
         message_type: 'text',
         phone_number,
         message_content: message,
-        status: response.ok ? 'sent' : 'failed',
+        status: success ? 'sent' : 'failed',
         external_message_id: result.key?.id || null,
-        error_message: response.ok ? null : JSON.stringify(result)
+        error_message: success ? null : JSON.stringify(result)
       });
     }
 
     return new Response(
       JSON.stringify({ 
-        success: response.ok,
+        success,
         data: result,
-        status: response.ok ? 'sent' : 'failed'
+        status: success ? 'sent' : 'failed',
+        error: success ? null : (result.error || result.message || 'Falha no envio')
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
