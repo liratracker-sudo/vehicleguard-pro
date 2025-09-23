@@ -29,9 +29,9 @@ serve(async (req) => {
       body = {};
     }
 
-    const { payment_id, company_id, trigger, force, scheduled_time } = body;
+    const { payment_id, company_id, trigger, force, scheduled_time, notification_id } = body;
     
-    console.log('📥 Request params:', { payment_id, company_id, trigger, force, scheduled_time });
+    console.log('📥 Request params:', { payment_id, company_id, trigger, force, scheduled_time, notification_id });
     
     // Log execution start for monitoring
     const { data: logEntry } = await supabase
@@ -59,6 +59,14 @@ serve(async (req) => {
       if (payment?.company_id) {
         result = await createMissingNotifications(payment_id, payment.company_id);
       }
+    } else if (trigger === 'resend_notification' && notification_id) {
+      // Handle specific notification resend
+      console.log(`🔄 Resending specific notification: ${notification_id}`);
+      result = await resendSpecificNotification(notification_id);
+    } else if (trigger === 'debug_notification' && notification_id) {
+      // Handle notification debug
+      console.log(`🐛 Debugging specific notification: ${notification_id}`);
+      result = await debugSpecificNotification(notification_id);
     } else if (trigger === 'manual_9am_start') {
       // Handle manual 9am trigger - force send all pending notifications and create missing ones
       console.log('🚀 Manual 9AM trigger - processing all notifications with force=true');
@@ -137,6 +145,248 @@ async function processNotifications(force = false) {
   
   console.log('Notification processing completed', results);
   return results;
+}
+
+async function resendSpecificNotification(notificationId: string) {
+  console.log(`Resending specific notification: ${notificationId}`);
+  
+  const results = { sent: 0, failed: 0 };
+  
+  // Get the specific notification with all related data
+  const { data: notification, error } = await supabase
+    .from('payment_notifications')
+    .select(`
+      *,
+      payment_transactions!inner(*, clients(name, phone, email))
+    `)
+    .eq('id', notificationId)
+    .eq('status', 'pending')
+    .single();
+
+  if (error) {
+    console.error('Error fetching notification for resend:', error);
+    throw new Error(`Notificação não encontrada ou não está pendente: ${error.message}`);
+  }
+
+  if (!notification) {
+    throw new Error('Notificação não encontrada ou não está pendente');
+  }
+
+  console.log(`Processing resend for notification ${notification.id}`);
+  
+  // Validate notification data
+  if (!notification.payment_transactions || !notification.payment_transactions.clients) {
+    throw new Error('Dados de pagamento ou cliente inválidos');
+  }
+  
+  // Skip notifications for cancelled or paid payments
+  const paymentStatus = notification.payment_transactions.status;
+  if (!paymentStatus || !['pending', 'overdue'].includes(paymentStatus)) {
+    // Mark as skipped
+    await supabase
+      .from('payment_notifications')
+      .update({
+        status: 'skipped',
+        last_error: `Payment status is ${paymentStatus}`,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', notification.id);
+    
+    throw new Error(`Pagamento não está mais pendente (status: ${paymentStatus})`);
+  }
+  
+  try {
+    await sendSingleNotification(notification);
+    
+    // Mark as sent
+    await supabase
+      .from('payment_notifications')
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        attempts: (notification.attempts || 0) + 1
+      })
+      .eq('id', notification.id);
+      
+    console.log(`Notification resent successfully: ${notification.id}`);
+    results.sent++;
+  } catch (error) {
+    console.error(`Failed to resend notification ${notification.id}:`, error);
+    
+    // Update with error
+    await supabase
+      .from('payment_notifications')
+      .update({
+        status: 'failed',
+        attempts: (notification.attempts || 0) + 1,
+        last_error: error.message
+      })
+      .eq('id', notification.id);
+    
+    results.failed++;
+    throw error; // Re-throw to be caught by the main handler
+  }
+  
+  return results;
+}
+
+async function debugSpecificNotification(notificationId: string) {
+  console.log(`🐛 Debugging notification: ${notificationId}`);
+  
+  // Get notification with all related data
+  const { data: notification, error } = await supabase
+    .from('payment_notifications')
+    .select(`
+      *,
+      payment_transactions!inner(*, clients(name, phone, email)),
+      payment_notification_settings(*)
+    `)
+    .eq('id', notificationId)
+    .single();
+
+  if (error) {
+    console.error('❌ Error fetching notification for debug:', error);
+    return { error: `Notification not found: ${error.message}` };
+  }
+
+  const debugInfo = {
+    notification_id: notificationId,
+    status: notification.status,
+    attempts: notification.attempts,
+    scheduled_for: notification.scheduled_for,
+    sent_at: notification.sent_at,
+    last_error: notification.last_error,
+    payment: {
+      id: notification.payment_transactions?.id,
+      status: notification.payment_transactions?.status,
+      amount: notification.payment_transactions?.amount,
+      due_date: notification.payment_transactions?.due_date
+    },
+    client: notification.payment_transactions?.clients,
+    checks: {}
+  };
+
+  console.log('📊 Debug Info:', debugInfo);
+
+  // Check 1: Client has phone
+  debugInfo.checks.has_phone = !!notification.payment_transactions?.clients?.phone;
+  if (!debugInfo.checks.has_phone) {
+    console.error('❌ Client has no phone number');
+  }
+
+  // Check 2: Payment is in valid status
+  const paymentStatus = notification.payment_transactions?.status;
+  debugInfo.checks.payment_valid = ['pending', 'overdue'].includes(paymentStatus);
+  if (!debugInfo.checks.payment_valid) {
+    console.error(`❌ Payment status is invalid: ${paymentStatus}`);
+  }
+
+  // Check 3: WhatsApp settings exist
+  const { data: whatsappSettings } = await supabase
+    .from('whatsapp_settings')
+    .select('*')
+    .eq('company_id', notification.company_id)
+    .eq('is_active', true)
+    .single();
+
+  debugInfo.checks.whatsapp_configured = !!whatsappSettings;
+  if (!debugInfo.checks.whatsapp_configured) {
+    console.error('❌ WhatsApp settings not found or inactive');
+  }
+
+  // Check 4: WhatsApp connection status (if settings exist)
+  if (whatsappSettings) {
+    try {
+      const connectionCheck = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'checkConnection',
+          instance_url: whatsappSettings.instance_url,
+          api_token: whatsappSettings.api_token,
+          instance_name: whatsappSettings.instance_name
+        }
+      });
+
+      debugInfo.checks.whatsapp_connected = connectionCheck.data?.connected || false;
+      debugInfo.checks.whatsapp_connection_details = connectionCheck.data;
+      
+      if (!debugInfo.checks.whatsapp_connected) {
+        console.error('❌ WhatsApp not connected:', connectionCheck.data);
+      }
+    } catch (error) {
+      console.error('❌ Error checking WhatsApp connection:', error);
+      debugInfo.checks.whatsapp_connection_error = error.message;
+    }
+  }
+
+  // Check 5: Message template rendering
+  if (debugInfo.checks.payment_valid && debugInfo.checks.has_phone) {
+    try {
+      const { data: settings } = await supabase
+        .from('payment_notification_settings')
+        .select('*')
+        .eq('company_id', notification.company_id)
+        .single();
+
+      if (settings) {
+        const message = renderTemplate(
+          notification, 
+          notification.payment_transactions, 
+          notification.payment_transactions.clients, 
+          settings
+        );
+        debugInfo.checks.template_rendered = true;
+        debugInfo.checks.rendered_message = message;
+        console.log('✅ Template rendered successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error rendering template:', error);
+      debugInfo.checks.template_error = error.message;
+    }
+  }
+
+  // Summary
+  const allChecks = Object.values(debugInfo.checks);
+  const passedChecks = allChecks.filter(check => check === true).length;
+  const totalChecks = allChecks.filter(check => typeof check === 'boolean').length;
+  
+  console.log(`🔍 Debug Summary: ${passedChecks}/${totalChecks} checks passed`);
+  console.log('📋 Full Debug Info:', JSON.stringify(debugInfo, null, 2));
+
+  return {
+    debug_info: debugInfo,
+    summary: `${passedChecks}/${totalChecks} checks passed`,
+    recommendations: generateRecommendations(debugInfo)
+  };
+}
+
+function generateRecommendations(debugInfo: any): string[] {
+  const recommendations = [];
+
+  if (!debugInfo.checks.has_phone) {
+    recommendations.push('Adicionar número de telefone ao cliente');
+  }
+
+  if (!debugInfo.checks.payment_valid) {
+    recommendations.push('Verificar status do pagamento - deve estar "pending" ou "overdue"');
+  }
+
+  if (!debugInfo.checks.whatsapp_configured) {
+    recommendations.push('Configurar integração WhatsApp nas configurações');
+  }
+
+  if (!debugInfo.checks.whatsapp_connected) {
+    recommendations.push('Reconectar WhatsApp - verificar QR Code ou conexão');
+  }
+
+  if (debugInfo.checks.template_error) {
+    recommendations.push('Verificar templates de mensagem nas configurações de notificação');
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('Todos os checks passaram - notificação deve funcionar normalmente');
+  }
+
+  return recommendations;
 }
 
 async function sendPendingNotifications(force = false) {
@@ -382,8 +632,16 @@ async function sendSingleNotification(notification: any) {
 
   // Check if the response indicates failure
   if (whatsappResponse.data && !whatsappResponse.data.success) {
-    const errorMsg = whatsappResponse.data.error || 'Falha no envio da mensagem';
+    const errorMsg = whatsappResponse.data.error || whatsappResponse.data.message || 'Falha no envio da mensagem';
+    console.error(`WhatsApp send failed for notification ${notification.id}:`, errorMsg);
     throw new Error(`WhatsApp send failed: ${errorMsg}`);
+  }
+
+  // Additional check for response status
+  if (whatsappResponse.data && whatsappResponse.data.status === 'failed') {
+    const errorMsg = whatsappResponse.data.error || 'Falha no envio via WhatsApp';
+    console.error(`WhatsApp delivery failed for notification ${notification.id}:`, errorMsg);
+    throw new Error(`WhatsApp delivery failed: ${errorMsg}`);
   }
 
   console.log(`WhatsApp message sent successfully for notification ${notification.id}`);

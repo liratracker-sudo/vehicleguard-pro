@@ -96,7 +96,8 @@ export function usePaymentNotifications() {
 
   const resendNotification = async (notificationId: string) => {
     try {
-      const { error } = await supabase
+      // First update the notification status
+      const { error: updateError } = await supabase
         .from('payment_notifications')
         .update({
           status: 'pending',
@@ -106,16 +107,30 @@ export function usePaymentNotifications() {
         })
         .eq('id', notificationId);
 
-      if (error) {
-        throw error;
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Then trigger the billing notifications processor to send it immediately
+      const { data, error: processError } = await supabase.functions.invoke('billing-notifications', {
+        body: {
+          trigger: 'resend_notification',
+          notification_id: notificationId,
+          force: true
+        }
+      });
+
+      if (processError) {
+        throw new Error(`Erro ao disparar o reenvio: ${processError.message}`);
       }
 
       toast({
         title: "Sucesso",
-        description: "Notificação reagendada para envio imediato"
+        description: "Notificação reenviada com sucesso"
       });
 
-      await loadNotifications();
+      // Reload notifications after a short delay to see the updated status
+      setTimeout(() => loadNotifications(), 2000);
     } catch (error: any) {
       console.error('Erro ao reenviar notificação:', error);
       toast({
@@ -148,6 +163,37 @@ export function usePaymentNotifications() {
       toast({
         title: "Erro",
         description: error.message || "Erro ao ignorar notificação",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const debugNotification = async (notificationId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-notifications', {
+        body: {
+          trigger: 'debug_notification',
+          notification_id: notificationId,
+          force: true
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Debug Executado",
+        description: "Verifique os logs para detalhes da notificação"
+      });
+
+      // Reload after debug
+      setTimeout(() => loadNotifications(), 1000);
+    } catch (error: any) {
+      console.error('Erro ao debugar notificação:', error);
+      toast({
+        title: "Erro no Debug",
+        description: error.message || "Erro ao executar debug da notificação",
         variant: "destructive"
       });
     }
@@ -191,6 +237,7 @@ export function usePaymentNotifications() {
     loadNotifications,
     resendNotification,
     skipNotification,
+    debugNotification,
     getStatusColor,
     getEventTypeLabel
   };

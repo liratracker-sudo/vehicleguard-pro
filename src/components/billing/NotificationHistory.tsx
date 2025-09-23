@@ -32,6 +32,7 @@ export function NotificationHistory() {
     loading,
     resendNotification,
     skipNotification,
+    debugNotification,
     getStatusColor,
     getEventTypeLabel
   } = usePaymentNotifications();
@@ -209,10 +210,16 @@ export function NotificationHistory() {
                             )}
                             
                             {notification.status === 'failed' && (
-                              <DropdownMenuItem onClick={() => resendNotification(notification.id)}>
-                                <Send className="mr-2 h-4 w-4" />
-                                Reenviar
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onClick={() => resendNotification(notification.id)}>
+                                  <Send className="mr-2 h-4 w-4" />
+                                  Reenviar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => debugNotification(notification.id)}>
+                                  <MessageSquare className="mr-2 h-4 w-4" />
+                                  Debug
+                                </DropdownMenuItem>
+                              </>
                             )}
                             
                             {notification.status === 'pending' && (

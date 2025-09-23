@@ -150,13 +150,29 @@ async function sendMessage(payload: any) {
     const result = await response.json();
     console.log('Evolution API response:', result);
 
-    // Check for specific error patterns in the response
-    const hasError = !response.ok || 
-                    result.error || 
-                    (result.message && result.message.includes('error')) ||
-                    (result.status === 'error');
+  // Check for specific error patterns in the response
+  const hasError = !response.ok || 
+                  result.error || 
+                  (result.message && result.message.includes('error')) ||
+                  (result.status === 'error') ||
+                  (result.status === 'failed');
 
-    const success = response.ok && !hasError;
+  const success = response.ok && !hasError;
+
+  // Enhanced error detection and messaging
+  let errorMessage = null;
+  if (!success) {
+    if (result.error) {
+      errorMessage = typeof result.error === 'string' ? result.error : JSON.stringify(result.error);
+    } else if (result.message && result.message.includes('error')) {
+      errorMessage = result.message;
+    } else if (!response.ok) {
+      errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    } else {
+      errorMessage = 'Erro desconhecido no envio';
+    }
+    console.error(`Message send failed for ${phone_number}:`, errorMessage);
+  }
 
     // Log no banco de dados
     if (company_id) {
@@ -168,7 +184,7 @@ async function sendMessage(payload: any) {
         message_content: message,
         status: success ? 'sent' : 'failed',
         external_message_id: result.key?.id || null,
-        error_message: success ? null : JSON.stringify(result)
+        error_message: success ? null : errorMessage
       });
     }
 
@@ -177,7 +193,7 @@ async function sendMessage(payload: any) {
         success,
         data: result,
         status: success ? 'sent' : 'failed',
-        error: success ? null : (result.error || result.message || 'Falha no envio')
+        error: success ? null : errorMessage
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
