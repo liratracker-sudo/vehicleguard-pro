@@ -592,9 +592,11 @@ async function sendSingleNotification(notification: any) {
   const connectionCheck = await supabase.functions.invoke('whatsapp-evolution', {
     body: {
       action: 'checkConnection',
-      instance_url: whatsappSettings.instance_url,
-      api_token: whatsappSettings.api_token,
-      instance_name: whatsappSettings.instance_name
+      payload: {
+        instance_url: whatsappSettings.instance_url,
+        api_token: whatsappSettings.api_token,
+        instance_name: whatsappSettings.instance_name
+      }
     }
   });
 
@@ -615,13 +617,15 @@ async function sendSingleNotification(notification: any) {
   const whatsappResponse = await supabase.functions.invoke('whatsapp-evolution', {
     body: {
       action: 'send_message',
-      instance_url: whatsappSettings.instance_url,
-      api_token: whatsappSettings.api_token,
-      instance_name: whatsappSettings.instance_name,
-      phone_number: client.phone,
-      message,
-      company_id: notification.company_id,
-      client_id: notification.client_id
+      payload: {
+        instance_url: whatsappSettings.instance_url,
+        api_token: whatsappSettings.api_token,
+        instance_name: whatsappSettings.instance_name,
+        phone_number: client.phone,
+        message,
+        company_id: notification.company_id,
+        client_id: notification.client_id
+      }
     }
   });
 
