@@ -61,7 +61,42 @@ async function sendMessage(payload: any) {
   const actualPayload = payload.payload || payload;
   const { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = actualPayload;
   
-  console.log('Enviando mensagem via Evolution API:', { instance_name, phone_number });
+  // Validar parâmetros obrigatórios
+  if (!instance_url || !api_token || !instance_name || !phone_number || !message) {
+    const errorMsg = 'Parâmetros obrigatórios faltando para envio de mensagem';
+    console.error(errorMsg, { 
+      hasInstanceUrl: !!instance_url, 
+      hasApiToken: !!api_token, 
+      hasInstanceName: !!instance_name, 
+      hasPhoneNumber: !!phone_number, 
+      hasMessage: !!message 
+    });
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: errorMsg,
+        status: 'failed'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Normalizar o número de telefone (remover caracteres especiais e adicionar código do país se necessário)
+  let normalizedPhone = phone_number.replace(/\D/g, ''); // Remove tudo que não é dígito
+  
+  // Se não tem código do país (Brasil = 55), adicionar
+  if (normalizedPhone.length === 11 && normalizedPhone.startsWith('55') === false) {
+    normalizedPhone = '55' + normalizedPhone;
+  } else if (normalizedPhone.length === 10 && normalizedPhone.startsWith('55') === false) {
+    normalizedPhone = '55' + normalizedPhone;
+  }
+  
+  console.log('Enviando mensagem via Evolution API:', { 
+    instance_name, 
+    original_phone: phone_number,
+    normalized_phone: normalizedPhone,
+    message_length: message.length 
+  });
 
   // First check connection before attempting to send
   try {
@@ -86,7 +121,20 @@ async function sendMessage(payload: any) {
           company_id,
           client_id,
           message_type: 'text',
-          phone_number,
+          phone_number: normalizedPhone,
+          message_content: message,
+          status: 'failed',
+          error_message: errorMsg
+        });
+      }
+
+      // Log failure
+      if (company_id) {
+        await supabase.from('whatsapp_logs').insert({
+          company_id,
+          client_id,
+          message_type: 'text',
+          phone_number: normalizedPhone,
           message_content: message,
           status: 'failed',
           error_message: errorMsg
@@ -105,6 +153,19 @@ async function sendMessage(payload: any) {
   } catch (connectionError) {
     console.error('Error checking connection:', connectionError);
     const errorMsg = 'Falha ao verificar conexão WhatsApp';
+
+    // Log failure
+    if (company_id) {
+      await supabase.from('whatsapp_logs').insert({
+        company_id,
+        client_id,
+        message_type: 'text',
+        phone_number: normalizedPhone,
+        message_content: message,
+        status: 'failed',
+        error_message: errorMsg
+      });
+    }
 
     // Log failure
     if (company_id) {
@@ -132,10 +193,16 @@ async function sendMessage(payload: any) {
   const evolutionApiUrl = `${instance_url}/message/sendText/${instance_name}`;
   
   const messageData = {
-    number: phone_number,
+    number: normalizedPhone,
     text: message,
     delay: 1000
   };
+
+  console.log('Enviando para Evolution API:', {
+    url: evolutionApiUrl,
+    data: messageData,
+    headers: { 'Content-Type': 'application/json', 'apikey': api_token ? 'presente' : 'ausente' }
+  });
 
   try {
     const response = await fetch(evolutionApiUrl, {
@@ -148,6 +215,7 @@ async function sendMessage(payload: any) {
     });
 
     const result = await response.json();
+    console.log('Evolution API response status:', response.status);
     console.log('Evolution API response:', result);
 
   // Check for specific error patterns in the response
@@ -180,7 +248,7 @@ async function sendMessage(payload: any) {
         company_id,
         client_id,
         message_type: 'text',
-        phone_number,
+        phone_number: normalizedPhone,
         message_content: message,
         status: success ? 'sent' : 'failed',
         external_message_id: result.key?.id || null,
@@ -206,7 +274,7 @@ async function sendMessage(payload: any) {
         company_id,
         client_id,
         message_type: 'text',
-        phone_number,
+        phone_number: normalizedPhone,
         message_content: message,
         status: 'failed',
         error_message: error.message
