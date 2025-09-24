@@ -614,6 +614,17 @@ async function sendSingleNotification(notification: any) {
   
   // Send via WhatsApp Evolution API
   console.log(`Sending WhatsApp message for notification ${notification.id}...`);
+  console.log('Payload being sent to WhatsApp Evolution:', {
+    action: 'send_message',
+    hasInstanceUrl: !!whatsappSettings.instance_url,
+    hasApiToken: !!whatsappSettings.api_token,
+    instanceName: whatsappSettings.instance_name,
+    phone: client.phone,
+    messageLength: message.length,
+    companyId: notification.company_id,
+    clientId: notification.client_id
+  });
+  
   const whatsappResponse = await supabase.functions.invoke('whatsapp-evolution', {
     body: {
       action: 'send_message',
@@ -629,13 +640,23 @@ async function sendSingleNotification(notification: any) {
     }
   });
 
-  // Check for errors or failed status
+  console.log(`WhatsApp response for notification ${notification.id}:`, {
+    hasError: !!whatsappResponse.error,
+    hasData: !!whatsappResponse.data,
+    success: whatsappResponse.data?.success,
+    status: whatsappResponse.data?.status,
+    error: whatsappResponse.data?.error
+  });
+
+  // Check for HTTP errors first
   if (whatsappResponse.error) {
-    throw new Error(`WhatsApp API error: ${whatsappResponse.error.message}`);
+    const errorMsg = `HTTP Error: ${whatsappResponse.error.message}`;
+    console.error(`WhatsApp API HTTP error for notification ${notification.id}:`, errorMsg);
+    throw new Error(errorMsg);
   }
 
-  // Check if the response indicates failure
-  if (whatsappResponse.data && !whatsappResponse.data.success) {
+  // Check if the response indicates failure (success: false)
+  if (whatsappResponse.data && whatsappResponse.data.success === false) {
     const errorMsg = whatsappResponse.data.error || whatsappResponse.data.message || 'Falha no envio da mensagem';
     console.error(`WhatsApp send failed for notification ${notification.id}:`, errorMsg);
     throw new Error(`WhatsApp send failed: ${errorMsg}`);
@@ -646,6 +667,13 @@ async function sendSingleNotification(notification: any) {
     const errorMsg = whatsappResponse.data.error || 'Falha no envio via WhatsApp';
     console.error(`WhatsApp delivery failed for notification ${notification.id}:`, errorMsg);
     throw new Error(`WhatsApp delivery failed: ${errorMsg}`);
+  }
+
+  // Check if no data returned at all
+  if (!whatsappResponse.data) {
+    const errorMsg = 'Nenhuma resposta da API WhatsApp';
+    console.error(`No response data for notification ${notification.id}`);
+    throw new Error(errorMsg);
   }
 
   console.log(`WhatsApp message sent successfully for notification ${notification.id}`);

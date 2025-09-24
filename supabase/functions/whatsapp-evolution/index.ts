@@ -77,7 +77,10 @@ async function sendMessage(payload: any) {
         error: errorMsg,
         status: 'failed'
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 400, // Bad Request para parâmetros faltando
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 
@@ -143,11 +146,14 @@ async function sendMessage(payload: any) {
 
       return new Response(
         JSON.stringify({ 
-          success: false,
+          success: false, 
           error: errorMsg,
           status: 'failed'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { 
+          status: 503, // Service Unavailable para problemas de conexão
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
   } catch (connectionError) {
@@ -182,11 +188,14 @@ async function sendMessage(payload: any) {
 
     return new Response(
       JSON.stringify({ 
-        success: false,
+        success: false, 
         error: errorMsg,
-        status: 'failed'
+        status: 'failed' 
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 503, // Service Unavailable para falha de conexão
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 
