@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { Car, Eye, EyeOff } from "lucide-react"
+import { SatelliteTrackingBackground } from "@/components/ui/satellite-tracking-background"
+import { motion } from "framer-motion"
 
 const AuthPage = () => {
   const [user, setUser] = useState<User | null>(null)
@@ -143,30 +145,64 @@ const AuthPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background-secondary p-4">
-      <div className="w-full max-w-md">
-        {/* Logo and Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4">
-            <Car className="w-8 h-8 text-white" />
+    <SatelliteTrackingBackground
+      showSatellite={true}
+      showSignals={true}
+      showGrid={true}
+    >
+      <div className="container mx-auto px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="max-w-md mx-auto"
+        >
+          {/* Logo and Header */}
+          <div className="text-center mb-8">
+            <motion.div 
+              className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <Car className="w-8 h-8 text-white" />
+            </motion.div>
+            <motion.h1 
+              className="text-4xl font-bold text-primary mb-2"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              VehicleGuard Pro
+            </motion.h1>
+            <motion.p 
+              className="text-muted-foreground text-lg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+            >
+              Sistema de Rastreamento Veicular
+            </motion.p>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">VehicleGuard Pro</h1>
-          <p className="text-muted-foreground">Plataforma de Gestão de Rastreamento</p>
-        </div>
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Acesse sua conta</CardTitle>
-            <CardDescription>
-              Entre com suas credenciais ou crie uma nova conta
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="signin" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Entrar</TabsTrigger>
-                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
-              </TabsList>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+          >
+            <Card className="border-2 border-primary/20 shadow-2xl bg-card/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-2xl text-center">Acesse sua conta</CardTitle>
+                <CardDescription className="text-center">
+                  Entre com suas credenciais ou crie uma nova conta
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="signin" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="signin">Entrar</TabsTrigger>
+                    <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+                  </TabsList>
               
               <TabsContent value="signin">
                 <form onSubmit={signIn} className="space-y-4">
@@ -282,15 +318,17 @@ const AuthPage = () => {
                   </Button>
                 </form>
               </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+                </Tabs>
+              </CardContent>
+            </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade
-        </p>
+            <p className="text-center text-xs text-muted-foreground mt-6">
+              Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade
+            </p>
+          </motion.div>
+        </motion.div>
       </div>
-    </div>
+    </SatelliteTrackingBackground>
   )
 }
 
