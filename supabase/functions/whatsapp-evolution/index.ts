@@ -113,12 +113,19 @@ async function sendMessage(payload: any) {
     const connectionResult = await connectionCheck.json();
     console.log('Connection check before send:', connectionResult);
 
-    // If connection is not open, fail immediately
-    if (!connectionCheck.ok || connectionResult.instance?.state !== 'open') {
-      const errorMsg = `WhatsApp instance not connected. State: ${connectionResult.instance?.state || 'unknown'}`;
-      console.error(errorMsg);
+    // If connection is not open, fail immediately with detailed state info
+    const isConnected = connectionCheck.ok && connectionResult.instance?.state === 'open';
+    
+    if (!isConnected) {
+      const state = connectionResult.instance?.state || 'unknown';
+      const errorMsg = `WhatsApp não autenticado — reconectar o número para continuar os envios. Estado atual: ${state}`;
+      console.error(errorMsg, { 
+        httpStatus: connectionCheck.status,
+        state: state,
+        fullResponse: connectionResult 
+      });
 
-      // Log failure
+      // Log failure with detailed info
       if (company_id) {
         await supabase.from('whatsapp_logs').insert({
           company_id,
