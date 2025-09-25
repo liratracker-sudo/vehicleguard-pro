@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "./AppSidebar"
 import { UserNav } from "./UserNav"
 import { WhatsAppStatus } from "./WhatsAppStatus"
+import { WhatsAppAlert } from "@/components/alerts/WhatsAppAlert"
 import { useEnsureAsaasWebhook } from "@/hooks/useEnsureAsaasWebhook"
 import { BackgroundGradientAnimation } from "@/components/ui/background-gradient-animation"
 
@@ -49,6 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Main Content */}
             <main className="flex-1 p-3 sm:p-6 overflow-y-auto container-responsive text-foreground">
               <div className="w-full max-w-full">
+                <WhatsAppAlert />
                 {children}
               </div>
             </main>

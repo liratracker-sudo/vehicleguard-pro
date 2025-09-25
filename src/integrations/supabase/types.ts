@@ -1085,6 +1085,39 @@ export type Database = {
         }
         Relationships: []
       }
+      system_alerts: {
+        Row: {
+          company_id: string
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          message: string
+          severity: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          message: string
+          severity?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          message?: string
+          severity?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           brand: string
