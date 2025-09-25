@@ -31,6 +31,7 @@ export function WhatsAppIntegration() {
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [qrCodeData, setQrCodeData] = useState<string | null>(null)
   const [loadingQR, setLoadingQR] = useState(false)
+  const [clearingInstance, setClearingInstance] = useState(false)
 
   // Sincronizar apenas com context global, sem chamar QR automaticamente
   useEffect(() => {
@@ -173,6 +174,61 @@ export function WhatsAppIntegration() {
     }
   }
 
+  const handleClearInstance = async () => {
+    if (!config.instanceUrl || !config.authToken || !config.instanceName) {
+      toast({
+        title: "Configuração incompleta",
+        description: "Preencha todos os campos obrigatórios antes de limpar",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setClearingInstance(true)
+      
+      const response = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'clear_instance',
+          instance_url: config.instanceUrl,
+          api_token: config.authToken,
+          instance_name: config.instanceName,
+          company_id: companyId
+        }
+      })
+
+      console.log('Clear instance response:', response)
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (response.data?.success) {
+        toast({
+          title: "Instância limpa",
+          description: "Dados antigos removidos. Agora você pode configurar uma nova instância.",
+          variant: "default"
+        })
+        
+        // Recarregar configurações e status
+        await loadSettings()
+        refreshConnection()
+      } else {
+        const errorMsg = response.data?.error || 'Falha ao limpar instância'
+        throw new Error(errorMsg)
+      }
+    } catch (error: any) {
+      console.error('Erro ao limpar instância:', error)
+      toast({
+        title: "Erro ao limpar instância",
+        description: error.message || "Verifique suas credenciais e tente novamente",
+        variant: "destructive"
+      })
+    } finally {
+      setClearingInstance(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -217,15 +273,17 @@ export function WhatsAppIntegration() {
             <Button onClick={handleConnect} disabled={connecting} variant="outline">
               {connecting ? "Conectando..." : "Conectar"}
             </Button>
-            {!connectionState.isConnected && config.instanceUrl && config.authToken && config.instanceName && (
+            {config.instanceUrl && config.authToken && config.instanceName && (
               <>
-                <Button onClick={() => handleShowQR(false)} disabled={loadingQR} variant="secondary">
-                  <QrCode className="w-4 h-4 mr-2" />
-                  {loadingQR ? "Gerando..." : "QR Code"}
+                <Button onClick={handleClearInstance} disabled={clearingInstance} variant="destructive" size="sm">
+                  {clearingInstance ? "Limpando..." : "Limpar Instância"}
                 </Button>
-                <Button onClick={() => handleShowQR(true)} disabled={loadingQR} variant="destructive" size="sm">
-                  Nova Instância
-                </Button>
+                {!connectionState.isConnected && (
+                  <Button onClick={() => handleShowQR(false)} disabled={loadingQR} variant="secondary">
+                    <QrCode className="w-4 h-4 mr-2" />
+                    {loadingQR ? "Gerando..." : "QR Code"}
+                  </Button>
+                )}
               </>
             )}
           </div>

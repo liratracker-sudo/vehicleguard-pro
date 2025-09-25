@@ -35,6 +35,8 @@ serve(async (req) => {
       case 'get_qr_code':
       case 'getQRCode':
         return await getQRCode(payload);
+      case 'clear_instance':
+        return await clearInstance(payload);
       case 'createSession': {
         // Compatibilidade com chamadas antigas que enviam payload aninhado e usam "token"
         const p: any = (payload as any)?.payload ? { ...(payload as any).payload } : payload;
@@ -298,6 +300,110 @@ async function sendMessage(payload: any) {
     }
 
     throw error;
+  }
+}
+
+async function clearInstance(payload: any) {
+  // Handle nested payload structure
+  const actualPayload = payload.payload || payload;
+  const { instance_url, api_token, instance_name, company_id } = actualPayload;
+
+  console.log('Limpando instância:', { 
+    instance_url, 
+    instance_name,
+    company_id,
+    timestamp: new Date().toISOString()
+  });
+
+  if (!instance_url || !api_token || !instance_name) {
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Parâmetros obrigatórios: instance_url, api_token, instance_name' 
+      }),
+      { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+
+  try {
+    // 1. Deletar instância no servidor Evolution (se existir)
+    try {
+      const deleteUrl = `${instance_url}/instance/delete/${instance_name}`;
+      console.log('Tentando deletar instância no servidor:', deleteUrl);
+      
+      const deleteResponse = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': api_token
+        }
+      });
+
+      console.log('Resposta da deleção no servidor:', {
+        status: deleteResponse.status,
+        statusText: deleteResponse.statusText
+      });
+    } catch (error) {
+      console.log('Erro ao deletar no servidor (pode não existir):', error);
+      // Continuar mesmo se der erro, pois a instância pode não existir
+    }
+
+    // 2. Limpar dados locais do banco
+    if (company_id) {
+      console.log('Limpando dados locais para company_id:', company_id);
+      
+      // Deletar sessões
+      const { error: sessionError } = await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('company_id', company_id)
+        .eq('instance_name', instance_name);
+
+      if (sessionError) {
+        console.error('Erro ao limpar sessões:', sessionError);
+      }
+
+      // Atualizar configurações para desconectado
+      const { error: settingsError } = await supabase
+        .from('whatsapp_settings')
+        .update({ 
+          connection_status: 'disconnected',
+          updated_at: new Date().toISOString()
+        })
+        .eq('company_id', company_id)
+        .eq('instance_name', instance_name);
+
+      if (settingsError) {
+        console.error('Erro ao atualizar configurações:', settingsError);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Instância limpa com sucesso. Agora você pode configurar uma nova instância.' 
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error) {
+    console.error('Erro ao limpar instância:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Erro interno ao limpar instância: ' + (error as Error).message 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
   }
 }
 
