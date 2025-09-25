@@ -465,11 +465,13 @@ async function getQRCode(payload: any) {
     );
   }
   
-  console.log('Obtendo QR Code da instância:', { instance_name });
+  console.log('Obtendo QR Code da instância:', { instance_name, instance_url });
 
   const connectUrl = `${instance_url}/instance/connect/${instance_name}`;
   
   try {
+    console.log('Fazendo requisição para:', connectUrl);
+    
     const response = await fetch(connectUrl, {
       method: 'GET',
       headers: {
@@ -478,35 +480,74 @@ async function getQRCode(payload: any) {
     });
 
     const result = await response.json();
-    console.log('QR Code response:', result);
+    console.log('QR Code response status:', response.status);
+    console.log('QR Code response body:', JSON.stringify(result, null, 2));
 
-    if (response.ok && result.code) {
-      // O code retornado pela Evolution API pode ser usado para gerar QR Code
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          qrCode: result.code,
-          pairingCode: result.pairingCode || null,
-          base64: `data:image/png;base64,${result.base64 || ''}` // Caso a API retorne base64 diretamente
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
+    if (!response.ok) {
+      const errorMsg = `Evolution API retornou erro ${response.status}: ${result.message || result.error || 'Erro desconhecido'}`;
+      console.error(errorMsg, result);
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: 'Falha ao obter QR Code',
+          error: errorMsg,
           data: result
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Verificar diferentes formatos de resposta da Evolution API
+    let qrCode = null;
+    let pairingCode = null;
+    let base64 = null;
+
+    if (result.code) {
+      qrCode = result.code;
+    } else if (result.qrcode) {
+      qrCode = result.qrcode;
+    } else if (result.qr) {
+      qrCode = result.qr;
+    } else if (result.base64) {
+      base64 = result.base64;
+      qrCode = result.base64; // Usar base64 como fallback
+    }
+
+    if (result.pairingCode) {
+      pairingCode = result.pairingCode;
+    }
+
+    if (qrCode || base64) {
+      console.log('QR Code obtido com sucesso');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          qrCode: qrCode,
+          pairingCode: pairingCode,
+          base64: base64 ? `data:image/png;base64,${base64}` : null
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      const errorMsg = 'Evolution API não retornou QR Code. Verifique se a instância existe e está configurada corretamente.';
+      console.error(errorMsg, result);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: errorMsg,
+          data: result,
+          hint: 'Certifique-se de que a instância existe na Evolution API'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
   } catch (error) {
-    console.error('Erro ao obter QR Code:', error);
+    const errorMsg = `Erro de conexão com Evolution API: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(errorMsg, error);
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: errorMsg,
+        hint: 'Verifique se a URL da instância e token estão corretos'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

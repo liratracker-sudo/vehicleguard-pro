@@ -51,7 +51,14 @@ export function WhatsAppIntegration() {
   }, [config.instanceUrl, config.authToken, config.instanceName])
 
   const handleShowQR = async () => {
-    if (!config.instanceUrl || !config.authToken || !config.instanceName) return
+    if (!config.instanceUrl || !config.authToken || !config.instanceName) {
+      toast({
+        title: "Configuração incompleta",
+        description: "Preencha todos os campos obrigatórios antes de continuar",
+        variant: "destructive"
+      })
+      return
+    }
     
     try {
       setLoadingQR(true)
@@ -66,6 +73,8 @@ export function WhatsAppIntegration() {
         }
       })
 
+      console.log('QR Code response:', response)
+
       if (response.error) {
         throw new Error(response.error.message)
       }
@@ -73,12 +82,15 @@ export function WhatsAppIntegration() {
       if (response.data?.success && response.data?.qrCode) {
         setQrCodeData(response.data.qrCode)
       } else {
-        throw new Error('Falha ao obter QR Code')
+        const errorMsg = response.data?.error || 'Falha ao obter QR Code'
+        const hint = response.data?.hint || ''
+        throw new Error(`${errorMsg}${hint ? ` - ${hint}` : ''}`)
       }
     } catch (error: any) {
+      console.error('Erro completo:', error)
       toast({
         title: "Erro ao obter QR Code",
-        description: error.message,
+        description: error.message || "Verifique suas credenciais e tente novamente",
         variant: "destructive"
       })
       setShowQRDialog(false)
