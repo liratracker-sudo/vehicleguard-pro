@@ -293,39 +293,35 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     checkConnection();
   }, [checkConnection]);
 
-  // Verificação inicial e periódica (reduzida)
+  // Verificação inicial e periódica (mais conservadora)
   useEffect(() => {
-    // Verificar conexão imediatamente
+    // Verificar conexão imediatamente apenas uma vez
     checkConnection();
 
-    // Verificar a cada 2 minutos (reduzido de 30s)
+    // Verificar a cada 5 minutos (aumentado de 2 minutos)
     const interval = setInterval(() => {
-      // Só verificar se não estiver já verificando
-      if (!connectionState.isChecking) {
+      // Só verificar se não estiver já verificando e se passou tempo suficiente
+      if (!connectionState.isChecking && 
+          (!connectionState.lastChecked || 
+           Date.now() - connectionState.lastChecked.getTime() > 300000)) { // 5 minutos
         checkConnection();
       }
-    }, 120000);
+    }, 300000); // 5 minutos
 
-    // Verificar quando a aba ganhar foco (com debounce)
-    let focusTimeout: NodeJS.Timeout;
-    const handleFocus = () => {
-      clearTimeout(focusTimeout);
-      focusTimeout = setTimeout(() => {
-        if (!connectionState.isChecking) {
-          checkConnection();
-        }
-      }, 1000);
-    };
-
-    window.addEventListener('focus', handleFocus);
+    // Remover verificação automática no foco para evitar conflitos
+    // const handleFocus = () => {
+    //   if (!connectionState.isChecking) {
+    //     checkConnection();
+    //   }
+    // };
+    // window.addEventListener('focus', handleFocus);
 
     // Cleanup
     return () => {
       clearInterval(interval);
-      clearTimeout(focusTimeout);
-      window.removeEventListener('focus', handleFocus);
+      // window.removeEventListener('focus', handleFocus);
     };
-  }, [checkConnection, connectionState.isChecking]);
+  }, []); // Remover dependências para evitar re-execução
 
   // Reset de tentativas de reconexão após um tempo
   useEffect(() => {

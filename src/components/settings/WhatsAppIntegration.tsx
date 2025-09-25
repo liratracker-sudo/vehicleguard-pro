@@ -32,25 +32,15 @@ export function WhatsAppIntegration() {
   const [qrCodeData, setQrCodeData] = useState<string | null>(null)
   const [loadingQR, setLoadingQR] = useState(false)
 
-  // Sincronizar com context global e mostrar QR quando desconectado
+  // Sincronizar apenas com context global, sem chamar QR automaticamente
   useEffect(() => {
     setConfig(prev => ({ ...prev, isConnected: connectionState.isConnected }))
-    
-    // Mostrar QR automaticamente quando desconectar
-    if (!connectionState.isConnected && connectionState.connectionStatus === 'disconnected' && config.instanceUrl && config.authToken && config.instanceName) {
-      handleShowQR()
-    }
-  }, [connectionState.isConnected, connectionState.connectionStatus])
+  }, [connectionState.isConnected])
 
-  // Monitora mudanças na configuração para mostrar QR
-  useEffect(() => {
-    if (!connectionState.isConnected && config.instanceUrl && config.authToken && config.instanceName) {
-      const timer = setTimeout(() => handleShowQR(), 1000) // Delay para evitar chamadas excessivas
-      return () => clearTimeout(timer)
-    }
-  }, [config.instanceUrl, config.authToken, config.instanceName])
+  // Remover o useEffect que chamava QR automaticamente
+  // pois estava causando loops infinitos
 
-  const handleShowQR = async () => {
+  const handleShowQR = async (forceNew = false) => {
     if (!config.instanceUrl || !config.authToken || !config.instanceName) {
       toast({
         title: "Configuração incompleta",
@@ -63,13 +53,15 @@ export function WhatsAppIntegration() {
     try {
       setLoadingQR(true)
       setShowQRDialog(true)
+      setQrCodeData(null) // Limpar QR Code anterior
       
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
           action: 'get_qr_code',
           instance_url: config.instanceUrl,
           api_token: config.authToken,
-          instance_name: config.instanceName
+          instance_name: config.instanceName,
+          force_new: forceNew
         }
       })
 
@@ -226,10 +218,15 @@ export function WhatsAppIntegration() {
               {connecting ? "Conectando..." : "Conectar"}
             </Button>
             {!connectionState.isConnected && config.instanceUrl && config.authToken && config.instanceName && (
-              <Button onClick={handleShowQR} disabled={loadingQR} variant="secondary">
-                <QrCode className="w-4 h-4 mr-2" />
-                {loadingQR ? "Gerando..." : "QR Code"}
-              </Button>
+              <>
+                <Button onClick={() => handleShowQR(false)} disabled={loadingQR} variant="secondary">
+                  <QrCode className="w-4 h-4 mr-2" />
+                  {loadingQR ? "Gerando..." : "QR Code"}
+                </Button>
+                <Button onClick={() => handleShowQR(true)} disabled={loadingQR} variant="destructive" size="sm">
+                  Nova Instância
+                </Button>
+              </>
             )}
           </div>
 
@@ -278,23 +275,38 @@ export function WhatsAppIntegration() {
                     Vá em Menu (⋮) → Dispositivos conectados → Conectar um dispositivo
                   </p>
                 </div>
-                <Button 
-                  onClick={handleShowQR} 
-                  variant="outline" 
-                  size="sm"
-                  disabled={loadingQR}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Atualizar QR
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => handleShowQR(false)} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={loadingQR}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Atualizar QR
+                  </Button>
+                  <Button 
+                    onClick={() => handleShowQR(true)} 
+                    variant="destructive" 
+                    size="sm"
+                    disabled={loadingQR}
+                  >
+                    Nova Instância
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="text-center space-y-2">
                 <AlertCircle className="w-8 h-8 text-destructive mx-auto" />
                 <p className="text-sm text-muted-foreground">Erro ao gerar QR Code</p>
-                <Button onClick={handleShowQR} variant="outline" size="sm">
-                  Tentar novamente
-                </Button>
+                <div className="flex gap-2 justify-center">
+                  <Button onClick={() => handleShowQR(false)} variant="outline" size="sm">
+                    Tentar novamente
+                  </Button>
+                  <Button onClick={() => handleShowQR(true)} variant="destructive" size="sm">
+                    Nova Instância
+                  </Button>
+                </div>
               </div>
             )}
           </div>

@@ -451,7 +451,7 @@ async function getInstanceInfo(payload: any) {
 async function getQRCode(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name } = actualPayload;
+  const { instance_url, api_token, instance_name, force_new = false } = actualPayload;
   
   // Validar parâmetros obrigatórios
   if (!instance_url || !api_token || !instance_name) {
@@ -465,89 +465,197 @@ async function getQRCode(payload: any) {
     );
   }
   
-  console.log('Obtendo QR Code da instância:', { instance_name, instance_url });
-
-  const connectUrl = `${instance_url}/instance/connect/${instance_name}`;
+  console.log('🔄 Solicitando QR Code:', { instance_name, force_new });
   
   try {
-    console.log('Fazendo requisição para:', connectUrl);
-    
-    const response = await fetch(connectUrl, {
-      method: 'GET',
-      headers: {
-        'apikey': api_token
+    // Se force_new for true, primeiro deletar a instância existente
+    if (force_new) {
+      console.log('🗑️ Forçando nova instância - deletando instância existente');
+      try {
+        const deleteUrl = `${instance_url}/instance/delete/${instance_name}`;
+        const deleteResponse = await fetch(deleteUrl, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': api_token,
+          },
+        });
+        console.log('🗑️ Delete response:', deleteResponse.status);
+        // Aguardar um pouco após deletar
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (deleteError) {
+        console.log('⚠️ Erro ao deletar instância (pode não existir):', deleteError);
       }
+    }
+
+    // Primeiro, tentar criar/obter a instância
+    const createUrl = `${instance_url}/instance/create`;
+    console.log('🆕 Criando/verificando instância em:', createUrl);
+    
+    const createPayload = {
+      instanceName: instance_name,
+      token: api_token,
+      qrcode: true,
+      integration: 'WHATSAPP-BAILEYS'
+    };
+
+    const createResponse = await fetch(createUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api_token,
+      },
+      body: JSON.stringify(createPayload)
     });
 
-    const result = await response.json();
-    console.log('QR Code response status:', response.status);
-    console.log('QR Code response body:', JSON.stringify(result, null, 2));
+    console.log('🆕 Create response:', createResponse.status, createResponse.statusText);
+    
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text();
+      console.log('❌ Create error response:', errorText);
+      
+      // Se já existe, continuar para obter QR Code
+      if (!createResponse.status.toString().includes('409') && !errorText.includes('already exists')) {
+        throw new Error(`Erro ao criar instância: ${createResponse.status} ${createResponse.statusText}`);
+      }
+    }
 
-    if (!response.ok) {
-      const errorMsg = `Evolution API retornou erro ${response.status}: ${result.message || result.error || 'Erro desconhecido'}`;
-      console.error(errorMsg, result);
+    // Aguardar um pouco para a instância se inicializar
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Agora verificar status da instância
+    const statusUrl = `${instance_url}/instance/connectionState/${instance_name}`;
+    console.log('🔍 Verificando status em:', statusUrl);
+    
+    const statusResponse = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api_token,
+      },
+    });
+
+    console.log('📊 Status response:', statusResponse.status, statusResponse.statusText);
+    
+    if (!statusResponse.ok) {
+      throw new Error(`Instância "${instance_name}" não foi encontrada. Verifique se o nome está correto.`);
+    }
+    
+    const statusData = await statusResponse.json();
+    console.log('📊 Status data:', JSON.stringify(statusData, null, 2));
+
+    // Se já estiver conectado, retornar erro informativo
+    if (statusData?.instance?.state === 'open') {
+      console.log('✅ Instância já conectada');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: errorMsg,
-          data: result
+          error: 'WhatsApp já está conectado. Desconecte primeiro se quiser gerar um novo QR Code.',
+          data: statusData,
+          hint: 'A instância já está conectada ao WhatsApp'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Tentar obter QR Code
+    const qrUrl = `${instance_url}/instance/connect/${instance_name}`;
+    console.log('🔗 Solicitando QR Code em:', qrUrl);
+    
+    const qrResponse = await fetch(qrUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api_token,
+      },
+    });
+
+    console.log('📱 QR response:', qrResponse.status, qrResponse.statusText);
+    
+    if (!qrResponse.ok) {
+      const errorText = await qrResponse.text();
+      console.log('❌ QR error response:', errorText);
+      
+      throw new Error(`Erro ao obter QR Code: ${qrResponse.status} ${qrResponse.statusText}`);
+    }
+
+    const qrData = await qrResponse.json();
+    console.log('📱 QR data recebida:', JSON.stringify(qrData, null, 2));
+
     // Verificar diferentes formatos de resposta da Evolution API
     let qrCode = null;
-    let pairingCode = null;
-    let base64 = null;
-
-    if (result.code) {
-      qrCode = result.code;
-    } else if (result.qrcode) {
-      qrCode = result.qrcode;
-    } else if (result.qr) {
-      qrCode = result.qr;
-    } else if (result.base64) {
-      base64 = result.base64;
-      qrCode = result.base64; // Usar base64 como fallback
+    
+    // Formato 1: { code: "qr_code_string" }
+    if (qrData?.code) {
+      qrCode = qrData.code;
+    }
+    // Formato 2: { qrcode: { code: "qr_code_string" } }
+    else if (qrData?.qrcode?.code) {
+      qrCode = qrData.qrcode.code;
+    }
+    // Formato 3: { qr: "qr_code_string" }
+    else if (qrData?.qr) {
+      qrCode = qrData.qr;
+    }
+    // Formato 4: { qrCode: "qr_code_string" }
+    else if (qrData?.qrCode) {
+      qrCode = qrData.qrCode;
+    }
+    // Formato 5: resposta direta como string
+    else if (typeof qrData === 'string') {
+      qrCode = qrData;
     }
 
-    if (result.pairingCode) {
-      pairingCode = result.pairingCode;
-    }
-
-    if (qrCode || base64) {
-      console.log('QR Code obtido com sucesso');
+    if (qrCode) {
+      console.log('✅ QR Code obtido com sucesso');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: true,
           qrCode: qrCode,
-          pairingCode: pairingCode,
-          base64: base64 ? `data:image/png;base64,${base64}` : null
+          pairingCode: qrData?.pairingCode || null,
+          base64: qrData?.base64 || null
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      const errorMsg = 'Evolution API não retornou QR Code. Verifique se a instância existe e está configurada corretamente.';
-      console.error(errorMsg, result);
+      console.log('❌ QR Code não encontrado na resposta');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: errorMsg,
-          data: result,
-          hint: 'Certifique-se de que a instância existe na Evolution API'
+          error: 'Evolution API não retornou QR Code. Tente novamente em alguns segundos.',
+          data: qrData,
+          hint: 'A instância pode estar inicializando. Aguarde alguns segundos e tente novamente.'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-  } catch (error) {
-    const errorMsg = `Erro de conexão com Evolution API: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(errorMsg, error);
+
+  } catch (error: any) {
+    console.error('❌ Erro ao obter QR Code:', error.message);
+    
+    // Verificar se é erro de instância não encontrada
+    if (error.message.includes('404') || error.message.includes('Not Found')) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Instância "${instance_name}" não encontrada. Verifique o nome da instância.`,
+          data: {
+            status: 404,
+            error: 'Not Found',
+            response: {
+              message: [`The "${instance_name}" instance does not exist`]
+            }
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        error: errorMsg,
-        hint: 'Verifique se a URL da instância e token estão corretos'
+        error: error.message || 'Erro interno ao obter QR Code',
+        data: null
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
