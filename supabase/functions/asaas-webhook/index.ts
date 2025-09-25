@@ -234,7 +234,7 @@ serve(async (req) => {
         company_id: null,
         operation_type: 'webhook',
         status: 'error',
-        error_message: error.message,
+        error_message: error instanceof Error ? error.message : String(error),
         request_data: await req.json().catch(() => ({}))
       });
     } catch (logError) {
@@ -242,7 +242,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

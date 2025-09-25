@@ -110,11 +110,11 @@ serve(async (req) => {
         job_name: 'billing-notifications-function',
         status: 'error',
         finished_at: new Date().toISOString(),
-        error_message: error.message
+        error_message: error instanceof Error ? error.message : String(error)
       });
     
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -219,7 +219,7 @@ async function resendSpecificNotification(notificationId: string) {
       .update({
         status: 'failed',
         attempts: (notification.attempts || 0) + 1,
-        last_error: error.message
+        last_error: error instanceof Error ? error.message : String(error)
       })
       .eq('id', notification.id);
     
@@ -263,7 +263,27 @@ async function debugSpecificNotification(notificationId: string) {
       due_date: notification.payment_transactions?.due_date
     },
     client: notification.payment_transactions?.clients,
-    checks: {}
+    checks: {
+      has_phone: false,
+      payment_valid: false,
+      whatsapp_configured: false,
+      whatsapp_connected: false,
+      template_rendered: false,
+      whatsapp_connection_details: null as any,
+      rendered_message: '',
+      whatsapp_connection_error: '',
+      template_error: ''
+    } as {
+      has_phone: boolean;
+      payment_valid: boolean;
+      whatsapp_configured: boolean;
+      whatsapp_connected: boolean;
+      template_rendered: boolean;
+      whatsapp_connection_details?: any;
+      rendered_message?: string;
+      whatsapp_connection_error?: string;
+      template_error?: string;
+    }
   };
 
   console.log('📊 Debug Info:', debugInfo);
@@ -314,7 +334,7 @@ async function debugSpecificNotification(notificationId: string) {
       }
     } catch (error) {
       console.error('❌ Error checking WhatsApp connection:', error);
-      debugInfo.checks.whatsapp_connection_error = error.message;
+      debugInfo.checks.whatsapp_connection_error = error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -340,7 +360,7 @@ async function debugSpecificNotification(notificationId: string) {
       }
     } catch (error) {
       console.error('❌ Error rendering template:', error);
-      debugInfo.checks.template_error = error.message;
+      debugInfo.checks.template_error = error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -504,7 +524,7 @@ async function sendPendingNotifications(force = false) {
         .update({
           status,
           attempts: newAttempts,
-          last_error: error.message,
+          last_error: error instanceof Error ? error.message : String(error),
           // Reschedule based on retry_interval_hours if not failed
           scheduled_for: status === 'pending' 
             ? new Date(Date.now() + retryInterval * 60 * 60 * 1000).toISOString()

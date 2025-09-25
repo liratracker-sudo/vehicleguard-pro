@@ -48,7 +48,10 @@ export const WhatsAppAlert: React.FC = () => {
         return;
       }
 
-      setAlerts(systemAlerts || []);
+      setAlerts((systemAlerts || []).map(alert => ({
+        ...alert,
+        severity: (alert.severity as 'warning' | 'error' | 'info') || 'warning'
+      })));
     } catch (error) {
       console.error('Error loading WhatsApp alerts:', error);
     } finally {

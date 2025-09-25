@@ -47,7 +47,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in whatsapp-evolution function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -293,7 +293,7 @@ async function sendMessage(payload: any) {
         phone_number: normalizedPhone,
         message_content: message,
         status: 'failed',
-        error_message: error.message
+        error_message: error instanceof Error ? error.message : String(error)
       });
     }
 
@@ -349,7 +349,7 @@ async function checkConnection(payload: any) {
       JSON.stringify({ 
         success: false,
         connected: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -506,7 +506,7 @@ async function getQRCode(payload: any) {
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

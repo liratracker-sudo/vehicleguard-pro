@@ -585,7 +585,7 @@ async function generateContractPDF(contractData: ContractData): Promise<string> 
     return pdfData.split(',')[1]; // Remove data URI prefix
   } catch (error) {
     console.error('❌ Error generating PDF:', error);
-    throw new Error('Erro na geração do PDF: ' + error.message);
+    throw new Error('Erro na geração do PDF: ' + (error instanceof Error ? error.message : String(error)));
   }
 }
 

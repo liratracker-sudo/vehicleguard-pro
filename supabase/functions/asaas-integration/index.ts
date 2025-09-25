@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error instanceof Error ? error.message : String(error) 
       }),
       { 
         status: 400, 
@@ -261,12 +261,12 @@ async function testConnection(supabaseClient: any, companyId: string, data: any)
   } catch (error) {
     console.error('Erro no teste de conexão:', error)
     
-    await logAsaasOperation(supabaseClient, companyId, 'test_connection', {}, null, 'error', error.message)
+    await logAsaasOperation(supabaseClient, companyId, 'test_connection', {}, null, 'error', error instanceof Error ? error.message : String(error))
 
     return new Response(
       JSON.stringify({ 
         success: false, 
-        message: `Erro na conexão: ${error.message}. Verifique se sua API key está correta.`
+        message: `Erro na conexão: ${error instanceof Error ? error.message : String(error)}. Verifique se sua API key está correta.`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -316,7 +316,7 @@ async function createCustomer(supabaseClient: any, companyId: string, data: any)
   } catch (error) {
     console.error('Erro ao criar cliente:', error)
     
-    await logAsaasOperation(supabaseClient, companyId, 'create_customer', customerData, null, 'error', error.message)
+    await logAsaasOperation(supabaseClient, companyId, 'create_customer', customerData, null, 'error', error instanceof Error ? error.message : String(error))
     
     throw error
   }
@@ -365,7 +365,7 @@ async function createCharge(supabaseClient: any, companyId: string, data: any) {
   } catch (error) {
     console.error('Erro ao criar cobrança:', error)
     
-    await logAsaasOperation(supabaseClient, companyId, 'create_charge', chargeData, null, 'error', error.message)
+    await logAsaasOperation(supabaseClient, companyId, 'create_charge', chargeData, null, 'error', error instanceof Error ? error.message : String(error))
     
     throw error
   }
@@ -399,7 +399,7 @@ async function getCustomer(supabaseClient: any, companyId: string, data: any) {
   } catch (error) {
     console.error('Erro ao buscar cliente:', error)
     
-    await logAsaasOperation(supabaseClient, companyId, 'get_customer', { customerId: data.customerId }, null, 'error', error.message)
+    await logAsaasOperation(supabaseClient, companyId, 'get_customer', { customerId: data.customerId }, null, 'error', error instanceof Error ? error.message : String(error))
     
     throw error
   }
@@ -439,7 +439,7 @@ async function listCharges(supabaseClient: any, companyId: string, data: any) {
   } catch (error) {
     console.error('Erro ao listar cobranças:', error)
     
-    await logAsaasOperation(supabaseClient, companyId, 'list_charges', data, null, 'error', error.message)
+    await logAsaasOperation(supabaseClient, companyId, 'list_charges', data, null, 'error', error instanceof Error ? error.message : String(error))
     
     throw error
   }
@@ -673,7 +673,7 @@ async function getCharge(supabaseClient: any, companyId: string, data: any) {
   } catch (error) {
     console.error('Erro ao buscar cobrança:', error)
     
-    await logAsaasOperation(supabaseClient, companyId, 'get_charge', { chargeId: data.chargeId }, null, 'error', error.message)
+    await logAsaasOperation(supabaseClient, companyId, 'get_charge', { chargeId: data.chargeId }, null, 'error', error instanceof Error ? error.message : String(error))
     
     throw error
   }
@@ -799,7 +799,7 @@ async function setupWebhook(supabaseClient: any, companyId: string, data: any) {
       webhookData, 
       null, 
       'error', 
-      error.message
+      error instanceof Error ? error.message : String(error)
     )
     
     throw error

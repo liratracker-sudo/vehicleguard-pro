@@ -52,7 +52,7 @@ serve(async (req) => {
     for (const setting of companiesSettings || []) {
       const companyDiag = {
         company_id: setting.company_id,
-        company_name: setting.companies.name,
+        company_name: (setting.companies as any)?.name || 'Unknown Company',
         overdue_payments: 0,
         pending_notifications: 0,
         failed_notifications: 0,
@@ -84,7 +84,7 @@ serve(async (req) => {
 
         // Check if these payments have notifications
         for (const payment of overduePayments || []) {
-          if (!payment.clients?.phone) {
+          if (!(payment.clients as any)?.phone) {
             companyDiag.issues.push(`Payment ${payment.id} has no valid client phone`);
             continue;
           }
@@ -113,7 +113,7 @@ serve(async (req) => {
                 diagnostics.actions_taken.push(`Created notifications for payment ${payment.id}`);
               }
             } catch (error) {
-              companyDiag.issues.push(`Error creating notifications for payment ${payment.id}: ${error.message}`);
+              companyDiag.issues.push(`Error creating notifications for payment ${payment.id}: ${error instanceof Error ? error.message : String(error)}`);
             }
           } else {
             const pendingCount = notifications.filter(n => n.status === 'pending').length;
@@ -161,7 +161,7 @@ serve(async (req) => {
         diagnostics.actions_taken.push('Triggered manual notification processing');
       }
     } catch (error) {
-      diagnostics.actions_taken.push(`Error processing notifications: ${error.message}`);
+      diagnostics.actions_taken.push(`Error processing notifications: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     console.log('Billing diagnostics completed:', diagnostics);
@@ -178,7 +178,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in billing diagnostics:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
