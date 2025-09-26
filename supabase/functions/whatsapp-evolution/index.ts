@@ -239,7 +239,7 @@ async function sendMessage(payload: any) {
   // Check for specific error patterns in the response
   const hasError = !response.ok || 
                   result.error || 
-                  (result.message && result.message.includes('error')) ||
+                  (result.message && typeof result.message === 'string' && result.message.includes('error')) ||
                   (result.status === 'error') ||
                   (result.status === 'failed');
 
@@ -250,7 +250,7 @@ async function sendMessage(payload: any) {
   if (!success) {
     if (result.error) {
       errorMessage = typeof result.error === 'string' ? result.error : JSON.stringify(result.error);
-    } else if (result.message && result.message.includes('error')) {
+    } else if (result.message && typeof result.message === 'string' && result.message.includes('error')) {
       errorMessage = result.message;
     } else if (!response.ok) {
       errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -299,7 +299,16 @@ async function sendMessage(payload: any) {
       });
     }
 
-    throw error;
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
   }
 }
 
