@@ -62,7 +62,8 @@ export function WhatsAppIntegration() {
           instance_url: config.instanceUrl,
           api_token: config.authToken,
           instance_name: config.instanceName,
-          force_new: forceNew
+          force_new: forceNew,
+          company_id: companyId
         }
       })
 
@@ -144,6 +145,14 @@ export function WhatsAppIntegration() {
 
     try {
       setSaving(true)
+      
+      // Primeiro, limpar todas as sessões antigas desta empresa
+      await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('company_id', companyId)
+
+      // Salvar novas configurações
       await supabase.from('whatsapp_settings').upsert({
         company_id: companyId,
         instance_name: config.instanceName,
@@ -155,7 +164,10 @@ export function WhatsAppIntegration() {
         connection_status: 'disconnected'
       }, { onConflict: 'company_id' })
 
-      toast({ title: "Sucesso", description: "Configurações salvas!" })
+      toast({ 
+        title: "Sucesso", 
+        description: "Configurações salvas e sessões antigas limpas!" 
+      })
       refreshConnection()
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" })
