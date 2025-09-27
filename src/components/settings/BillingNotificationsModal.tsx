@@ -26,6 +26,8 @@ interface NotificationSettings {
   template_post_due: string;
   on_due_times: number;
   on_due_interval_hours: number;
+  post_due_times: number;
+  post_due_interval_hours: number;
   max_attempts_per_notification: number;
   retry_interval_hours: number;
 }
@@ -292,6 +294,49 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                       ))
                     )}
                   </div>
+
+                  {/* Configurações de múltiplos disparos pós-vencimento */}
+                  {localSettings.post_due_days.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2 ml-6">
+                        <div>
+                          <Label htmlFor="post_due_times">Disparos por dia</Label>
+                          <Input
+                            id="post_due_times"
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={localSettings.post_due_times || 2}
+                            onChange={(e) => {
+                              const value = Math.max(1, Math.min(10, parseInt(e.target.value) || 2));
+                              setLocalSettings({ ...localSettings, post_due_times: value });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="post_due_interval_hours">Intervalo (h)</Label>
+                          <Input
+                            id="post_due_interval_hours"
+                            type="number"
+                            min="1"
+                            max="12"
+                            value={localSettings.post_due_interval_hours || 6}
+                            onChange={(e) => {
+                              const value = Math.max(1, Math.min(12, parseInt(e.target.value) || 6));
+                              setLocalSettings({ ...localSettings, post_due_interval_hours: value });
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="ml-6 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-sm text-blue-800">
+                          <strong>💡 Sistema Automático:</strong> As notificações pós-vencimento continuarão sendo enviadas 
+                          automaticamente todos os dias ({localSettings.post_due_times || 2} disparos por dia) 
+                          até o pagamento ser liquidado.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Botões rápidos */}
                   <div className="space-y-2">

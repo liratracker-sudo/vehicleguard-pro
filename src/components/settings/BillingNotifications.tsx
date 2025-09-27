@@ -23,6 +23,8 @@ interface NotificationSettings {
   template_post_due: string;
   on_due_times: number;
   on_due_interval_hours: number;
+  post_due_times: number;
+  post_due_interval_hours: number;
   max_attempts_per_notification: number;
   retry_interval_hours: number;
 }
@@ -70,7 +72,13 @@ export function BillingNotifications() {
       }
 
       if (data) {
-        setSettings(data);
+        // Garantir que novos campos tenham valores padrão
+        const settingsWithDefaults = {
+          ...data,
+          post_due_times: data.post_due_times || 2,
+          post_due_interval_hours: data.post_due_interval_hours || 6
+        };
+        setSettings(settingsWithDefaults);
       } else {
         // Create default settings
         const defaultSettings = {
@@ -85,6 +93,8 @@ export function BillingNotifications() {
           template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}',
           on_due_times: 1,
           on_due_interval_hours: 2,
+          post_due_times: 2,
+          post_due_interval_hours: 6,
           max_attempts_per_notification: 3,
           retry_interval_hours: 1
         };

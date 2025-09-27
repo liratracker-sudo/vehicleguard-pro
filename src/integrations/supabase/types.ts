@@ -735,6 +735,8 @@ export type Database = {
           on_due_interval_hours: number | null
           on_due_times: number | null
           post_due_days: number[]
+          post_due_interval_hours: number | null
+          post_due_times: number | null
           pre_due_days: number[]
           retry_interval_hours: number | null
           send_hour: string
@@ -753,6 +755,8 @@ export type Database = {
           on_due_interval_hours?: number | null
           on_due_times?: number | null
           post_due_days?: number[]
+          post_due_interval_hours?: number | null
+          post_due_times?: number | null
           pre_due_days?: number[]
           retry_interval_hours?: number | null
           send_hour?: string
@@ -771,6 +775,8 @@ export type Database = {
           on_due_interval_hours?: number | null
           on_due_times?: number | null
           post_due_days?: number[]
+          post_due_interval_hours?: number | null
+          post_due_times?: number | null
           pre_due_days?: number[]
           retry_interval_hours?: number | null
           send_hour?: string

@@ -894,12 +894,35 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     // Check if we already have notifications for this payment
     const { data: existingNotifications } = await supabase
       .from('payment_notifications')
-      .select('event_type, offset_days')
+      .select('event_type, offset_days, scheduled_for')
       .eq('payment_id', payment.id);
 
-    const existingKeys = new Set(
-      existingNotifications?.map(n => `${n.event_type}_${n.offset_days}`) || []
-    );
+    // Criar mapa mais detalhado das notificações existentes
+    const existingKeys = new Set();
+    const existingPostDueDays = new Set();
+    
+    existingNotifications?.forEach(n => {
+      if (n.event_type === 'post_due') {
+        existingPostDueDays.add(n.offset_days);
+        // Para post-due, criar múltiplas chaves baseadas no horário agendado
+        const scheduledDate = new Date(n.scheduled_for);
+        const hour = scheduledDate.getHours();
+        const dayKey = `${n.event_type}_${n.offset_days}`;
+        
+        // Identificar pelo horário se é primeiro ou segundo disparo do dia
+        const timeParts = settings.send_hour.split(':');
+        const baseHour = parseInt(timeParts[0]) || 9;
+        const intervalHours = settings.post_due_interval_hours || 6;
+        
+        if (hour === baseHour) {
+          existingKeys.add(`${dayKey}_0`);
+        } else if (hour >= baseHour + intervalHours) {
+          existingKeys.add(`${dayKey}_1`);
+        }
+      } else {
+        existingKeys.add(`${n.event_type}_${n.offset_days}`);
+      }
+    });
 
     // For overdue payments, prioritize post-due notifications
     const isOverdue = daysPastDue > 0;
@@ -993,35 +1016,89 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         // Only create post-due notifications if we're past that threshold
         if (daysPastDue < days) continue;
         
-        const key = `post_due_${days}`;
-        if (existingKeys.has(key)) continue;
+        const postDueTimes = settings.post_due_times || 2;
+        const intervalHours = settings.post_due_interval_hours || 6;
         
-        const scheduledDate = new Date(dueDate);
-        scheduledDate.setDate(scheduledDate.getDate() + days);
-        
-        // Parse send_hour properly (format: HH:MM:SS or HH:MM)
-        const timeParts = settings.send_hour.split(':');
-        const hour = parseInt(timeParts[0]) || 9;
-        const minute = parseInt(timeParts[1]) || 0;
-        
-        scheduledDate.setHours(hour, minute, 0, 0);
-        
-        // If the scheduled date has already passed, schedule for immediate delivery
-        if (scheduledDate.getTime() < now.getTime()) {
-          scheduledDate.setTime(now.getTime() + (2 * 60 * 1000)); // 2 minutes from now
+        for (let i = 0; i < postDueTimes; i++) {
+          const key = `post_due_${days}_${i}`;
+          if (existingKeys.has(key)) continue;
+          
+          const scheduledDate = new Date(dueDate);
+          scheduledDate.setDate(scheduledDate.getDate() + days);
+          
+          // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+          const timeParts = settings.send_hour.split(':');
+          const hour = parseInt(timeParts[0]) || 9;
+          const minute = parseInt(timeParts[1]) || 0;
+          
+          scheduledDate.setHours(hour, minute, 0, 0);
+          
+          // Adicionar intervalo para disparos subsequentes
+          if (i > 0) {
+            scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
+          }
+          
+          // If the scheduled date has already passed, schedule for immediate delivery
+          if (scheduledDate.getTime() < now.getTime()) {
+            scheduledDate.setTime(now.getTime() + (2 * 60 * 1000)); // 2 minutes from now
+          }
+          
+          notifications.push({
+            company_id: settings.company_id,
+            payment_id: payment.id,
+            client_id: payment.client_id,
+            event_type: 'post_due',
+            offset_days: days, // Mantém os dias originais para identificação
+            scheduled_for: scheduledDate.toISOString(),
+            status: 'pending',
+            notification_settings_id: settings.id,
+            attempts: 0
+          });
         }
+      }
+      
+      // Criar notificações contínuas para os próximos dias se ainda não pagas
+      const maxPostDueDays = Math.max(...(settings.post_due_days || [0]));
+      const continuousPostDueDays = Math.max(daysPastDue, maxPostDueDays) + 1;
+      
+      // Criar notificações para o próximo dia se ainda não existe
+      if (daysPastDue >= maxPostDueDays && !existingKeys.has(`post_due_${continuousPostDueDays}_0`)) {
+        const postDueTimes = settings.post_due_times || 2;
+        const intervalHours = settings.post_due_interval_hours || 6;
         
-        notifications.push({
-          company_id: settings.company_id,
-          payment_id: payment.id,
-          client_id: payment.client_id,
-          event_type: 'post_due',
-          offset_days: days,
-          scheduled_for: scheduledDate.toISOString(),
-          status: 'pending',
-          notification_settings_id: settings.id,
-          attempts: 0
-        });
+        for (let i = 0; i < postDueTimes; i++) {
+          const scheduledDate = new Date(dueDate);
+          scheduledDate.setDate(scheduledDate.getDate() + continuousPostDueDays);
+          
+          // Parse send_hour properly (format: HH:MM:SS or HH:MM)
+          const timeParts = settings.send_hour.split(':');
+          const hour = parseInt(timeParts[0]) || 9;
+          const minute = parseInt(timeParts[1]) || 0;
+          
+          scheduledDate.setHours(hour, minute, 0, 0);
+          
+          // Adicionar intervalo para disparos subsequentes
+          if (i > 0) {
+            scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
+          }
+          
+          // Se for para hoje ou já passou, agendar para agora
+          if (scheduledDate.getTime() <= now.getTime()) {
+            scheduledDate.setTime(now.getTime() + (2 * 60 * 1000)); // 2 minutes from now
+          }
+          
+          notifications.push({
+            company_id: settings.company_id,
+            payment_id: payment.id,
+            client_id: payment.client_id,
+            event_type: 'post_due',
+            offset_days: continuousPostDueDays,
+            scheduled_for: scheduledDate.toISOString(),
+            status: 'pending',
+            notification_settings_id: settings.id,
+            attempts: 0
+          });
+        }
       }
     }
   }
