@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { Palette, Globe, Mail, FileText, Upload, Save } from "lucide-react"
+import { Palette, Globe, Mail, FileText, Upload, Save, X } from "lucide-react"
 
 interface WhiteLabelConfig {
   id?: string
@@ -36,6 +36,7 @@ interface WhiteLabelConfigProps {
 
 export function WhiteLabelConfig({ companyId, companyName, onClose }: WhiteLabelConfigProps) {
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [config, setConfig] = useState<WhiteLabelConfig>({
     company_id: companyId,
     primary_color: '#3b82f6',
@@ -43,6 +44,7 @@ export function WhiteLabelConfig({ companyId, companyName, onClose }: WhiteLabel
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const loadConfig = async () => {
     try {
@@ -97,6 +99,99 @@ export function WhiteLabelConfig({ companyId, companyName, onClose }: WhiteLabel
 
   const updateConfig = (field: keyof WhiteLabelConfig, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um arquivo de imagem",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validate file size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "Erro", 
+        description: "O arquivo deve ter no máximo 2MB",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setUploading(true)
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${companyId}/logo-${Date.now()}.${fileExt}`
+
+      // Upload to storage
+      const { data, error } = await supabase.storage
+        .from('company-logos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) throw error
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('company-logos')
+        .getPublicUrl(fileName)
+
+      // Update config with new logo URL
+      updateConfig('logo_url', publicUrl)
+
+      toast({
+        title: "Sucesso",
+        description: "Logo enviado com sucesso!"
+      })
+
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const removeLogo = async () => {
+    if (config.logo_url) {
+      try {
+        // Extract filename from URL if it's from our storage
+        const urlParts = config.logo_url.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        
+        if (config.logo_url.includes('supabase')) {
+          await supabase.storage
+            .from('company-logos')
+            .remove([`${companyId}/${fileName}`])
+        }
+      } catch (error) {
+        // Ignore storage deletion errors, just remove from config
+        console.warn('Error removing logo from storage:', error)
+      }
+    }
+    
+    updateConfig('logo_url', '')
+    toast({
+      title: "Sucesso",
+      description: "Logo removido!"
+    })
   }
 
   useEffect(() => {
@@ -202,25 +297,80 @@ export function WhiteLabelConfig({ companyId, companyName, onClose }: WhiteLabel
               </div>
 
               <div>
-                <Label htmlFor="logo_url">URL do Logo</Label>
-                <Input
-                  id="logo_url"
-                  value={config.logo_url || ''}
-                  onChange={(e) => updateConfig('logo_url', e.target.value)}
-                  placeholder="https://exemplo.com/logo.png"
-                />
-                {config.logo_url && (
-                  <div className="mt-2">
-                    <img
-                      src={config.logo_url}
-                      alt="Preview do logo"
-                      className="h-12 object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
+                <Label>Logo da Empresa</Label>
+                <div className="space-y-4">
+                  {config.logo_url ? (
+                    <div className="space-y-2">
+                      <div className="relative inline-block">
+                        <img
+                          src={config.logo_url}
+                          alt="Preview do logo"
+                          className="h-20 object-contain border rounded p-2"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                          onClick={removeLogo}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Alterar Logo
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
+                      <div className="text-center">
+                        <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
+                        <div className="mt-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                          >
+                            {uploading ? 'Enviando...' : 'Fazer Upload do Logo'}
+                          </Button>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            PNG, JPG até 2MB. Recomendado: 200x60px
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                  
+                  <div>
+                    <Label htmlFor="logo_url">Ou URL do Logo</Label>
+                    <Input
+                      id="logo_url"
+                      value={config.logo_url || ''}
+                      onChange={(e) => updateConfig('logo_url', e.target.value)}
+                      placeholder="https://exemplo.com/logo.png"
                     />
                   </div>
-                )}
+                </div>
               </div>
 
               <div>

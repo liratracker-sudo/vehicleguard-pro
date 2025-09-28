@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,7 +17,8 @@ import {
   Smartphone,
   CreditCard,
   Building2,
-  Key
+  Key,
+  X
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -31,13 +32,20 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
 const WhiteLabelPage = () => {
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [currentCompanyId, setCurrentCompanyId] = useState<string>("")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
   const [branding, setBranding] = useState({
-    companyName: "VehicleGuard Pro",
+    companyName: "",
     logo: "",
     primaryColor: "#3b82f6",
-    secondaryColor: "#f8fafc",
+    secondaryColor: "#f8fafc", 
     accentColor: "#10b981",
-    domain: "app.vehicleguard.com.br",
+    domain: "",
     favicon: ""
   })
 
@@ -49,7 +57,6 @@ const WhiteLabelPage = () => {
     whatsapp: { enabled: false, instanceId: "", token: "" }
   })
 
-  const { toast } = useToast()
   const [savingProvider, setSavingProvider] = useState<string | null>(null)
   const [testingProvider, setTestingProvider] = useState<string | null>(null)
 
@@ -60,6 +67,216 @@ const WhiteLabelPage = () => {
     suspension: "Seu serviço foi suspenso por falta de pagamento. Regularize em: {payment_link}",
     reactivation: "Serviço reativado! Seu veículo já está sendo monitorado novamente."
   })
+
+  // Load current user's company and branding data
+  useEffect(() => {
+    loadCompanyData()
+  }, [])
+
+  const loadCompanyData = async () => {
+    try {
+      // Get current user profile to get company_id
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      if (!user) throw new Error("Usuário não encontrado")
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('company_id, full_name')
+        .eq('user_id', user.id)
+        .single()
+
+      if (profileError) throw profileError
+      if (!profile?.company_id) throw new Error("Empresa não encontrada")
+
+      setCurrentCompanyId(profile.company_id)
+
+      // Load company data
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .select('name, domain')
+        .eq('id', profile.company_id)
+        .single()
+
+      if (companyError) throw companyError
+
+      // Load branding data
+      const { data: brandingData, error: brandingError } = await supabase
+        .from('company_branding')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .maybeSingle()
+
+      if (brandingError && brandingError.code !== 'PGRST116') throw brandingError
+
+      // Update state with loaded data
+      setBranding({
+        companyName: company?.name || "",
+        logo: brandingData?.logo_url || "",
+        primaryColor: brandingData?.primary_color || "#3b82f6",
+        secondaryColor: brandingData?.secondary_color || "#f8fafc",
+        accentColor: "#10b981", // This could be added to the database
+        domain: brandingData?.subdomain || company?.domain || "",
+        favicon: brandingData?.favicon_url || ""
+      })
+
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveBrandingData = async () => {
+    if (!currentCompanyId) {
+      toast({
+        title: "Erro",
+        description: "ID da empresa não encontrado",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setSaving(true)
+
+      // Save to company_branding table
+      const { error } = await supabase
+        .from('company_branding')
+        .upsert({
+          company_id: currentCompanyId,
+          logo_url: branding.logo,
+          primary_color: branding.primaryColor,
+          secondary_color: branding.secondaryColor,
+          favicon_url: branding.favicon,
+          subdomain: branding.domain
+        }, { onConflict: 'company_id' })
+
+      if (error) throw error
+
+      // Update company name if changed
+      const { error: companyError } = await supabase
+        .from('companies')
+        .update({ 
+          name: branding.companyName,
+          domain: branding.domain 
+        })
+        .eq('id', currentCompanyId)
+
+      if (companyError) throw companyError
+
+      toast({
+        title: "Sucesso",
+        description: "Configurações salvas com sucesso!"
+      })
+
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um arquivo de imagem",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validate file size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "Erro",
+        description: "O arquivo deve ter no máximo 2MB",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setUploading(true)
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${currentCompanyId}/logo-${Date.now()}.${fileExt}`
+
+      // Upload to storage
+      const { data, error } = await supabase.storage
+        .from('company-logos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) throw error
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('company-logos')
+        .getPublicUrl(fileName)
+
+      // Update branding state
+      setBranding(prev => ({ ...prev, logo: publicUrl }))
+
+      toast({
+        title: "Sucesso",
+        description: "Logo enviado com sucesso!"
+      })
+
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const removeLogo = async () => {
+    if (branding.logo) {
+      try {
+        // Extract filename from URL if it's from our storage
+        const urlParts = branding.logo.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        
+        if (branding.logo.includes('supabase')) {
+          await supabase.storage
+            .from('company-logos')
+            .remove([`${currentCompanyId}/${fileName}`])
+        }
+      } catch (error) {
+        // Ignore storage deletion errors, just remove from state
+        console.warn('Error removing logo from storage:', error)
+      }
+    }
+    
+    setBranding(prev => ({ ...prev, logo: '' }))
+    toast({
+      title: "Sucesso",
+      description: "Logo removido!"
+    })
+  }
 
   const handleBrandingChange = (field: string, value: string) => {
     setBranding(prev => ({ ...prev, [field]: value }))
@@ -74,6 +291,16 @@ const WhiteLabelPage = () => {
 
   const handleMessageChange = (type: string, value: string) => {
     setMessages(prev => ({ ...prev, [type]: value }))
+  }
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </AppLayout>
+    )
   }
 
   return (
@@ -92,9 +319,9 @@ const WhiteLabelPage = () => {
               <Eye className="w-4 h-4 mr-2" />
               Pré-visualizar
             </Button>
-            <Button>
+            <Button onClick={saveBrandingData} disabled={saving}>
               <Save className="w-4 h-4 mr-2" />
-              Salvar Alterações
+              {saving ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
           </div>
         </div>
@@ -133,19 +360,67 @@ const WhiteLabelPage = () => {
 
                   <div className="space-y-2">
                     <Label>Logotipo</Label>
-                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-                      <div className="text-center">
-                        <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
-                        <div className="mt-4">
-                          <Button variant="outline">
-                            Fazer Upload do Logo
+                    {branding.logo ? (
+                      <div className="space-y-2">
+                        <div className="relative inline-block">
+                          <img
+                            src={branding.logo}
+                            alt="Logo da empresa"
+                            className="h-20 object-contain border rounded p-2 bg-white"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none'
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                            onClick={removeLogo}
+                          >
+                            <X className="h-3 w-3" />
                           </Button>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            PNG, JPG até 2MB. Recomendado: 200x60px
-                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Alterar Logo
+                          </Button>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
+                        <div className="text-center">
+                          <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
+                          <div className="mt-4">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={uploading}
+                            >
+                              {uploading ? 'Enviando...' : 'Fazer Upload do Logo'}
+                            </Button>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              PNG, JPG até 2MB. Recomendado: 200x60px
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
@@ -217,11 +492,21 @@ const WhiteLabelPage = () => {
                     }}
                   >
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                        <Building2 className="w-6 h-6" />
-                      </div>
+                      {branding.logo ? (
+                        <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center overflow-hidden">
+                          <img 
+                            src={branding.logo} 
+                            alt="Logo" 
+                            className="w-8 h-8 object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                          <Building2 className="w-6 h-6" />
+                        </div>
+                      )}
                       <div>
-                        <h3 className="font-bold text-lg">{branding.companyName}</h3>
+                        <h3 className="font-bold text-lg">{branding.companyName || "Sua Empresa"}</h3>
                         <p className="text-sm opacity-90">Sistema de Rastreamento</p>
                       </div>
                     </div>
