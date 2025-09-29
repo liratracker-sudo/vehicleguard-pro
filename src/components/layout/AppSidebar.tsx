@@ -117,17 +117,48 @@ export function AppSidebar() {
       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [companyName, setCompanyName] = useState("VehicleGuard")
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  
   useEffect(() => {
     let isMounted = true
     ;(async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, company_id')
         .eq('user_id', user.id)
         .single()
-      if (isMounted) setIsSuperAdmin(profile?.role === 'super_admin')
+      
+      if (!isMounted) return
+      
+      setIsSuperAdmin(profile?.role === 'super_admin')
+      
+      if (profile?.company_id) {
+        // Buscar dados da empresa
+        const { data: company } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', profile.company_id)
+          .single()
+        
+        if (company?.name && isMounted) {
+          setCompanyName(company.name)
+        }
+        
+        // Buscar logo do branding
+        const { data: branding } = await supabase
+          .from('company_branding')
+          .select('logo_url')
+          .eq('company_id', profile.company_id)
+          .single()
+        
+        if (branding?.logo_url && isMounted) {
+          setLogoUrl(branding.logo_url)
+        }
+      }
     })()
     return () => { isMounted = false }
   }, [])
@@ -136,11 +167,19 @@ export function AppSidebar() {
     <Sidebar className="w-64 sm:w-64" collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-3 sm:px-4 py-3">
-          <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center icon-hover">
-            <Car className="w-5 h-5 text-white" />
-          </div>
+          {logoUrl ? (
+            <img 
+              src={logoUrl} 
+              alt={`${companyName} Logo`}
+              className="w-8 h-8 rounded-lg object-contain"
+            />
+          ) : (
+            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center icon-hover">
+              <Car className="w-5 h-5 text-white" />
+            </div>
+          )}
           <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-bold text-sidebar-foreground truncate">VehicleGuard</h2>
+            <h2 className="text-base sm:text-lg font-bold text-sidebar-foreground truncate">{companyName}</h2>
             <p className="text-xs text-muted-foreground">Pro</p>
           </div>
         </div>
