@@ -27,7 +27,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     transaction_type: "boleto",
     amount: 0,
     payment_gateway: "asaas",
-    due_date: new Date()
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias a partir de hoje
   })
   
   const [cpf, setCpf] = useState("")

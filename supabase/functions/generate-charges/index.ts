@@ -62,12 +62,9 @@ serve(async (req) => {
         const plan = subscription.subscription_plans;
         const amount = plan.price_monthly; // For now, always monthly
         
-        // Set due date (15th of current month)
-        const dueDate = new Date(currentYear, currentMonth, 15);
-        if (dueDate < today) {
-          // If 15th has passed, charge for next month
-          dueDate.setMonth(dueDate.getMonth() + 1);
-        }
+        // Set due date (always 15 days from today to ensure future date)
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 15);
 
         // Get or create a system client for the company
         let systemClient;
