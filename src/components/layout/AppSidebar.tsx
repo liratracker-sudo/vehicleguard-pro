@@ -166,22 +166,18 @@ export function AppSidebar() {
   return (
     <Sidebar className="w-64 sm:w-64" collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-3 px-3 sm:px-4 py-4">
+        <div className="flex items-center justify-center px-3 sm:px-4 py-4">
           {logoUrl ? (
             <img 
               src={logoUrl} 
               alt={`${companyName} Logo`}
-              className="w-12 h-12 rounded-lg object-contain flex-shrink-0"
+              className="w-18 h-18 rounded-lg object-contain"
             />
           ) : (
-            <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center icon-hover flex-shrink-0">
-              <Car className="w-6 h-6 text-white" />
+            <div className="w-18 h-18 bg-gradient-primary rounded-lg flex items-center justify-center icon-hover">
+              <Car className="w-10 h-10 text-white" />
             </div>
           )}
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold text-sidebar-foreground truncate">{companyName}</h2>
-            <p className="text-xs text-sidebar-foreground/70 font-medium">Pro</p>
-          </div>
         </div>
       </SidebarHeader>
 
