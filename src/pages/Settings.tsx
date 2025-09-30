@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Users, Shield, Bell, Plug, MessageSquare, FileText, CreditCard } from "lucide-react"
+import { Settings, Users, Shield, Plug, MessageSquare, FileText, CreditCard } from "lucide-react"
 import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
 import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
@@ -16,7 +16,7 @@ const SettingsPage = () => {
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get("tab")
-    return tab || "notifications"
+    return tab || "billing"
   })
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -45,33 +45,12 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="notifications">Notificações</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="billing">Cobrança Automática</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="assinafy">Assinafy</TabsTrigger>
           </TabsList>
-
-
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Notificações
-                </CardTitle>
-                <CardDescription>
-                  Configure alertas e notificações do sistema
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" className="w-full">
-                  Configurar Alertas
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="billing" className="space-y-6">
             <BillingNotifications />
