@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.company-credentials]
 verify_jwt = true
+
+[functions.ai-collection]
+verify_jwt = true

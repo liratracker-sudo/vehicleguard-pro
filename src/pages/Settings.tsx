@@ -4,11 +4,12 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Users, Shield, Plug, MessageSquare, FileText, CreditCard } from "lucide-react"
+import { Settings, Users, Shield, Plug, MessageSquare, FileText, CreditCard, Bot } from "lucide-react"
 import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
 import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
+import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -45,8 +46,9 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="billing">Cobrança Automática</TabsTrigger>
+            <TabsTrigger value="ai">IA de Cobrança</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="assinafy">Assinafy</TabsTrigger>
@@ -54,6 +56,10 @@ const SettingsPage = () => {
 
           <TabsContent value="billing" className="space-y-6">
             <BillingNotifications />
+          </TabsContent>
+
+          <TabsContent value="ai" className="space-y-6">
+            <AICollectionSettings />
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
