@@ -136,7 +136,9 @@ Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp.`
                 api_token: whatsappSettings.api_token,
                 instance_name: whatsappSettings.instance_name,
                 number: client.phone,
-                message: generatedMessage
+                message: generatedMessage,
+                company_id: company_id,
+                client_id: client.id
               }
             });
 

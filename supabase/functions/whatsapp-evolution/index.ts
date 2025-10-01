@@ -25,6 +25,19 @@ serve(async (req) => {
     switch (action) {
       case 'send_message':
         return await sendMessage(payload);
+      case 'sendText': {
+        // Mapear parâmetros da AI collection para formato esperado
+        const mappedPayload = {
+          instance_url: payload.instance_url,
+          api_token: payload.api_token,
+          instance_name: payload.instance_name,
+          phone_number: payload.number || payload.phone_number,
+          message: payload.message,
+          company_id: payload.company_id,
+          client_id: payload.client_id
+        };
+        return await sendMessage(mappedPayload);
+      }
       case 'check_connection':
       case 'checkConnection':
         return await checkConnection(payload);
