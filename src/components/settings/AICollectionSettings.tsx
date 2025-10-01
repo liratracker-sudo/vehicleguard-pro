@@ -115,7 +115,7 @@ export function AICollectionSettings() {
               id="systemPrompt"
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Ex: Você é um assistente de cobrança profissional e educado..."
+              placeholder="Você é um assistente de cobrança profissional e educado da empresa Lira Tracker. Gere mensagens personalizadas de cobrança considerando o histórico e situação do cliente. Sempre termine as mensagens com 'Atenciosamente, Lira Tracker' sem incluir nome de atendente."
               rows={6}
             />
             <p className="text-xs text-muted-foreground">

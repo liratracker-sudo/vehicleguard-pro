@@ -70,14 +70,25 @@ serve(async (req) => {
           (new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24)
         );
 
+        // Buscar informações da empresa
+        const { data: companyInfo } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', company_id)
+          .single();
+
+        const companyName = companyInfo?.name || 'Lira Tracker';
+
         // Preparar prompt para a IA
         const prompt = `Cliente: ${client.name}
 Valor: R$ ${payment.amount}
 Data de vencimento: ${new Date(payment.due_date).toLocaleDateString('pt-BR')}
 Dias de atraso: ${daysOverdue}
 Status do pagamento: ${payment.status}
+Nome da empresa: ${companyName}
 
-Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp.`;
+Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp. 
+IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir nome de atendente ou placeholders vazios.`;
 
         try {
           // Chamar OpenAI API
@@ -87,15 +98,18 @@ Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp.`
               'Authorization': `Bearer ${openAIApiKey}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              model: aiSettings.openai_model || 'gpt-4o-mini',
-              messages: [
-                { role: 'system', content: aiSettings.system_prompt },
-                { role: 'user', content: prompt }
-              ],
-              max_tokens: 500,
-              temperature: 0.7
-            }),
+          body: JSON.stringify({
+            model: aiSettings.openai_model || 'gpt-4o-mini',
+            messages: [
+              { 
+                role: 'system', 
+                content: `${aiSettings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
+              },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 500,
+            temperature: 0.7
+          }),
           });
 
           const aiData = await response.json();
@@ -107,20 +121,7 @@ Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp.`
           const generatedMessage = aiData.choices[0].message.content;
           const usage = aiData.usage;
 
-          // Salvar log da IA
-          await supabase.from('ai_collection_logs').insert({
-            company_id,
-            payment_id: payment.id,
-            client_id: client.id,
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
-            model_used: aiSettings.openai_model || 'gpt-4o-mini',
-            generated_message: generatedMessage,
-            sent_successfully: false
-          });
-
-          // Enviar via WhatsApp
+          // Enviar via WhatsApp (apenas UMA vez)
           const { data: whatsappSettings } = await supabase
             .from('whatsapp_settings')
             .select('*')
@@ -128,6 +129,7 @@ Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp.`
             .eq('is_active', true)
             .single();
 
+          let messageSent = false;
           if (whatsappSettings) {
             const whatsappResult = await supabase.functions.invoke('whatsapp-evolution', {
               body: {
@@ -142,14 +144,21 @@ Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp.`
               }
             });
 
-            if (whatsappResult.data?.success) {
-              // Atualizar log como enviado
-              await supabase
-                .from('ai_collection_logs')
-                .update({ sent_successfully: true })
-                .eq('payment_id', payment.id)
-                .eq('company_id', company_id);
-            }
+            messageSent = whatsappResult.data?.success || false;
+          }
+
+          // Salvar log da IA após enviar
+          await supabase.from('ai_collection_logs').insert({
+            company_id,
+            payment_id: payment.id,
+            client_id: client.id,
+            prompt_tokens: usage.prompt_tokens,
+            completion_tokens: usage.completion_tokens,
+            total_tokens: usage.total_tokens,
+            model_used: aiSettings.openai_model || 'gpt-4o-mini',
+            generated_message: generatedMessage,
+            sent_successfully: messageSent
+          });
 
             results.push({
               payment_id: payment.id,
