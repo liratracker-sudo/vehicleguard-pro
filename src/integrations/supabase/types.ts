@@ -14,6 +14,155 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_collection_logs: {
+        Row: {
+          client_id: string | null
+          company_id: string
+          completion_tokens: number | null
+          created_at: string
+          error_message: string | null
+          generated_message: string | null
+          id: string
+          model_used: string | null
+          payment_id: string | null
+          prompt_tokens: number | null
+          sent_successfully: boolean | null
+          total_tokens: number | null
+        }
+        Insert: {
+          client_id?: string | null
+          company_id: string
+          completion_tokens?: number | null
+          created_at?: string
+          error_message?: string | null
+          generated_message?: string | null
+          id?: string
+          model_used?: string | null
+          payment_id?: string | null
+          prompt_tokens?: number | null
+          sent_successfully?: boolean | null
+          total_tokens?: number | null
+        }
+        Update: {
+          client_id?: string | null
+          company_id?: string
+          completion_tokens?: number | null
+          created_at?: string
+          error_message?: string | null
+          generated_message?: string | null
+          id?: string
+          model_used?: string | null
+          payment_id?: string | null
+          prompt_tokens?: number | null
+          sent_successfully?: boolean | null
+          total_tokens?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_collection_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_collection_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_collection_logs_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_collection_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          openai_model: string | null
+          system_prompt: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          openai_model?: string | null
+          system_prompt?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          openai_model?: string | null
+          system_prompt?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_collection_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_weekly_reports: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          last_sent_at: string | null
+          manager_phone: string | null
+          schedule_day: number | null
+          schedule_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          manager_phone?: string | null
+          schedule_day?: number | null
+          schedule_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          manager_phone?: string | null
+          schedule_day?: number | null
+          schedule_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asaas_logs: {
         Row: {
           company_id: string
