@@ -202,7 +202,7 @@ RESPOSTA:`;
           instance_url: settings.instance_url,
           api_token: settings.api_token,
           instance_name: instanceName,
-          phone: phoneNumber,
+          phone_number: phoneNumber,
           message: aiMessage,
           company_id: settings.company_id,
           client_id: client?.id || null
