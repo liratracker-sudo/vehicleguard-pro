@@ -3,6 +3,9 @@ project_id = "mcdidffxwtnqhawqilln"
 [functions.whatsapp-evolution]
 verify_jwt = false
 
+[functions.whatsapp-webhook]
+verify_jwt = false
+
 [functions.assinafy-integration]
 verify_jwt = true
 
