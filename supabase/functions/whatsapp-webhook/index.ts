@@ -199,15 +199,13 @@ RESPOSTA:`;
       const { error: sendError } = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
           action: 'sendText',
-          payload: {
-            instance_url: settings.instance_url,
-            api_token: settings.api_token,
-            instance_name: instanceName,
-            phone: phoneNumber,
-            message: aiMessage,
-            company_id: settings.company_id,
-            client_id: client?.id || null
-          }
+          instance_url: settings.instance_url,
+          api_token: settings.api_token,
+          instance_name: instanceName,
+          phone: phoneNumber,
+          message: aiMessage,
+          company_id: settings.company_id,
+          client_id: client?.id || null
         }
       });
 
