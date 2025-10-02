@@ -160,13 +160,13 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
             sent_successfully: messageSent
           });
 
-            results.push({
-              payment_id: payment.id,
-              client_name: client.name,
-              success: whatsappResult.data?.success || false,
-              message: generatedMessage
-            });
-          }
+          results.push({
+            payment_id: payment.id,
+            client_name: client.name,
+            success: messageSent,
+            message: generatedMessage
+          });
+
         } catch (error) {
           console.error(`Erro ao processar pagamento ${payment.id}:`, error);
           
