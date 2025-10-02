@@ -21,7 +21,7 @@ serve(async (req) => {
 
     // Verifica se é uma mensagem recebida
     if (webhookData.event === 'messages.upsert') {
-      const message = webhookData.data?.messages?.[0];
+      const message = webhookData.data;
       
       if (!message || message.key?.fromMe) {
         return new Response(JSON.stringify({ success: true, message: 'Mensagem ignorada (enviada por nós)' }), {
@@ -30,11 +30,26 @@ serve(async (req) => {
       }
 
       const instanceName = webhookData.instance;
-      const phoneNumber = message.key?.remoteJid?.replace('@s.whatsapp.net', '');
+      const remoteJid = message.key?.remoteJid || '';
+      const isGroup = remoteJid.includes('@g.us');
+      
+      // Para grupos, usar participant; para chats individuais, usar remoteJid
+      let phoneNumber = '';
+      if (isGroup) {
+        // Em grupos, o remetente está em participantAlt ou participant
+        const participant = message.key?.participantAlt || message.key?.participant || '';
+        phoneNumber = participant
+          .replace('@s.whatsapp.net', '')
+          .replace('@lid', '')
+          .replace(/:\d+/, ''); // Remove sufixos como :58
+      } else {
+        phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
+      }
+      
       const messageText = message.message?.conversation || 
                          message.message?.extendedTextMessage?.text || '';
 
-      console.log('Mensagem recebida:', { instanceName, phoneNumber, messageText });
+      console.log('Mensagem recebida:', { instanceName, phoneNumber, messageText, isGroup, remoteJid });
 
       // Buscar configurações do WhatsApp e company_id
       const { data: settings } = await supabase
