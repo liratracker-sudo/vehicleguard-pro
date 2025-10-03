@@ -33,23 +33,20 @@ serve(async (req) => {
       const remoteJid = message.key?.remoteJid || '';
       const isGroup = remoteJid.includes('@g.us');
       
-      // Para grupos, usar participant; para chats individuais, usar remoteJid
-      let phoneNumber = '';
+      // Ignorar mensagens de grupos
       if (isGroup) {
-        // Em grupos, o remetente está em participantAlt ou participant
-        const participant = message.key?.participantAlt || message.key?.participant || '';
-        phoneNumber = participant
-          .replace('@s.whatsapp.net', '')
-          .replace('@lid', '')
-          .replace(/:\d+/, ''); // Remove sufixos como :58
-      } else {
-        phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
+        console.log('Mensagem de grupo ignorada:', remoteJid);
+        return new Response(JSON.stringify({ success: true, message: 'Mensagens de grupo são ignoradas' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
+      
+      const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
       
       const messageText = message.message?.conversation || 
                          message.message?.extendedTextMessage?.text || '';
 
-      console.log('Mensagem recebida:', { instanceName, phoneNumber, messageText, isGroup, remoteJid });
+      console.log('Mensagem recebida:', { instanceName, phoneNumber, messageText });
 
       // Buscar configurações do WhatsApp e company_id
       const { data: settings } = await supabase
@@ -107,12 +104,16 @@ serve(async (req) => {
         });
       }
 
+      // Detectar se é pedido relacionado a fatura/boleto/pagamento
+      const isFaturaRequest = /\b(fatura|boleto|pagamento|pagar|vencimento|cobrança|cobranca|debito|débito|conta|devo|pix|barra)\b/i.test(messageText);
+      
       // Buscar informações do cliente (se existir)
       let clientInfo = '';
       let paymentInfo = '';
+      let contextualInstructions = '';
       
       if (client) {
-        clientInfo = `Nome: ${client.name}\n`;
+        clientInfo = `CLIENTE CADASTRADO:\nNome: ${client.name}\n`;
         
         // Buscar último pagamento
         const { data: lastPayment } = await supabase
@@ -132,36 +133,61 @@ serve(async (req) => {
             'cancelled': 'Cancelada'
           };
           
-          paymentInfo = `\nÚltima Cobrança:\n`;
+          paymentInfo = `\nINFORMAÇÕES DE PAGAMENTO:\n`;
           paymentInfo += `- Valor: R$ ${parseFloat(lastPayment.amount).toFixed(2)}\n`;
           paymentInfo += `- Vencimento: ${new Date(lastPayment.due_date).toLocaleDateString('pt-BR')}\n`;
           paymentInfo += `- Status: ${statusMap[lastPayment.status] || lastPayment.status}\n`;
+          
+          if (lastPayment.payment_url) {
+            paymentInfo += `- Link de pagamento: ${lastPayment.payment_url}\n`;
+          }
           
           if (lastPayment.status === 'overdue') {
             const diasAtraso = Math.floor((Date.now() - new Date(lastPayment.due_date).getTime()) / (1000 * 60 * 60 * 24));
             paymentInfo += `- Dias em atraso: ${diasAtraso}\n`;
           }
         }
+        
+        contextualInstructions = `
+INSTRUÇÕES PARA CLIENTE CADASTRADO:
+- Se perguntarem sobre fatura/pagamento e houver cobrança, forneça os detalhes acima
+- Se não houver cobrança pendente, informe que está tudo em dia
+- Seja útil e responda outras dúvidas que o cliente possa ter
+- Use um tom amigável e profissional`;
       } else {
-        clientInfo = 'Cliente não cadastrado no sistema\n';
+        clientInfo = `CONTATO NÃO CADASTRADO:\nEste número não está cadastrado no sistema.\n`;
+        
+        if (isFaturaRequest) {
+          contextualInstructions = `
+INSTRUÇÕES PARA CONSULTA DE FATURA (NÃO CADASTRADO):
+- Informe que para consultar a fatura, precisamos do CPF
+- Peça educadamente: "Para consultar sua fatura, por favor, me informe seu CPF."
+- Explique que com o CPF poderemos localizar o cadastro e fornecer as informações`;
+        } else {
+          contextualInstructions = `
+INSTRUÇÕES PARA ATENDIMENTO GERAL (NÃO CADASTRADO):
+- Cumprimente de forma amigável
+- Pergunte como pode ajudar
+- Responda dúvidas sobre serviços, planos, rastreamento veicular
+- Se necessário, oriente a entrar em contato para cadastro
+- Seja prestativo e tire as dúvidas do cliente`;
+        }
       }
 
       // Montar prompt para a IA
       const prompt = `${aiSettings.system_prompt}
 
-INFORMAÇÕES DO CLIENTE:
 ${clientInfo}${paymentInfo}
 
 MENSAGEM DO CLIENTE:
 "${messageText}"
 
-INSTRUÇÕES:
-- Responda de forma profissional e amigável
-- Se o cliente perguntar sobre fatura/boleto/pagamento e houver cobrança pendente/vencida, informe os detalhes
-- Se não houver informações de pagamento, informe que não há cobranças pendentes
-- Se o cliente não estiver cadastrado, oriente-o a entrar em contato com a empresa
-- Mantenha a resposta concisa (máximo 3 parágrafos)
-- Use emojis quando apropriado para tornar a mensagem mais amigável
+${contextualInstructions}
+
+IMPORTANTE:
+- Mantenha respostas concisas (máximo 3 parágrafos)
+- Use emojis com moderação para tornar a conversa mais amigável
+- Sempre finalize se colocando à disposição para mais dúvidas
 
 RESPOSTA:`;
 
