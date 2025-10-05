@@ -22,6 +22,143 @@ serve(async (req) => {
     
     console.log('AI Collection action:', { action, company_id, payment_id });
 
+    // Processar pagamento específico (para comando do gestor)
+    if (action === 'process_specific_payment') {
+      const { data: payment } = await supabase
+        .from('payment_transactions')
+        .select(`
+          *,
+          clients:client_id(*)
+        `)
+        .eq('id', payment_id)
+        .single();
+
+      if (!payment) {
+        throw new Error('Pagamento não encontrado');
+      }
+
+      const client = payment.clients;
+      
+      if (!client || !client.phone) {
+        throw new Error('Cliente sem telefone cadastrado');
+      }
+
+      // Buscar configurações de IA
+      const { data: aiSettings } = await supabase
+        .from('ai_collection_settings')
+        .select('*')
+        .eq('company_id', payment.company_id)
+        .eq('is_active', true)
+        .single();
+
+      if (!aiSettings) {
+        throw new Error('Configurações de IA não encontradas ou inativas');
+      }
+
+      // Calcular dias de atraso
+      const daysOverdue = Math.floor(
+        (new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Buscar informações da empresa
+      const { data: companyInfo } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('id', payment.company_id)
+        .single();
+
+      const companyName = companyInfo?.name || 'Lira Tracker';
+
+      // Preparar prompt para a IA
+      const prompt = `Cliente: ${client.name}
+Valor: R$ ${payment.amount}
+Data de vencimento: ${new Date(payment.due_date).toLocaleDateString('pt-BR')}
+Dias de atraso: ${daysOverdue}
+Status do pagamento: ${payment.status}
+Nome da empresa: ${companyName}
+
+Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp. 
+IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir nome de atendente ou placeholders vazios.`;
+
+      // Chamar OpenAI API
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: aiSettings.openai_model || 'gpt-4o-mini',
+          messages: [
+            { 
+              role: 'system', 
+              content: `${aiSettings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
+            },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 500,
+          temperature: 0.7
+        }),
+      });
+
+      const aiData = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(aiData.error?.message || 'Erro ao chamar OpenAI API');
+      }
+
+      const generatedMessage = aiData.choices[0].message.content;
+      const usage = aiData.usage;
+
+      // Enviar via WhatsApp
+      const { data: whatsappSettings } = await supabase
+        .from('whatsapp_settings')
+        .select('*')
+        .eq('company_id', payment.company_id)
+        .eq('is_active', true)
+        .single();
+
+      let messageSent = false;
+      if (whatsappSettings) {
+        const whatsappResult = await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'sendText',
+            instance_url: whatsappSettings.instance_url,
+            api_token: whatsappSettings.api_token,
+            instance_name: whatsappSettings.instance_name,
+            number: client.phone,
+            message: generatedMessage,
+            company_id: payment.company_id,
+            client_id: client.id
+          }
+        });
+
+        messageSent = whatsappResult.data?.success || false;
+      }
+
+      // Salvar log da IA
+      await supabase.from('ai_collection_logs').insert({
+        company_id: payment.company_id,
+        payment_id: payment.id,
+        client_id: client.id,
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
+        model_used: aiSettings.openai_model || 'gpt-4o-mini',
+        generated_message: generatedMessage,
+        sent_successfully: messageSent
+      });
+
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Cobrança enviada com sucesso',
+          generated_message: generatedMessage
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (action === 'process_overdue_clients') {
       // Buscar clientes inadimplentes
       const { data: overduePayments } = await supabase

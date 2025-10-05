@@ -71,6 +71,16 @@ serve(async (req) => {
         .eq('phone', phoneNumber)
         .single();
 
+      // Verificar se é o número do gestor
+      const { data: managerSettings } = await supabase
+        .from('ai_weekly_reports')
+        .select('manager_phone, is_active')
+        .eq('company_id', settings.company_id)
+        .eq('is_active', true)
+        .single();
+
+      const isManager = managerSettings?.manager_phone === phoneNumber;
+
       // Registrar log da mensagem recebida
       await supabase.from('whatsapp_logs').insert({
         company_id: settings.company_id,
@@ -81,8 +91,31 @@ serve(async (req) => {
         status: 'received',
       });
 
-      // Apenas registrar a mensagem recebida - não responder automaticamente
-      console.log('Mensagem registrada:', { phoneNumber, messageText, client: client?.name || 'Não cadastrado' });
+      // Se for o gestor, processar comando com IA
+      if (isManager && messageText) {
+        console.log('Mensagem do gestor recebida:', { phoneNumber, messageText });
+        
+        try {
+          // Chamar edge function para processar comando do gestor
+          const response = await supabase.functions.invoke('ai-manager-assistant', {
+            body: {
+              company_id: settings.company_id,
+              message: messageText,
+              manager_phone: phoneNumber,
+              instance_url: settings.instance_url,
+              api_token: settings.api_token,
+              instance_name: instanceName
+            }
+          });
+
+          console.log('Resposta do assistente IA:', response);
+        } catch (error) {
+          console.error('Erro ao processar comando do gestor:', error);
+        }
+      } else {
+        // Apenas registrar a mensagem recebida - não responder automaticamente
+        console.log('Mensagem registrada:', { phoneNumber, messageText, client: client?.name || 'Não cadastrado' });
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), {
