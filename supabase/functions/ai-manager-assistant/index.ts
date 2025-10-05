@@ -31,29 +31,36 @@ serve(async (req) => {
 
     const companyName = companyInfo?.name || 'sua empresa';
 
+    // Buscar todos os clientes da empresa
+    const { data: allClients } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('company_id', company_id)
+      .order('name', { ascending: true });
+
     // Buscar pagamentos em aberto
     const { data: overduePayments } = await supabase
       .from('payment_transactions')
       .select(`
         *,
-        clients:client_id(name, phone)
+        clients:client_id(id, name, phone, email, document, address, status)
       `)
       .eq('company_id', company_id)
       .eq('status', 'overdue')
       .order('due_date', { ascending: true })
-      .limit(20);
+      .limit(50);
 
     // Buscar pagamentos pendentes
     const { data: pendingPayments } = await supabase
       .from('payment_transactions')
       .select(`
         *,
-        clients:client_id(name, phone)
+        clients:client_id(id, name, phone, email, document, address, status)
       `)
       .eq('company_id', company_id)
       .eq('status', 'pending')
       .order('due_date', { ascending: true })
-      .limit(20);
+      .limit(50);
 
     // Buscar últimos pagamentos recebidos
     const { data: paidPayments } = await supabase
@@ -71,35 +78,72 @@ serve(async (req) => {
 
     const overdueDetails = overduePayments?.map(p => ({
       client: p.clients?.name || 'Cliente não identificado',
+      client_phone: p.clients?.phone,
+      client_email: p.clients?.email,
+      client_document: p.clients?.document,
+      client_address: p.clients?.address,
       amount: Number(p.amount),
       due_date: p.due_date,
       days_overdue: Math.floor((new Date().getTime() - new Date(p.due_date).getTime()) / (1000 * 60 * 60 * 24)),
       id: p.id
     })) || [];
 
+    // Informações dos clientes
+    const clientsInfo = allClients?.map(c => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      email: c.email,
+      document: c.document,
+      address: c.address,
+      status: c.status
+    })) || [];
+
     // Preparar prompt para a IA
     const systemPrompt = `Você é um assistente de gestão financeira inteligente para ${companyName}.
 
 Suas capacidades:
-1. Fornecer informações sobre cobranças, pagamentos e situação financeira
-2. Executar ações quando solicitado pelo gestor:
+1. Fornecer informações completas sobre clientes, cobranças, pagamentos e situação financeira
+2. Acessar dados cadastrais de todos os clientes (nome, telefone, email, documento, endereço)
+3. Executar ações quando solicitado pelo gestor:
    - Forçar cobrança de clientes inadimplentes (enviar mensagem de cobrança via IA)
    - Gerar relatórios financeiros
    - Listar clientes com pagamentos em atraso
+   - Fornecer informações detalhadas sobre qualquer cliente
 
 Contexto financeiro atual:
 - Total em atraso: R$ ${totalOverdue.toFixed(2)} (${overduePayments?.length || 0} cobranças)
 - Total pendente: R$ ${totalPending.toFixed(2)} (${pendingPayments?.length || 0} cobranças)
 - Total recebido (últimos 10): R$ ${totalPaid.toFixed(2)}
+- Total de clientes cadastrados: ${allClients?.length || 0}
 
-Cobranças em atraso:
-${overdueDetails.map((p, i) => `${i + 1}. ${p.client} - R$ ${p.amount.toFixed(2)} - ${p.days_overdue} dias de atraso - ID: ${p.id}`).join('\n') || 'Nenhuma cobrança em atraso'}
+Clientes cadastrados (completo):
+${clientsInfo.map((c, i) => `${i + 1}. ${c.name}
+   - Telefone: ${c.phone || 'Não informado'}
+   - Email: ${c.email || 'Não informado'}
+   - Documento: ${c.document || 'Não informado'}
+   - Endereço: ${c.address || 'Não informado'}
+   - Status: ${c.status}
+   - ID: ${c.id}`).join('\n') || 'Nenhum cliente cadastrado'}
+
+Cobranças em atraso (detalhado):
+${overdueDetails.map((p, i) => `${i + 1}. ${p.client}
+   - Telefone: ${p.client_phone || 'Não informado'}
+   - Email: ${p.client_email || 'Não informado'}
+   - Documento: ${p.client_document || 'Não informado'}
+   - Endereço: ${p.client_address || 'Não informado'}
+   - Valor: R$ ${p.amount.toFixed(2)}
+   - Vencimento: ${p.due_date}
+   - Dias em atraso: ${p.days_overdue}
+   - ID do pagamento: ${p.id}`).join('\n\n') || 'Nenhuma cobrança em atraso'}
 
 IMPORTANTE: 
+- Você tem acesso TOTAL aos dados cadastrais e financeiros
 - Seja direto e profissional
+- Forneça informações completas quando solicitado
 - Quando o gestor pedir para "forçar cobrança", identifique o pagamento específico e responda com a instrução exata: "EXECUTAR_COBRANCA:ID_DO_PAGAMENTO"
 - Para relatórios, responda "EXECUTAR_RELATORIO"
-- Para outras perguntas, responda normalmente com as informações disponíveis`;
+- Para outras perguntas, responda normalmente com TODAS as informações disponíveis`;
 
     const userPrompt = `Mensagem do gestor: "${message}"
 
