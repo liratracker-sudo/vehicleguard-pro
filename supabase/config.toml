@@ -46,4 +46,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.ai-collection]
-verify_jwt = true
+verify_jwt = false
+
+[functions.ai-manager-assistant]
+verify_jwt = false
