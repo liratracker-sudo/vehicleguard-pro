@@ -1016,51 +1016,53 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     }
 
     // Post-due notifications (for overdue payments)
+    // REGRA: Dias 1, 2, 3 = 1 envio por dia
+    //        Dia 4+ = 2 envios intercalados por dia até pagar
     if (isOverdue) {
       console.log(`Creating post-due notifications for payment ${payment.id}, ${daysPastDue} days overdue`);
       
-      // 1. Criar notificações para os dias configurados que já passaram
-      for (const days of settings.post_due_days || []) {
-        if (daysPastDue < days) continue; // Só criar se já passou esse número de dias
+      const timeParts = settings.send_hour.split(':');
+      const baseHour = parseInt(timeParts[0]) || 9;
+      const baseMinute = parseInt(timeParts[1]) || 0;
+      const intervalHours = settings.post_due_interval_hours || 6;
+      
+      // Criar notificações para cada dia até hoje
+      for (let currentDay = 1; currentDay <= daysPastDue; currentDay++) {
+        // Determinar quantos envios para este dia
+        // Dias 1-3: 1 envio
+        // Dia 4+: 2 envios intercalados
+        const sendsPerDay = currentDay <= 3 ? 1 : 2;
         
-        const postDueTimes = settings.post_due_times || 2;
-        const intervalHours = settings.post_due_interval_hours || 6;
+        // Verificar quantas notificações já existem para este dia
+        const existingCount = existingPostDueDays.get(currentDay) || 0;
         
-        // Verificar quantas notificações já existem para esse dia
-        const existingCount = existingPostDueDays.get(days) || 0;
-        
-        for (let i = existingCount; i < postDueTimes; i++) {
-          const key = `post_due_${days}_${i}`;
+        // Criar apenas as notificações que faltam
+        for (let sendIndex = existingCount; sendIndex < sendsPerDay; sendIndex++) {
+          const key = `post_due_${currentDay}_${sendIndex}`;
           if (existingKeys.has(key)) continue;
           
           const scheduledDate = new Date(dueDate);
-          scheduledDate.setDate(scheduledDate.getDate() + days);
+          scheduledDate.setDate(scheduledDate.getDate() + currentDay);
+          scheduledDate.setHours(baseHour, baseMinute, 0, 0);
           
-          // Parse send_hour properly
-          const timeParts = settings.send_hour.split(':');
-          const hour = parseInt(timeParts[0]) || 9;
-          const minute = parseInt(timeParts[1]) || 0;
-          
-          scheduledDate.setHours(hour, minute, 0, 0);
-          
-          // Adicionar intervalo para disparos subsequentes
-          if (i > 0) {
-            scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
+          // Segundo envio do dia: adicionar intervalo
+          if (sendIndex === 1) {
+            scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
           }
           
-          // Se já passou o horário agendado, agendar para agora
+          // Se o horário já passou, agendar para daqui a 2 minutos
           if (scheduledDate.getTime() < now.getTime()) {
             scheduledDate.setTime(now.getTime() + (2 * 60 * 1000));
           }
           
-          console.log(`Creating post-due notification for day ${days}, dispatch ${i+1}/${postDueTimes}`);
+          console.log(`Creating post-due notification for day ${currentDay}, send ${sendIndex + 1}/${sendsPerDay}`);
           
           notifications.push({
             company_id: settings.company_id,
             payment_id: payment.id,
             client_id: payment.client_id,
             event_type: 'post_due',
-            offset_days: days,
+            offset_days: currentDay,
             scheduled_for: scheduledDate.toISOString(),
             status: 'pending',
             notification_settings_id: settings.id,
@@ -1069,83 +1071,25 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         }
       }
       
-      // 2. Criar notificações contínuas diárias após os dias configurados
-      const maxConfiguredDays = Math.max(...(settings.post_due_days || [0]));
-      
-      // Se já passaram mais dias que o máximo configurado, criar notificações diárias
-      if (daysPastDue > maxConfiguredDays) {
-        console.log(`Creating daily continuous notifications after day ${maxConfiguredDays}`);
-        
-        // Criar notificações para os dias que faltam até hoje
-        for (let currentDay = maxConfiguredDays + 1; currentDay <= daysPastDue; currentDay++) {
-          const existingCount = existingPostDueDays.get(currentDay) || 0;
-          const postDueTimes = settings.post_due_times || 2;
-          const intervalHours = settings.post_due_interval_hours || 6;
-          
-          for (let i = existingCount; i < postDueTimes; i++) {
-            const key = `post_due_${currentDay}_${i}`;
-            if (existingKeys.has(key)) continue;
-            
-            const scheduledDate = new Date(dueDate);
-            scheduledDate.setDate(scheduledDate.getDate() + currentDay);
-            
-            const timeParts = settings.send_hour.split(':');
-            const hour = parseInt(timeParts[0]) || 9;
-            const minute = parseInt(timeParts[1]) || 0;
-            
-            scheduledDate.setHours(hour, minute, 0, 0);
-            
-            if (i > 0) {
-              scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
-            }
-            
-            // Se já passou, agendar para agora
-            if (scheduledDate.getTime() < now.getTime()) {
-              scheduledDate.setTime(now.getTime() + (2 * 60 * 1000));
-            }
-            
-            console.log(`Creating continuous daily notification for day ${currentDay}, dispatch ${i+1}/${postDueTimes}`);
-            
-            notifications.push({
-              company_id: settings.company_id,
-              payment_id: payment.id,
-              client_id: payment.client_id,
-              event_type: 'post_due',
-              offset_days: currentDay,
-              scheduled_for: scheduledDate.toISOString(),
-              status: 'pending',
-              notification_settings_id: settings.id,
-              attempts: 0
-            });
-          }
-        }
-      }
-      
-      // 3. Criar notificações para o próximo dia (para garantir continuidade)
+      // Criar notificações para o próximo dia (dia atual + 1)
+      // Isso garante que sempre temos notificações agendadas para o futuro
       const nextDay = daysPastDue + 1;
       const existingCountNextDay = existingPostDueDays.get(nextDay) || 0;
+      const sendsNextDay = nextDay <= 3 ? 1 : 2;
       
-      if (existingCountNextDay === 0) {
-        console.log(`Creating notifications for next day: ${nextDay}`);
+      if (existingCountNextDay < sendsNextDay) {
+        console.log(`Creating notifications for next day ${nextDay} (${sendsNextDay} sends)`);
         
-        const postDueTimes = settings.post_due_times || 2;
-        const intervalHours = settings.post_due_interval_hours || 6;
-        
-        for (let i = 0; i < postDueTimes; i++) {
+        for (let sendIndex = existingCountNextDay; sendIndex < sendsNextDay; sendIndex++) {
           const scheduledDate = new Date(dueDate);
           scheduledDate.setDate(scheduledDate.getDate() + nextDay);
+          scheduledDate.setHours(baseHour, baseMinute, 0, 0);
           
-          const timeParts = settings.send_hour.split(':');
-          const hour = parseInt(timeParts[0]) || 9;
-          const minute = parseInt(timeParts[1]) || 0;
-          
-          scheduledDate.setHours(hour, minute, 0, 0);
-          
-          if (i > 0) {
-            scheduledDate.setHours(scheduledDate.getHours() + (i * intervalHours));
+          if (sendIndex === 1) {
+            scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
           }
           
-          console.log(`Creating next-day notification for day ${nextDay}, dispatch ${i+1}/${postDueTimes}`);
+          console.log(`Creating next-day notification for day ${nextDay}, send ${sendIndex + 1}/${sendsNextDay}`);
           
           notifications.push({
             company_id: settings.company_id,
