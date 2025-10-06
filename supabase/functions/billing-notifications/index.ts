@@ -850,10 +850,11 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
   if (specificPaymentId) {
     query = query.eq('id', specificPaymentId);
   } else {
-    // Process payments from the last 90 days for better coverage
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    query = query.gte('due_date', ninetyDaysAgo.toISOString().split('T')[0]);
+    // Process payments from the last 120 days (4 months) for better coverage
+    // This ensures we catch overdue payments that need ongoing notifications
+    const oneHundredTwentyDaysAgo = new Date();
+    oneHundredTwentyDaysAgo.setDate(oneHundredTwentyDaysAgo.getDate() - 120);
+    query = query.gte('due_date', oneHundredTwentyDaysAgo.toISOString().split('T')[0]);
   }
 
   const { data: paymentsWithoutNotifications, error: paymentsError } = await query;
@@ -883,19 +884,21 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
 
     const dueDate = new Date(payment.due_date);
     
-    // Skip payments that are too old (more than 90 days past due)  
+    // Skip payments that are too old (more than 120 days past due)  
     const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysPastDue > 90) {
+    if (daysPastDue > 120) {
       console.log(`Skipping payment ${payment.id} - too old (${daysPastDue} days past due)`);
       results.skipped++;
       continue;
     }
     
-    // Check if we already have notifications for this payment
+    // Check if we already have PENDING notifications for this payment
+    // We only check pending to allow recreation of failed/sent ones for ongoing overdue payments
     const { data: existingNotifications } = await supabase
       .from('payment_notifications')
-      .select('event_type, offset_days, scheduled_for')
-      .eq('payment_id', payment.id);
+      .select('event_type, offset_days, scheduled_for, status')
+      .eq('payment_id', payment.id)
+      .eq('status', 'pending'); // Only check pending notifications
 
     // Criar mapa das notificações existentes
     const existingKeys = new Set();
