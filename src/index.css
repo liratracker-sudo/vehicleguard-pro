@@ -6,149 +6,127 @@
 
 @layer base {
   :root {
-    /* Core Brand Colors - Blue-Red Palette */
-    --primary: 250 84% 56%;          /* Blue-Red Purple */
-    --primary-foreground: 0 0% 100%;
-    --primary-light: 250 100% 96%;   /* Light Blue-Red Background */
-    --primary-dark: 250 84% 46%;     /* Darker Blue-Red for Hover */
+    --radius: 0.625rem;
     
-    /* Background System */
-    --background: 0 0% 100%;         /* Pure White */
-    --background-secondary: 220 14% 96%; /* Light Gray Background */
-    --background-tertiary: 210 20% 98%; /* Subtle Gray */
-    --foreground: 215 25% 27%;       /* Dark Blue-Gray Text */
+    /* Light Theme - Modern Slate Design */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
     
-    /* Card System */
-    --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
-    --card-border: 220 13% 91%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
     
-    /* Interactive Elements */
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 215 25% 27%;
-    --secondary-hover: 220 14% 92%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
     
-    /* Neutral Grays */
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 16% 47%;
-    --muted-dark: 215 25% 37%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --primary-light: 217 91% 70%;
+    --primary-dark: 217 91% 50%;
     
-    /* Accent Colors */
-    --accent: 220 14% 96%;
-    --accent-foreground: 215 25% 27%;
-    --accent-success: 142 76% 36%;   /* Success Green */
-    --accent-warning: 38 92% 50%;    /* Warning Orange */
-    --accent-danger: 0 84% 60%;      /* Danger Red */
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --secondary-hover: 217 33% 20%;
     
-    /* Status Colors */
-    --success: 142 76% 36%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --muted-dark: 215 20% 55%;
+    
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --accent-success: 142 76% 36%;
+    --accent-warning: 38 92% 50%;
+    --accent-danger: 0 72% 51%;
+    
+    --success: 160 84% 39%;
     --success-foreground: 0 0% 100%;
-    --success-light: 142 76% 96%;
+    --success-light: 160 84% 49%;
     
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --warning-light: 38 92% 96%;
+    --warning-light: 38 92% 60%;
     
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --destructive-light: 0 84% 96%;
+    --destructive-light: 0 72% 61%;
     
-    /* Form Elements */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --input-focus: 250 84% 56%;
-    --ring: 250 84% 56%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --input-focus: 217 91% 60%;
+    --ring: 217 91% 60%;
     
-    /* Interactive States */
-    --hover: 220 14% 92%;
-    --hover-accent: 250 84% 66%;
-    --active: 250 84% 46%;
+    --hover: 217 33% 20%;
+    --hover-accent: 217 91% 70%;
+    --active: 217 91% 50%;
     
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(250 84% 56%), hsl(250 84% 66%));
-    --gradient-secondary: linear-gradient(135deg, hsl(220 14% 96%), hsl(210 20% 98%));
-    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(188 100% 50%));
+    --gradient-secondary: linear-gradient(135deg, hsl(217 33% 17%), hsl(217 33% 20%));
+    --gradient-success: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 84% 49%));
     
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(215 25% 27% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(215 25% 27% / 0.1), 0 2px 4px -1px hsl(215 25% 27% / 0.06);
-    --shadow-lg: 0 10px 15px -3px hsl(215 25% 27% / 0.1), 0 4px 6px -2px hsl(215 25% 27% / 0.05);
-    --shadow-primary: 0 4px 14px 0 hsl(250 84% 56% / 0.15);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -1px rgb(0 0 0 / 0.06);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.05);
+    --shadow-primary: 0 4px 14px 0 hsl(217 91% 60% / 0.25);
     
-    /* Animations - Futuristic Design */
+    /* Animations */
     --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    --transition-slide: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-
+    
     /* Border Radius */
-    --radius: 0.75rem;
     --radius-sm: 0.5rem;
     --radius-lg: 1rem;
     
     /* Sidebar System */
-    --sidebar-background: 220 14% 96%;
-    --sidebar-foreground: 215 25% 27%;
-    --sidebar-primary: 250 84% 56%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 92%;
-    --sidebar-accent-foreground: 215 25% 27%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 250 84% 56%;
+    --sidebar-background: 217 33% 14%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 217 91% 60%;
   }
 
   .dark {
-    /* Dark Mode - Professional Dark Theme */
-    --background: 215 28% 17%;
-    --background-secondary: 215 28% 15%;
-    --background-tertiary: 215 28% 19%;
+    /* Dark theme uses same colors for this design */
+    --background: 222 47% 11%;
     --foreground: 210 40% 98%;
     
-    --card: 215 28% 17%;
+    --card: 222 47% 11%;
     --card-foreground: 210 40% 98%;
-    --card-border: 215 28% 25%;
     
-    --popover: 215 28% 17%;
+    --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
     
-    --primary: 250 84% 56%;
-    --primary-foreground: 0 0% 100%;
-    --primary-light: 250 84% 26%;
-    --primary-dark: 250 84% 66%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
     
-    --secondary: 215 28% 25%;
+    --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-    --secondary-hover: 215 28% 28%;
     
-    --muted: 215 28% 25%;
+    --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
-    --muted-dark: 215 20% 55%;
     
-    --accent: 215 28% 25%;
+    --accent: 217 33% 17%;
     --accent-foreground: 210 40% 98%;
     
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-light: 0 62% 25%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
     
-    --border: 215 28% 25%;
-    --input: 215 28% 25%;
-    --input-focus: 250 84% 56%;
-    --ring: 250 84% 56%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
     
-    --hover: 215 28% 28%;
-    --hover-accent: 250 84% 66%;
-    --active: 250 84% 46%;
-    
-    --sidebar-background: 215 28% 15%;
+    --sidebar-background: 217 33% 14%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 250 84% 56%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 28% 25%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 28% 25%;
-    --sidebar-ring: 250 84% 56%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 217 91% 60%;
   }
 }
 
@@ -163,37 +141,37 @@
     text-rendering: optimizeLegibility;
   }
   
-  /* Custom Scrollbar - Cross-browser compatibility with orange color */
+  /* Custom Scrollbar - Modern Dark Theme */
   ::-webkit-scrollbar {
     width: 14px;
     height: 14px;
   }
   
   ::-webkit-scrollbar-track {
-    background: #f0f0f0 !important;
+    background: rgba(30, 41, 59, 0.5) !important;
     border-radius: 8px;
   }
   
   ::-webkit-scrollbar-thumb {
-    background: #ff8c00 !important;
+    background: rgba(59, 130, 246, 0.6) !important;
     border-radius: 8px;
-    border: 2px solid #f0f0f0;
+    border: 2px solid rgba(30, 41, 59, 0.5);
     transition: all 0.2s ease;
     min-height: 40px;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    background: #ff7700 !important;
+    background: rgba(59, 130, 246, 0.8) !important;
   }
   
   ::-webkit-scrollbar-corner {
-    background: #f0f0f0;
+    background: rgba(30, 41, 59, 0.5);
   }
   
   /* Firefox scrollbar styling */
   html, body, * {
     scrollbar-width: auto !important;
-    scrollbar-color: #ff8c00 #f0f0f0 !important;
+    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(30, 41, 59, 0.5) !important;
   }
   
   /* Force scrollbar visibility */
@@ -201,26 +179,26 @@
     overflow-y: scroll !important;
   }
   
-  /* Dark mode scrollbar */
+  /* Dark mode scrollbar - same as main theme */
   .dark ::-webkit-scrollbar-track {
-    background: #2a2a2a !important;
+    background: rgba(30, 41, 59, 0.5) !important;
   }
   
   .dark ::-webkit-scrollbar-thumb {
-    background: #ff9500 !important;
-    border: 2px solid #2a2a2a;
+    background: rgba(59, 130, 246, 0.6) !important;
+    border: 2px solid rgba(30, 41, 59, 0.5);
   }
   
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: #ffaa00 !important;
+    background: rgba(59, 130, 246, 0.8) !important;
   }
   
   .dark ::-webkit-scrollbar-corner {
-    background: #2a2a2a;
+    background: rgba(30, 41, 59, 0.5);
   }
   
   .dark html, .dark body, .dark * {
-    scrollbar-color: #ff9500 #2a2a2a !important;
+    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(30, 41, 59, 0.5) !important;
   }
   
   /* Ensure scrollbar is always visible */
@@ -301,20 +279,20 @@
     left: 100%;
   }
   
-  /* Futuristic Card Animations */
+  /* Modern Card Animations */
   .card-futuristic {
     @apply transition-all duration-300 ease-out;
-    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card)) 100%);
-    border: 1px solid hsl(var(--border));
-    backdrop-filter: blur(10px);
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    backdrop-filter: blur(12px);
     transform: translateZ(0);
   }
   
   .card-futuristic:hover {
     @apply shadow-lg;
     transform: translateY(-2px) translateZ(0);
-    border-color: hsl(250 84% 56% / 0.3);
-    box-shadow: 0 8px 32px hsl(250 84% 56% / 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15);
   }
 
   /* Responsive Design Utilities */

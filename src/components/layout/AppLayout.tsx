@@ -5,7 +5,7 @@ import { UserNav } from "./UserNav"
 import { WhatsAppStatus } from "./WhatsAppStatus"
 import { WhatsAppAlert } from "@/components/alerts/WhatsAppAlert"
 import { useEnsureAsaasWebhook } from "@/hooks/useEnsureAsaasWebhook"
-import { BackgroundGradientAnimation } from "@/components/ui/background-gradient-animation"
+import { FlickeringGrid } from "@/components/ui/flickering-grid"
 
 interface AppLayoutProps {
   children: ReactNode
@@ -14,17 +14,14 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   useEnsureAsaasWebhook();
   return (
-    <div className="min-h-screen relative">
-      <BackgroundGradientAnimation
-        gradientBackgroundStart="rgb(16, 20, 40)"
-        gradientBackgroundEnd="rgb(0, 12, 36)"
-        firstColor="59, 130, 246"
-        secondColor="139, 92, 246"
-        thirdColor="6, 182, 212"
-        fourthColor="168, 85, 247"
-        fifthColor="34, 197, 94"
-        pointerColor="99, 102, 241"
-        containerClassName="absolute inset-0 z-0"
+    <div className="min-h-screen relative bg-slate-950">
+      <FlickeringGrid
+        className="z-0 absolute inset-0 size-full"
+        squareSize={4}
+        gridGap={6}
+        color="rgb(30, 41, 59)"
+        maxOpacity={0.5}
+        flickerChance={0.2}
       />
       <SidebarProvider>
         <div className="min-h-screen flex w-full relative z-10 bg-transparent">
@@ -32,12 +29,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           
           <div className="flex-1 flex flex-col min-w-0">
             {/* Header */}
-            <header className="h-14 sm:h-16 bg-card/80 backdrop-blur-sm border-b border-card-border/50 flex items-center justify-between px-3 sm:px-6 shadow-sm card-futuristic flex-shrink-0">
+            <header className="h-14 sm:h-16 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-3 sm:px-6 shadow-lg flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                <SidebarTrigger className="text-muted-foreground hover:text-foreground icon-hover flex-shrink-0" />
+                <SidebarTrigger className="text-slate-400 hover:text-slate-100 transition-colors flex-shrink-0" />
                 <div className="hidden xs:block min-w-0">
-                  <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">VehicleGuard Pro</h1>
-                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Sistema de Gestão de Rastreamento</p>
+                  <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent truncate">VehicleGuard Pro</h1>
+                  <p className="text-xs sm:text-sm text-slate-400 truncate">Sistema de Gestão de Rastreamento</p>
                 </div>
               </div>
               
