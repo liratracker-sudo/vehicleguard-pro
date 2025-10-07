@@ -22,7 +22,7 @@ serve(async (req) => {
     
     console.log('AI Collection action:', { action, company_id, payment_id });
 
-    // Processar pagamento específico (para comando do gestor)
+    // Processar pagamento específico (para comando do gestor ou sistema de notificações)
     if (action === 'process_specific_payment') {
       const { data: payment } = await supabase
         .from('payment_transactions')
@@ -110,32 +110,6 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
       const generatedMessage = aiData.choices[0].message.content;
       const usage = aiData.usage;
 
-      // Enviar via WhatsApp
-      const { data: whatsappSettings } = await supabase
-        .from('whatsapp_settings')
-        .select('*')
-        .eq('company_id', payment.company_id)
-        .eq('is_active', true)
-        .single();
-
-      let messageSent = false;
-      if (whatsappSettings) {
-        const whatsappResult = await supabase.functions.invoke('whatsapp-evolution', {
-          body: {
-            action: 'sendText',
-            instance_url: whatsappSettings.instance_url,
-            api_token: whatsappSettings.api_token,
-            instance_name: whatsappSettings.instance_name,
-            number: client.phone,
-            message: generatedMessage,
-            company_id: payment.company_id,
-            client_id: client.id
-          }
-        });
-
-        messageSent = whatsappResult.data?.success || false;
-      }
-
       // Salvar log da IA
       await supabase.from('ai_collection_logs').insert({
         company_id: payment.company_id,
@@ -146,8 +120,21 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
         total_tokens: usage.total_tokens,
         model_used: aiSettings.openai_model || 'gpt-4o-mini',
         generated_message: generatedMessage,
-        sent_successfully: messageSent
+        sent_successfully: false // Will be updated by billing-notifications if sent
       });
+
+      // Return generated message without sending
+      // The billing-notifications function will handle the actual sending
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          generated_message: generatedMessage,
+          client_phone: client.phone,
+          company_id: payment.company_id,
+          client_id: client.id
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
 
       return new Response(
         JSON.stringify({ 

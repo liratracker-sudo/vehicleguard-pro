@@ -12,6 +12,35 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Helper function to convert UTC date to Brazil timezone (America/Sao_Paulo = UTC-3)
+function toBrazilTime(date: Date): Date {
+  // Get the timezone offset for Brazil (UTC-3 = -180 minutes)
+  const brazilOffset = -180; // -3 hours in minutes
+  const utcOffset = date.getTimezoneOffset(); // Current timezone offset in minutes
+  
+  // Calculate the difference and adjust
+  const offsetDiff = utcOffset - brazilOffset;
+  
+  // Create new date adjusted to Brazil time
+  const brazilDate = new Date(date.getTime() - (offsetDiff * 60 * 1000));
+  return brazilDate;
+}
+
+// Helper function to set time in Brazil timezone
+function setBrazilTime(date: Date, hour: number, minute: number): Date {
+  // Create a date in Brazil time
+  const brazilDate = new Date(date);
+  
+  // Set the time (this will be interpreted as Brazil time)
+  brazilDate.setHours(hour, minute, 0, 0);
+  
+  // Adjust for timezone difference (Brazil is UTC-3)
+  // We need to add 3 hours to get UTC time that will display as correct Brazil time
+  brazilDate.setHours(brazilDate.getHours() + 3);
+  
+  return brazilDate;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -633,8 +662,46 @@ async function sendSingleNotification(notification: any) {
     throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
   }
 
-  // Render message template
-  const message = renderTemplate(notification, payment, client, settings);
+  // Check if AI Collection is active for this company
+  const { data: aiSettings } = await supabase
+    .from('ai_collection_settings')
+    .select('*')
+    .eq('company_id', notification.company_id)
+    .eq('is_active', true)
+    .single();
+
+  let message: string;
+  
+  if (aiSettings) {
+    // Use AI to generate personalized message
+    console.log(`Using AI to generate message for notification ${notification.id}...`);
+    
+    try {
+      const aiResponse = await supabase.functions.invoke('ai-collection', {
+        body: {
+          action: 'process_specific_payment',
+          company_id: notification.company_id,
+          payment_id: payment.id
+        }
+      });
+
+      if (aiResponse.error || !aiResponse.data?.generated_message) {
+        console.error('AI generation failed, falling back to template:', aiResponse.error);
+        // Fallback to template if AI fails
+        message = renderTemplate(notification, payment, client, settings);
+      } else {
+        message = aiResponse.data.generated_message;
+        console.log('AI message generated successfully');
+      }
+    } catch (error) {
+      console.error('Error calling AI collection:', error);
+      // Fallback to template if AI fails
+      message = renderTemplate(notification, payment, client, settings);
+    }
+  } else {
+    // Use traditional template
+    message = renderTemplate(notification, payment, client, settings);
+  }
   
   // Send via WhatsApp Evolution API
   console.log(`Sending WhatsApp message for notification ${notification.id}...`);
@@ -953,7 +1020,8 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         const hour = parseInt(timeParts[0]) || 9;
         const minute = parseInt(timeParts[1]) || 0;
         
-        scheduledDate.setHours(hour, minute, 0, 0);
+        // Use Brazil timezone (UTC-3) for scheduling
+        scheduledDate = setBrazilTime(scheduledDate, hour, minute);
         
         // Only create if the scheduled date is not too far in the past (allow up to 3 days)
         const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
@@ -992,7 +1060,8 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         const hour = parseInt(timeParts[0]) || 9;
         const minute = parseInt(timeParts[1]) || 0;
         
-        scheduledDate.setHours(hour, minute, 0, 0);
+        // Use Brazil timezone (UTC-3) for scheduling
+        scheduledDate = setBrazilTime(scheduledDate, hour, minute);
         
         // Adicionar intervalo para disparos subsequentes
         if (i > 0) {
@@ -1044,9 +1113,10 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           const key = `post_due_${currentDay}_${sendIndex}`;
           if (existingKeys.has(key)) continue;
           
-          const scheduledDate = new Date(dueDate);
+          let scheduledDate = new Date(dueDate);
           scheduledDate.setDate(scheduledDate.getDate() + currentDay);
-          scheduledDate.setHours(baseHour, baseMinute, 0, 0);
+          // Use Brazil timezone (UTC-3) for scheduling
+          scheduledDate = setBrazilTime(scheduledDate, baseHour, baseMinute);
           
           // Segundo envio do dia: adicionar intervalo
           if (sendIndex === 1) {
