@@ -126,7 +126,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_sent_at: string | null
-          manager_phone: string | null
+          manager_phones: string[] | null
           schedule_day: number | null
           schedule_time: string | null
           updated_at: string
@@ -137,7 +137,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_sent_at?: string | null
-          manager_phone?: string | null
+          manager_phones?: string[] | null
           schedule_day?: number | null
           schedule_time?: string | null
           updated_at?: string
@@ -148,7 +148,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_sent_at?: string | null
-          manager_phone?: string | null
+          manager_phones?: string[] | null
           schedule_day?: number | null
           schedule_time?: string | null
           updated_at?: string

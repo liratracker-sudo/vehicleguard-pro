@@ -71,15 +71,15 @@ serve(async (req) => {
         .eq('phone', phoneNumber)
         .single();
 
-      // Verificar se é o número do gestor
+      // Verificar se é um dos números dos gestores
       const { data: managerSettings } = await supabase
         .from('ai_weekly_reports')
-        .select('manager_phone, is_active')
+        .select('manager_phones, is_active')
         .eq('company_id', settings.company_id)
         .eq('is_active', true)
         .single();
 
-      const isManager = managerSettings?.manager_phone === phoneNumber;
+      const isManager = managerSettings?.manager_phones?.includes(phoneNumber) || false;
 
       // Registrar log da mensagem recebida
       await supabase.from('whatsapp_logs').insert({

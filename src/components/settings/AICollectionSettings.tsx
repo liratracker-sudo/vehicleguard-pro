@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, Calendar, Play, Loader2 } from "lucide-react";
+import { Bot, Calendar, Play, Loader2, Plus, X } from "lucide-react";
 import { useAICollection } from "@/hooks/useAICollection";
 
 export function AICollectionSettings() {
@@ -26,7 +26,7 @@ export function AICollectionSettings() {
   const [systemPrompt, setSystemPrompt] = useState("");
   
   const [reportActive, setReportActive] = useState(false);
-  const [managerPhone, setManagerPhone] = useState("");
+  const [managerPhones, setManagerPhones] = useState<string[]>([""]);
   const [scheduleDay, setScheduleDay] = useState("1");
   const [scheduleTime, setScheduleTime] = useState("09:00");
 
@@ -41,7 +41,9 @@ export function AICollectionSettings() {
   useEffect(() => {
     if (weeklyReport) {
       setReportActive(weeklyReport.is_active);
-      setManagerPhone(weeklyReport.manager_phone || "");
+      setManagerPhones(weeklyReport.manager_phones && weeklyReport.manager_phones.length > 0 
+        ? weeklyReport.manager_phones 
+        : [""]);
       setScheduleDay(weeklyReport.schedule_day.toString());
       setScheduleTime(weeklyReport.schedule_time);
     }
@@ -56,12 +58,33 @@ export function AICollectionSettings() {
   };
 
   const handleSaveReport = async () => {
+    // Filtrar números vazios
+    const validPhones = managerPhones.filter(phone => phone.trim() !== "");
+    
     await saveWeeklyReport({
       is_active: reportActive,
-      manager_phone: managerPhone,
+      manager_phones: validPhones,
       schedule_day: parseInt(scheduleDay),
       schedule_time: scheduleTime
     });
+  };
+
+  const addManagerPhone = () => {
+    if (managerPhones.length < 6) {
+      setManagerPhones([...managerPhones, ""]);
+    }
+  };
+
+  const removeManagerPhone = (index: number) => {
+    if (managerPhones.length > 1) {
+      setManagerPhones(managerPhones.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateManagerPhone = (index: number, value: string) => {
+    const newPhones = [...managerPhones];
+    newPhones[index] = value;
+    setManagerPhones(newPhones);
   };
 
   if (loading) {
@@ -169,16 +192,47 @@ export function AICollectionSettings() {
             <Switch checked={reportActive} onCheckedChange={setReportActive} />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="managerPhone">Telefone do Gestor</Label>
-            <Input
-              id="managerPhone"
-              value={managerPhone}
-              onChange={(e) => setManagerPhone(e.target.value)}
-              placeholder="5511999999999"
-            />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Telefones dos Gestores (máx. 6)</Label>
+              {managerPhones.length < 6 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addManagerPhone}
+                  className="h-8"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Adicionar
+                </Button>
+              )}
+            </div>
+            
+            {managerPhones.map((phone, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  value={phone}
+                  onChange={(e) => updateManagerPhone(index, e.target.value)}
+                  placeholder="5511999999999"
+                  className="flex-1"
+                />
+                {managerPhones.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeManagerPhone(index)}
+                    className="h-9 w-9 p-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            
             <p className="text-xs text-muted-foreground">
-              Número com código do país (ex: 5511999999999)
+              Números com código do país (ex: 5511999999999). Todos os gestores receberão relatórios e poderão interagir com o assistente de IA.
             </p>
           </div>
 

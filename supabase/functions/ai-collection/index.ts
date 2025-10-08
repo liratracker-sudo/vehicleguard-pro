@@ -412,17 +412,22 @@ O relatório deve ser profissional e conciso para envio via WhatsApp ao gestor.`
         .eq('is_active', true)
         .single();
 
-      if (whatsappSettings) {
-        await supabase.functions.invoke('whatsapp-evolution', {
-          body: {
-            action: 'sendText',
-            instance_url: whatsappSettings.instance_url,
-            api_token: whatsappSettings.api_token,
-            instance_name: whatsappSettings.instance_name,
-            number: reportSettings.manager_phone,
-            message: reportMessage
-          }
-        });
+      if (whatsappSettings && reportSettings.manager_phones && reportSettings.manager_phones.length > 0) {
+        // Enviar para todos os gestores cadastrados
+        const sendPromises = reportSettings.manager_phones.map(phone => 
+          supabase.functions.invoke('whatsapp-evolution', {
+            body: {
+              action: 'sendText',
+              instance_url: whatsappSettings.instance_url,
+              api_token: whatsappSettings.api_token,
+              instance_name: whatsappSettings.instance_name,
+              number: phone,
+              message: reportMessage
+            }
+          })
+        );
+        
+        await Promise.all(sendPromises);
 
         // Atualizar última execução
         await supabase
