@@ -137,13 +137,16 @@ ${overdueDetails.map((p, i) => `${i + 1}. ${p.client}
    - Dias em atraso: ${p.days_overdue}
    - ID do pagamento: ${p.id}`).join('\n\n') || 'Nenhuma cobrança em atraso'}
 
-IMPORTANTE: 
-- Você tem acesso TOTAL aos dados cadastrais e financeiros
-- Seja direto e profissional
-- Forneça informações completas quando solicitado
+REGRAS IMPORTANTES: 
+- NUNCA use LaTeX, fórmulas matemáticas ou código de programação nas respostas
+- Seja direto, objetivo e profissional
+- Use apenas texto simples e números formatados como "R$ 100,00" ou "50%"
+- Para cálculos, apresente apenas o RESULTADO final de forma clara
+- Exemplo CORRETO: "A taxa de inadimplência é 50% (20 em atraso de 40 clientes total)"
+- Exemplo ERRADO: "\\frac{20}{40} \\times 100 = 50%"
 - Quando o gestor pedir para "forçar cobrança", identifique o pagamento específico e responda com a instrução exata: "EXECUTAR_COBRANCA:ID_DO_PAGAMENTO"
 - Para relatórios, responda "EXECUTAR_RELATORIO"
-- Para outras perguntas, responda normalmente com TODAS as informações disponíveis`;
+- Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural`;
 
     const userPrompt = `Mensagem do gestor: "${message}"
 

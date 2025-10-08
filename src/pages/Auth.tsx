@@ -150,25 +150,25 @@ const AuthPage = () => {
       showSignals={true}
       showGrid={true}
     >
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="max-w-md mx-auto"
+          className="w-full max-w-md"
         >
           {/* Logo and Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <motion.div 
-              className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4"
+              className="w-14 h-14 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-3"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <Car className="w-8 h-8 text-white" />
+              <Car className="w-7 h-7 text-white" />
             </motion.div>
             <motion.h1 
-              className="text-4xl font-bold text-primary mb-2"
+              className="text-3xl font-bold text-primary mb-2"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -176,7 +176,7 @@ const AuthPage = () => {
               VehicleGuard Pro
             </motion.h1>
             <motion.p 
-              className="text-muted-foreground text-lg"
+              className="text-muted-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.6 }}
@@ -191,13 +191,13 @@ const AuthPage = () => {
             transition={{ duration: 0.6, delay: 0.8 }}
           >
             <Card className="border-2 border-primary/20 shadow-2xl bg-card/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-2xl text-center">Acesse sua conta</CardTitle>
-                <CardDescription className="text-center">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-xl text-center">Acesse sua conta</CardTitle>
+                <CardDescription className="text-center text-sm">
                   Entre com suas credenciais ou crie uma nova conta
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pb-6">
                 <Tabs defaultValue="signin" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="signin">Entrar</TabsTrigger>
@@ -205,7 +205,7 @@ const AuthPage = () => {
                   </TabsList>
               
               <TabsContent value="signin">
-                <form onSubmit={signIn} className="space-y-4">
+                <form onSubmit={signIn} className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">Email</Label>
                     <Input
@@ -254,7 +254,7 @@ const AuthPage = () => {
               </TabsContent>
               
               <TabsContent value="signup">
-                <form onSubmit={signUp} className="space-y-4">
+                <form onSubmit={signUp} className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Nome Completo</Label>
                     <Input
@@ -322,7 +322,7 @@ const AuthPage = () => {
               </CardContent>
             </Card>
 
-            <p className="text-center text-xs text-muted-foreground mt-6">
+            <p className="text-center text-xs text-muted-foreground mt-4">
               Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade
             </p>
           </motion.div>
