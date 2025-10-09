@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.ai-manager-assistant]
 verify_jwt = false
+
+[functions.process-scheduled-reminders]
+verify_jwt = false

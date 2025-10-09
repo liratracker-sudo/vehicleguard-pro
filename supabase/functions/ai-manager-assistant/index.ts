@@ -110,6 +110,8 @@ Suas capacidades:
    - Gerar relatórios financeiros
    - Listar clientes com pagamentos em atraso
    - Fornecer informações detalhadas sobre qualquer cliente
+   - **AGENDAR LEMBRETES**: Criar lembretes para horários específicos
+   - **AGENDAR COBRANÇAS**: Programar cobranças automáticas para datas/horários específicos
 
 Contexto financeiro atual:
 - Total em atraso: R$ ${totalOverdue.toFixed(2)} (${overduePayments?.length || 0} cobranças)
@@ -144,9 +146,15 @@ REGRAS IMPORTANTES:
 - Para cálculos, apresente apenas o RESULTADO final de forma clara
 - Exemplo CORRETO: "A taxa de inadimplência é 50% (20 em atraso de 40 clientes total)"
 - Exemplo ERRADO: "\\frac{20}{40} \\times 100 = 50%"
-- Quando o gestor pedir para "forçar cobrança", identifique o pagamento específico e responda com a instrução exata: "EXECUTAR_COBRANCA:ID_DO_PAGAMENTO"
-- Para relatórios, responda "EXECUTAR_RELATORIO"
-- Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural`;
+
+COMANDOS ESPECIAIS:
+- Para forçar cobrança: "EXECUTAR_COBRANCA:ID_DO_PAGAMENTO"
+- Para gerar relatório: "EXECUTAR_RELATORIO"
+- Para agendar lembrete: "AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM" (exemplo: "AGENDAR_LEMBRETE:2025-10-09 09:00:Atualizar base de dados")
+- Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_DO_PAGAMENTO" (exemplo: "AGENDAR_COBRANCA:2025-10-10 14:00:abc-123-def")
+- Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural
+
+IMPORTANTE: Quando o gestor solicitar lembretes ou cobranças futuras, SEMPRE use os comandos de agendamento acima.`;
 
     const userPrompt = `Mensagem do gestor: "${message}"
 
@@ -221,6 +229,55 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
       } catch (error) {
         console.error('Erro ao gerar relatório:', error);
         finalResponse = aiResponse.replace('EXECUTAR_RELATORIO', '❌ Erro ao gerar relatório.');
+      }
+    }
+
+    // Detectar comando de agendar lembrete
+    const reminderMatch = aiResponse.match(/AGENDAR_LEMBRETE:(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):(.+)/);
+    if (reminderMatch) {
+      const [, scheduledTime, reminderText] = reminderMatch;
+      console.log('Agendando lembrete:', { scheduledTime, reminderText });
+      
+      try {
+        await supabase
+          .from('scheduled_reminders')
+          .insert({
+            company_id,
+            manager_phone,
+            reminder_text: reminderText.trim(),
+            scheduled_for: scheduledTime,
+            action_type: 'reminder'
+          });
+        
+        finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE:[^\n]+/, `✅ Lembrete agendado para ${scheduledTime}!`);
+      } catch (error) {
+        console.error('Erro ao agendar lembrete:', error);
+        finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE:[^\n]+/, '❌ Erro ao agendar lembrete.');
+      }
+    }
+
+    // Detectar comando de agendar cobrança
+    const scheduleCollectionMatch = aiResponse.match(/AGENDAR_COBRANCA:(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):([a-f0-9-]+)/);
+    if (scheduleCollectionMatch) {
+      const [, scheduledTime, paymentId] = scheduleCollectionMatch;
+      console.log('Agendando cobrança:', { scheduledTime, paymentId });
+      
+      try {
+        await supabase
+          .from('scheduled_reminders')
+          .insert({
+            company_id,
+            manager_phone,
+            reminder_text: `Cobrança automática agendada`,
+            scheduled_for: scheduledTime,
+            action_type: 'collection',
+            metadata: { payment_id: paymentId }
+          });
+        
+        finalResponse = aiResponse.replace(/AGENDAR_COBRANCA:[^\n]+/, `✅ Cobrança agendada para ${scheduledTime}!`);
+      } catch (error) {
+        console.error('Erro ao agendar cobrança:', error);
+        finalResponse = aiResponse.replace(/AGENDAR_COBRANCA:[^\n]+/, '❌ Erro ao agendar cobrança.');
       }
     }
 

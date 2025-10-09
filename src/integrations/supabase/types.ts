@@ -1189,6 +1189,59 @@ export type Database = {
           },
         ]
       }
+      scheduled_reminders: {
+        Row: {
+          action_type: string
+          company_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          manager_phone: string
+          metadata: Json | null
+          reminder_text: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_type?: string
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          manager_phone: string
+          metadata?: Json | null
+          reminder_text: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          manager_phone?: string
+          metadata?: Json | null
+          reminder_text?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_reminders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_plans: {
         Row: {
           created_at: string
