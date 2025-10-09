@@ -17,9 +17,23 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Variáveis para garantir resposta
+  let supabase: any;
+  let manager_phone = '';
+  let instance_url = '';
+  let api_token = '';
+  let instance_name = '';
+  let company_id = '';
+  
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { company_id, message, manager_phone, instance_url, api_token, instance_name } = await req.json();
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const requestData = await req.json();
+    company_id = requestData.company_id;
+    manager_phone = requestData.manager_phone;
+    instance_url = requestData.instance_url;
+    api_token = requestData.api_token;
+    instance_name = requestData.instance_name;
+    const message = requestData.message;
     
     console.log('Processando comando do gestor:', { company_id, message, manager_phone });
 
@@ -153,6 +167,7 @@ REGRAS IMPORTANTES:
 - Para cálculos, apresente apenas o RESULTADO final de forma clara
 - Exemplo CORRETO: "A taxa de inadimplência é 50% (20 em atraso de 40 clientes total)"
 - Exemplo ERRADO: "\\frac{20}{40} \\times 100 = 50%"
+- VOCÊ PRECISA SEMPRE RESPONDER, NUNCA FIQUE SILENCIOSO
 
 COMANDOS ESPECIAIS:
 - Para forçar cobrança: "EXECUTAR_COBRANCA:ID_DO_PAGAMENTO"
@@ -194,120 +209,129 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
     let iterationCount = 0;
     const maxIterations = 3;
 
-    while (shouldContinue && iterationCount < maxIterations) {
-      iterationCount++;
-      
-      const requestBody: any = {
-        model: 'gpt-4o-mini',
-        messages,
-        max_tokens: 1000,
-        temperature: 0.3,
-      };
+    // Tentar chamar a IA com tratamento de erro robusto
+    try {
+      while (shouldContinue && iterationCount < maxIterations) {
+        iterationCount++;
+        
+        const requestBody: any = {
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 1000,
+          temperature: 0.3,
+        };
 
-      // Só incluir web_search se NÃO for pedido de lembrete
-      if (!isReminderRequest) {
-        requestBody.tools = [
-          {
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Busca informações na internet quando a resposta não está nos dados da empresa. Use apenas para informações gerais, notícias, dados públicos.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  query: {
-                    type: 'string',
-                    description: 'Consulta de busca em português ou inglês'
-                  }
-                },
-                required: ['query']
+        // Só incluir web_search se NÃO for pedido de lembrete
+        if (!isReminderRequest) {
+          requestBody.tools = [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Busca informações na internet quando a resposta não está nos dados da empresa. Use apenas para informações gerais, notícias, dados públicos.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                      description: 'Consulta de busca em português ou inglês'
+                    }
+                  },
+                  required: ['query']
+                }
               }
             }
-          }
-        ];
-        requestBody.tool_choice = 'auto';
-      }
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const aiData = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(aiData.error?.message || 'Erro ao chamar OpenAI API');
-      }
-
-      const choice = aiData.choices[0];
-      
-      // Se o modelo quer usar uma ferramenta
-      if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
-        console.log('GPT solicitou busca na web');
-        messages.push(choice.message);
+          ];
+          requestBody.tool_choice = 'auto';
+        }
         
-        for (const toolCall of choice.message.tool_calls) {
-          if (toolCall.function.name === 'web_search') {
-            const args = JSON.parse(toolCall.function.arguments);
-            console.log('Buscando na web:', args.query);
-            
-            try {
-              // Buscar usando DuckDuckGo
-              const searchQuery = encodeURIComponent(args.query);
-              const searchResponse = await fetch(
-                `https://api.duckduckgo.com/?q=${searchQuery}&format=json&no_html=1&skip_disambig=1`
-              );
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAIApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const aiData = await response.json();
+        
+        if (!response.ok) {
+          console.error('Erro na chamada OpenAI:', aiData);
+          throw new Error(aiData.error?.message || 'Erro ao chamar OpenAI API');
+        }
+
+        const choice = aiData.choices[0];
+        
+        // Se o modelo quer usar uma ferramenta
+        if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
+          console.log('GPT solicitou busca na web');
+          messages.push(choice.message);
+          
+          for (const toolCall of choice.message.tool_calls) {
+            if (toolCall.function.name === 'web_search') {
+              const args = JSON.parse(toolCall.function.arguments);
+              console.log('Buscando na web:', args.query);
               
-              const searchData = await searchResponse.json();
-              
-              // Extrair resultados relevantes
-              let searchResults = '';
-              
-              if (searchData.AbstractText) {
-                searchResults += `Resumo: ${searchData.AbstractText}\n\n`;
-              }
-              
-              if (searchData.RelatedTopics && searchData.RelatedTopics.length > 0) {
-                searchResults += 'Informações encontradas:\n';
-                searchData.RelatedTopics.slice(0, 5).forEach((topic: any, idx: number) => {
-                  if (topic.Text) {
-                    searchResults += `${idx + 1}. ${topic.Text}\n`;
-                  }
+              try {
+                // Buscar usando DuckDuckGo
+                const searchQuery = encodeURIComponent(args.query);
+                const searchResponse = await fetch(
+                  `https://api.duckduckgo.com/?q=${searchQuery}&format=json&no_html=1&skip_disambig=1`
+                );
+                
+                const searchData = await searchResponse.json();
+                
+                // Extrair resultados relevantes
+                let searchResults = '';
+                
+                if (searchData.AbstractText) {
+                  searchResults += `Resumo: ${searchData.AbstractText}\n\n`;
+                }
+                
+                if (searchData.RelatedTopics && searchData.RelatedTopics.length > 0) {
+                  searchResults += 'Informações encontradas:\n';
+                  searchData.RelatedTopics.slice(0, 5).forEach((topic: any, idx: number) => {
+                    if (topic.Text) {
+                      searchResults += `${idx + 1}. ${topic.Text}\n`;
+                    }
+                  });
+                }
+                
+                if (!searchResults) {
+                  searchResults = 'Não foram encontrados resultados específicos. Tente reformular a pergunta ou buscar informações mais específicas da empresa.';
+                }
+                
+                // Adicionar resultado da busca às mensagens
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: searchResults
+                });
+                
+                console.log('Resultados da busca:', searchResults.substring(0, 200));
+              } catch (searchError) {
+                console.error('Erro na busca web:', searchError);
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: 'Desculpe, não foi possível buscar informações na internet no momento. Posso ajudar com informações sobre os clientes e pagamentos da empresa.'
                 });
               }
-              
-              if (!searchResults) {
-                searchResults = 'Não foram encontrados resultados específicos. Tente reformular a pergunta ou buscar informações mais específicas da empresa.';
-              }
-              
-              // Adicionar resultado da busca às mensagens
-              messages.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: searchResults
-              });
-              
-              console.log('Resultados da busca:', searchResults.substring(0, 200));
-            } catch (searchError) {
-              console.error('Erro na busca web:', searchError);
-              messages.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: 'Desculpe, não foi possível buscar informações na internet no momento. Posso ajudar com informações sobre os clientes e pagamentos da empresa.'
-              });
             }
           }
+        } else {
+          // Resposta final do modelo
+          aiResponse = choice.message.content;
+          shouldContinue = false;
         }
-      } else {
-        // Resposta final do modelo
-        aiResponse = choice.message.content;
-        shouldContinue = false;
       }
+    } catch (aiError) {
+      console.error('Erro crítico ao chamar IA:', aiError);
+      // Fallback em caso de erro na IA
+      aiResponse = 'Desculpe, estou com dificuldades técnicas no momento. Por favor, tente novamente em alguns instantes ou reformule sua pergunta de forma mais simples.';
     }
+    
     console.log('Resposta da IA:', aiResponse);
 
     // Processar comandos
@@ -315,7 +339,8 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
     
     // Garantir que sempre há uma resposta
     if (!finalResponse || finalResponse.trim() === '') {
-      finalResponse = 'Desculpe, não consegui processar sua mensagem. Por favor, tente reformular ou entre em contato com o suporte.';
+      finalResponse = 'Olá! Estou aqui para ajudar. Como posso auxiliá-lo com as cobranças e gestão dos clientes?';
+      console.log('Resposta vazia detectada, usando fallback');
     }
     
     // Detectar comando de cobrança
@@ -439,9 +464,36 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
     );
 
   } catch (error) {
-    console.error('Erro no assistente do gestor:', error);
+    console.error('Erro crítico no assistente do gestor:', error);
+    
+    // SEMPRE tentar enviar uma mensagem de erro ao gestor
+    const errorMessage = '❌ Desculpe, ocorreu um erro ao processar sua solicitação. Por favor, tente novamente em alguns instantes.';
+    
+    try {
+      // Tentar enviar mensagem de erro via WhatsApp se temos as credenciais
+      if (supabase && manager_phone && instance_url && api_token && instance_name) {
+        console.log('Enviando mensagem de erro ao gestor via WhatsApp');
+        await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'sendText',
+            instance_url,
+            api_token,
+            instance_name,
+            number: manager_phone,
+            message: errorMessage,
+            company_id
+          }
+        });
+      }
+    } catch (whatsappError) {
+      console.error('Erro ao enviar mensagem de erro via WhatsApp:', whatsappError);
+    }
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Erro processado e usuário notificado'
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
