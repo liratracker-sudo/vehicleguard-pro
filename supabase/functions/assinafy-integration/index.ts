@@ -372,6 +372,47 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       throw new Error('Documento criado mas ID não encontrado na resposta. Estrutura: ' + JSON.stringify(Object.keys(documentData)));
     }
 
+    // Wait for document processing to complete
+    console.log("⏳ Waiting for document processing to complete...");
+    let documentReady = false;
+    let attempts = 0;
+    const maxAttempts = 20; // 20 seconds max
+    
+    while (!documentReady && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      attempts++;
+      
+      try {
+        const statusResponse = await fetch(
+          `https://api.assinafy.com.br/v1/documents/${documentId}`,
+          {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          }
+        );
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          const currentStatus = statusData.data?.status;
+          console.log(`📊 Document status (attempt ${attempts}): ${currentStatus}`);
+          
+          if (currentStatus === 'uploaded') {
+            documentReady = true;
+            console.log("✅ Document is ready for assignment!");
+          } else if (currentStatus !== 'metadata_processing') {
+            console.warn(`⚠️ Unexpected document status: ${currentStatus}`);
+            break;
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error checking document status:", error);
+      }
+    }
+    
+    if (!documentReady) {
+      console.warn("⚠️ Document processing timeout, attempting assignment anyway...");
+    }
+
     // Create assignment to assign the document to signers
     console.log("📝 Creating assignment for document:", documentId);
     console.log("📋 Assignment details - Signer ID:", signerId);
