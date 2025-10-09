@@ -97,7 +97,7 @@ export function BillingHistory() {
               monthlyData[monthKey].received += amount;
               break;
             case 'pending':
-              if (payment.due_date && new Date(payment.due_date) < new Date()) {
+              if (payment.due_date && payment.due_date < new Date().toISOString().split('T')[0]) {
                 monthlyData[monthKey].overdue += amount;
               } else {
                 monthlyData[monthKey].pending += amount;

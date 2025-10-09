@@ -102,7 +102,7 @@ export function AsaasCpfLookup() {
                     <TableRow key={p.id}>
                       <TableCell>R$ {(p.value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                       <TableCell>{ptStatus(p.status)}</TableCell>
-                      <TableCell>{p.dueDate ? new Date(p.dueDate).toLocaleDateString('pt-BR') : '-'}</TableCell>
+                      <TableCell>{p.dueDate ? p.dueDate.split('T')[0].split('-').reverse().join('/') : '-'}</TableCell>
                       <TableCell>
                         {p.invoiceUrl || p.bankSlipUrl ? (
                           <a

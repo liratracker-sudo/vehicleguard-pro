@@ -467,7 +467,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {charge.dueDate ? new Date(charge.dueDate).toLocaleDateString('pt-BR') : '-'}
+                          {charge.dueDate ? charge.dueDate.split('T')[0].split('-').reverse().join('/') : '-'}
                         </TableCell>
                         <TableCell>
                           {charge.invoiceUrl || charge.bankSlipUrl ? (

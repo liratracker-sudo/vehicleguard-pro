@@ -145,7 +145,7 @@ export function NotificationHistory() {
                         </div>
                         <div className="text-sm text-muted-foreground">
                           Vence: {notification.payment_transactions?.due_date ? 
-                            format(new Date(notification.payment_transactions.due_date), 'dd/MM/yyyy') : 
+                            notification.payment_transactions.due_date.split('T')[0].split('-').reverse().join('/') : 
                             'N/A'
                           }
                         </div>

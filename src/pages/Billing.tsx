@@ -349,10 +349,10 @@ const BillingPage = () => {
                             <TableCell>
                               {payment.due_date ? (
                                 <div className="space-y-1">
-                                  <div>{new Date(payment.due_date).toLocaleDateString('pt-BR')}</div>
+                                  <div>{payment.due_date.split('T')[0].split('-').reverse().join('/')}</div>
                                   {payment.status === 'overdue' && (
                                     <div className="text-xs text-destructive">
-                                      {Math.floor((Date.now() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24))} dias
+                                      {Math.floor((Date.now() - new Date(payment.due_date + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))} dias
                                     </div>
                                   )}
                                 </div>
