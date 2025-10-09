@@ -374,19 +374,14 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
 
     // Create assignment to assign the document to signers
     console.log("📝 Creating assignment for document:", documentId);
+    console.log("📋 Assignment details - Signer ID:", signerId);
     
     const assignmentResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/assignments`,
+      `https://api.assinafy.com.br/v1/documents/${documentId}/assignments`,
       'POST',
       apiKey,
       {
-        document_id: documentId,
-        signers: [
-          {
-            signer_id: signerId,
-            role: "signer"
-          }
-        ],
+        signer_ids: [signerId],
         method: "virtual",
         message: `Contrato: ${contractData.title}`
       }

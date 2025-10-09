@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye } from "lucide-react"
+import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye, FileSearch } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -28,12 +28,15 @@ import {
 } from "@/components/ui/dialog"
 import { ContractForm } from "@/components/contracts/ContractForm"
 import { ContractTemplates } from "@/components/contracts/ContractTemplates"
+import { AssinafyLogsDialog } from "@/components/contracts/AssinafyLogsDialog"
 import { useContracts } from "@/hooks/useContracts"
 
 const ContractsPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingContract, setEditingContract] = useState<string | null>(null)
+  const [showLogs, setShowLogs] = useState(false)
+  const [selectedContractForLogs, setSelectedContractForLogs] = useState<string | undefined>()
   
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
@@ -117,24 +120,33 @@ const ContractsPage = () => {
               Gestão de contratos digitais e assinaturas eletrônicas
             </p>
           </div>
-          <Dialog open={showForm} onOpenChange={setShowForm}>
-            <DialogTrigger asChild>
-              <Button onClick={() => {setEditingContract(null); setShowForm(true)}}>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Contrato
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogTitle>
-                {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
-              </DialogTitle>
-              <ContractForm
-                contractId={editingContract || undefined}
-                onSuccess={handleFormSuccess}
-                onCancel={() => setShowForm(false)}
-              />
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => {
+              setSelectedContractForLogs(undefined);
+              setShowLogs(true);
+            }}>
+              <FileSearch className="w-4 h-4 mr-2" />
+              Ver Logs
+            </Button>
+            <Dialog open={showForm} onOpenChange={setShowForm}>
+              <DialogTrigger asChild>
+                <Button onClick={() => {setEditingContract(null); setShowForm(true)}}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Contrato
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogTitle>
+                  {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
+                </DialogTitle>
+                <ContractForm
+                  contractId={editingContract || undefined}
+                  onSuccess={handleFormSuccess}
+                  onCancel={() => setShowForm(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -272,6 +284,13 @@ const ContractsPage = () => {
                                 <Eye className="mr-2 h-4 w-4" />
                                 {contract.signature_status === 'signed' ? 'Ver documento' : 'Acessar para assinar'}
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedContractForLogs(contract.id);
+                                setShowLogs(true);
+                              }}>
+                                <FileSearch className="mr-2 h-4 w-4" />
+                                Ver logs
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleEdit(contract.id)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Editar
@@ -301,6 +320,12 @@ const ContractsPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AssinafyLogsDialog 
+        open={showLogs} 
+        onOpenChange={setShowLogs}
+        contractId={selectedContractForLogs}
+      />
     </AppLayout>
   )
 }
