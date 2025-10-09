@@ -9,6 +9,7 @@ import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
 import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
 import { GerencianetIntegration } from "@/components/settings/GerencianetIntegration"
+import { CoraIntegration } from "@/components/settings/CoraIntegration"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
@@ -47,13 +48,14 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="billing">Cobrança</TabsTrigger>
             <TabsTrigger value="ai">IA</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="assinafy">Assinafy</TabsTrigger>
             <TabsTrigger value="gerencianet">Gerencianet</TabsTrigger>
+            <TabsTrigger value="cora">Cora</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">
@@ -120,6 +122,17 @@ const SettingsPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+                        onClick={() => setActiveTab("cora")}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <CreditCard className="w-8 h-8 text-pink-600" />
+                      <div>
+                        <h4 className="font-medium">Cora</h4>
+                        <p className="text-sm text-muted-foreground">Banco Digital</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -139,6 +152,10 @@ const SettingsPage = () => {
 
           <TabsContent value="gerencianet" className="space-y-6">
             <GerencianetIntegration />
+          </TabsContent>
+
+          <TabsContent value="cora" className="space-y-6">
+            <CoraIntegration />
           </TabsContent>
         </Tabs>
       </div>
