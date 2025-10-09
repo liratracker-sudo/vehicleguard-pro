@@ -115,7 +115,7 @@ const WhiteLabelPage = () => {
         logo: brandingData?.logo_url || "",
         primaryColor: brandingData?.primary_color || "#3b82f6",
         secondaryColor: brandingData?.secondary_color || "#f8fafc",
-        accentColor: "#10b981", // This could be added to the database
+        accentColor: brandingData?.accent_color || "#10b981",
         domain: brandingData?.subdomain || company?.domain || "",
         favicon: brandingData?.favicon_url || ""
       })
@@ -152,6 +152,7 @@ const WhiteLabelPage = () => {
           logo_url: branding.logo,
           primary_color: branding.primaryColor,
           secondary_color: branding.secondaryColor,
+          accent_color: branding.accentColor,
           favicon_url: branding.favicon,
           subdomain: branding.domain
         }, { onConflict: 'company_id' })

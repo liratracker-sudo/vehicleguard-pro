@@ -16,6 +16,7 @@ interface WhiteLabelConfig {
   logo_url?: string
   primary_color: string
   secondary_color: string
+  accent_color?: string
   favicon_url?: string
   subdomain?: string
   smtp_host?: string
@@ -40,7 +41,8 @@ export function WhiteLabelConfig({ companyId, companyName, onClose }: WhiteLabel
   const [config, setConfig] = useState<WhiteLabelConfig>({
     company_id: companyId,
     primary_color: '#3b82f6',
-    secondary_color: '#f8fafc'
+    secondary_color: '#f8fafc',
+    accent_color: '#10b981'
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

@@ -416,6 +416,7 @@ export type Database = {
       }
       company_branding: {
         Row: {
+          accent_color: string | null
           company_id: string
           created_at: string
           favicon_url: string | null
@@ -435,6 +436,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accent_color?: string | null
           company_id: string
           created_at?: string
           favicon_url?: string | null
@@ -454,6 +456,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accent_color?: string | null
           company_id?: string
           created_at?: string
           favicon_url?: string | null
