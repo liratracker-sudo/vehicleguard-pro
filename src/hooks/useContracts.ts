@@ -236,6 +236,31 @@ export function useContracts() {
     }
   };
 
+  const syncContractStatus = async (contractId: string, assinafyDocumentId: string): Promise<boolean> => {
+    try {
+      console.log(`Sincronizando status do contrato ${contractId}...`)
+      
+      const response = await supabase.functions.invoke('assinafy-integration', {
+        body: {
+          action: 'syncStatus',
+          document_id: assinafyDocumentId,
+          contract_id: contractId
+        }
+      })
+
+      if (response.error || !response.data?.success) {
+        console.error('Erro ao sincronizar status:', response.error || response.data)
+        return false
+      }
+
+      console.log('Status sincronizado:', response.data)
+      return response.data.status_changed || false
+    } catch (error) {
+      console.error('Erro na sincronização:', error)
+      return false
+    }
+  }
+
   const sendForSignature = async (contractId: string) => {
     try {
       const contract = contracts.find(c => c.id === contractId)
@@ -275,7 +300,7 @@ export function useContracts() {
       const response = await supabase.functions.invoke('assinafy-integration', {
         body: {
           action: 'createDocument',
-          contract_id: contractId, // Pass contract_id for logging
+          contract_id: contractId,
           client_name: client.name,
           client_email: client.email,
           client_cpf: client.document,
@@ -342,7 +367,7 @@ export function useContracts() {
                 payload: {
                   phone: client.phone,
                   message: clientMessage,
-                  instance_name: 'luck' // Replace with dynamic instance if needed
+                  instance_name: 'luck'
                 }
               }
             })
@@ -362,7 +387,7 @@ export function useContracts() {
                   payload: {
                     phone: company.phone,
                     message: companyMessage,
-                    instance_name: 'luck' // Replace with dynamic instance if needed
+                    instance_name: 'luck'
                   }
                 }
               })
@@ -379,7 +404,16 @@ export function useContracts() {
         description: "Contrato enviado para assinatura! Notificações WhatsApp enviadas."
       })
 
-      await loadContracts() // Reload to get updated status
+      await loadContracts()
+      
+      // Auto-sync after 5 seconds
+      setTimeout(async () => {
+        console.log('Auto-sincronizando status após envio...')
+        const statusChanged = await syncContractStatus(contractId, documentId)
+        if (statusChanged) {
+          await loadContracts()
+        }
+      }, 5000)
     } catch (error: any) {
       console.error('Erro ao enviar para assinatura:', error)
       toast({
@@ -419,7 +453,30 @@ Assinatura do Contratante
 
   useEffect(() => {
     loadContracts();
-  }, []);
+
+    // Auto-sync pending contracts every 30 seconds
+    const syncInterval = setInterval(async () => {
+      const pendingContracts = contracts.filter(
+        c => c.signature_status === 'pending' && c.assinafy_document_id
+      )
+
+      if (pendingContracts.length > 0) {
+        console.log(`Auto-sincronizando ${pendingContracts.length} contrato(s) pendente(s)...`)
+        
+        let anyChanged = false
+        for (const contract of pendingContracts) {
+          const changed = await syncContractStatus(contract.id, contract.assinafy_document_id!)
+          if (changed) anyChanged = true
+        }
+
+        if (anyChanged) {
+          await loadContracts()
+        }
+      }
+    }, 30000) // Every 30 seconds
+
+    return () => clearInterval(syncInterval)
+  }, [contracts]);
 
   return {
     contracts,
@@ -428,6 +485,7 @@ Assinatura do Contratante
     createContract,
     updateContract,
     deleteContract,
-    sendForSignature
+    sendForSignature,
+    syncContractStatus
   };
 }
