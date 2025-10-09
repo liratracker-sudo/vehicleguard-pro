@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
+import { nowInBrasilia, toISODateTimeBR } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,8 +19,8 @@ serve(async (req) => {
 
     console.log('Processando lembretes agendados...');
 
-    // Buscar lembretes pendentes que devem ser enviados
-    const now = new Date().toISOString();
+    // Buscar lembretes pendentes que devem ser enviados (considerando horário de Brasília)
+    const now = nowInBrasilia().toISOString();
     const { data: pendingReminders, error: fetchError } = await supabase
       .from('scheduled_reminders')
       .select(`
@@ -99,7 +100,7 @@ serve(async (req) => {
               api_token: whatsappSettings.api_token,
               instance_name: whatsappSettings.instance_name,
               number: reminder.manager_phone,
-              message: `✅ Cobrança agendada executada com sucesso!`,
+              message: `✅ Cobrança agendada executada com sucesso!\nHorário: ${toISODateTimeBR(nowInBrasilia())}`,
               company_id: reminder.company_id
             }
           });

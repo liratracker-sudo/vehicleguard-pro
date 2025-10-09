@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
+import { nowInBrasilia, toISODateTimeBR } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,12 +100,8 @@ serve(async (req) => {
       status: c.status
     })) || [];
 
-    // Calcular data/hora atual no fuso horário do Brasil (UTC-3)
-    const now = new Date();
-    const brasiliaTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
-    const currentDate = brasiliaTime.toISOString().split('T')[0]; // YYYY-MM-DD
-    const currentTime = brasiliaTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
-    const currentDateTime = `${currentDate} ${currentTime}`;
+    // Data/hora atual no fuso horário do Brasil
+    const currentDateTime = toISODateTimeBR(nowInBrasilia());
 
     // Preparar prompt para a IA
     const systemPrompt = `Você é um assistente de gestão financeira inteligente para ${companyName}.
@@ -255,8 +252,8 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
       
       try {
         // Converter horário de Brasília para UTC para armazenar no banco
-        const brasiliaDate = new Date(scheduledTime + ':00-03:00');
-        const utcTime = brasiliaDate.toISOString();
+        const brasiliaDateStr = scheduledTime + ':00-03:00';
+        const brasiliaDate = new Date(brasiliaDateStr);
         
         await supabase
           .from('scheduled_reminders')
@@ -264,7 +261,7 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
             company_id,
             manager_phone,
             reminder_text: reminderText.trim(),
-            scheduled_for: utcTime,
+            scheduled_for: brasiliaDate.toISOString(),
             action_type: 'reminder'
           });
         
@@ -283,8 +280,8 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
       
       try {
         // Converter horário de Brasília para UTC para armazenar no banco
-        const brasiliaDate = new Date(scheduledTime + ':00-03:00');
-        const utcTime = brasiliaDate.toISOString();
+        const brasiliaDateStr = scheduledTime + ':00-03:00';
+        const brasiliaDate = new Date(brasiliaDateStr);
         
         await supabase
           .from('scheduled_reminders')
@@ -292,7 +289,7 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
             company_id,
             manager_phone,
             reminder_text: `Cobrança automática agendada`,
-            scheduled_for: utcTime,
+            scheduled_for: brasiliaDate.toISOString(),
             action_type: 'collection',
             metadata: { payment_id: paymentId }
           });
