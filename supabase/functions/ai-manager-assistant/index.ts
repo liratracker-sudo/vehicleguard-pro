@@ -168,19 +168,20 @@ IMPORTANTE SOBRE DATAS:
 - SEMPRE use o horário de Brasília (UTC-3) nas datas agendadas
 - Quando o gestor solicitar lembretes ou cobranças futuras, SEMPRE use os comandos de agendamento acima`;
 
+    // Detectar se é um pedido de lembrete para não oferecer web_search
+    const isReminderRequest = /\b(lembra|lembre|avisa|alerta|notifica|agenda)\b/i.test(message);
+    
     const userPrompt = `Mensagem do gestor: "${message}"
 
 Analise a solicitação e responda adequadamente:
 
-1. Se for um pedido de LEMBRETE (ex: "me lembra", "lembre-me", "agendar lembrete"), use o comando AGENDAR_LEMBRETE
+1. Se for um pedido de LEMBRETE (ex: "me lembra", "lembre-me", "agendar lembrete"), use o comando AGENDAR_LEMBRETE no formato:
+   AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM
+   Exemplo: AGENDAR_LEMBRETE:2025-10-09 14:10:Atualizar a base
 2. Se for uma solicitação de ação (forçar cobrança, gerar relatório, agendar cobrança), inclua o comando apropriado
 3. Se for pergunta sobre clientes, pagamentos ou finanças da empresa, responda com os dados fornecidos
-4. APENAS se a pergunta for sobre algo completamente fora do contexto da empresa (notícias, informações gerais), use a ferramenta web_search
 
-IMPORTANTE: Pedidos de lembrete NUNCA devem usar web_search. Exemplos:
-- "Me lembra de ligar pro cliente" → AGENDAR_LEMBRETE
-- "Lembre-me de atualizar a base" → AGENDAR_LEMBRETE
-- "Me avisa daqui 2 horas" → AGENDAR_LEMBRETE`;
+Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atual é: ${currentDateTime}`;
 
     // Chamar OpenAI API com function calling
     const messages = [
@@ -196,38 +197,44 @@ IMPORTANTE: Pedidos de lembrete NUNCA devem usar web_search. Exemplos:
     while (shouldContinue && iterationCount < maxIterations) {
       iterationCount++;
       
+      const requestBody: any = {
+        model: 'gpt-4o-mini',
+        messages,
+        max_tokens: 1000,
+        temperature: 0.3,
+      };
+
+      // Só incluir web_search se NÃO for pedido de lembrete
+      if (!isReminderRequest) {
+        requestBody.tools = [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Busca informações na internet quando a resposta não está nos dados da empresa. Use apenas para informações gerais, notícias, dados públicos.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  query: {
+                    type: 'string',
+                    description: 'Consulta de busca em português ou inglês'
+                  }
+                },
+                required: ['query']
+              }
+            }
+          }
+        ];
+        requestBody.tool_choice = 'auto';
+      }
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages,
-          max_tokens: 1000,
-          temperature: 0.3,
-          tools: [
-            {
-              type: 'function',
-              function: {
-                name: 'web_search',
-                description: 'Busca informações na internet quando a resposta não está nos dados da empresa. Use apenas para informações gerais, notícias, dados públicos.',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    query: {
-                      type: 'string',
-                      description: 'Consulta de busca em português ou inglês'
-                    }
-                  },
-                  required: ['query']
-                }
-              }
-            }
-          ],
-          tool_choice: 'auto'
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const aiData = await response.json();
