@@ -54,25 +54,38 @@ serve(async (req) => {
     let signedFileUrl: string | undefined;
     let setAsSigned = false;
 
-    // Assinafy webhook events structure
-    if (eventType === "document.signed" || eventType === "assignment.completed") {
-      const docObj = event.data || {};
-      documentId = docObj.document_id || docObj.id;
+    // Assinafy webhook events structure - support multiple event formats
+    console.log("[assinafy-webhook] Processing event type:", eventType);
+    
+    const docObj = event.data || event || {};
+    console.log("[assinafy-webhook] Document object:", JSON.stringify(docObj, null, 2));
+    
+    // Extract document ID from various possible locations
+    documentId = docObj.document_id || docObj.id || event.document_id;
+    
+    // Check various event types and statuses that indicate signing completion
+    const completionEvents = [
+      "document.signed",
+      "assignment.completed", 
+      "document.certificated",
+      "document.status_changed",
+      "assignment.status_changed"
+    ];
+    
+    const completionStatuses = ["certificated", "completed", "signed"];
+    
+    if (completionEvents.includes(eventType)) {
+      console.log("[assinafy-webhook] Checking completion status...");
       
-      // Check if document is fully signed
-      if (docObj.status === "certificated" || docObj.status === "completed") {
-        setAsSigned = true;
-        signedFileUrl = docObj.artifacts?.certificated || docObj.download_url;
-        signedAt = docObj.completed_at || docObj.updated_at;
-      }
-    } else if (eventType === "document.status_changed") {
-      const docObj = event.data || {};
-      documentId = docObj.id;
+      // Check status in various locations
+      const status = docObj.status || event.status;
+      console.log("[assinafy-webhook] Document status:", status);
       
-      if (docObj.status === "certificated") {
+      if (completionStatuses.includes(status)) {
         setAsSigned = true;
-        signedFileUrl = docObj.artifacts?.certificated;
-        signedAt = docObj.updated_at;
+        signedFileUrl = docObj.artifacts?.certificated || docObj.download_url || docObj.signed_url;
+        signedAt = docObj.completed_at || docObj.updated_at || docObj.signed_at || new Date().toISOString();
+        console.log("[assinafy-webhook] ✅ Document marked as signed!");
       }
     }
 

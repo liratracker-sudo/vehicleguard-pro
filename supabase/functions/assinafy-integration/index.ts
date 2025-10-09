@@ -188,6 +188,9 @@ serve(async (req) => {
       case "getDocumentStatus":
         console.log("📊 Getting document status...");
         return await getDocumentStatus(assinafyApiKey, data.documentId);
+      case "syncStatus":
+        console.log("🔄 Syncing document status...");
+        return await syncDocumentStatus(assinafyApiKey, data.documentId, supabase);
       default:
         console.error("❌ Invalid action:", action);
         return new Response(
@@ -610,6 +613,85 @@ async function getDocumentStatus(apiKey: string, documentId: string): Promise<Re
     );
   } catch (error: any) {
     console.error("Get document status error:", error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+async function syncDocumentStatus(apiKey: string, documentId: string, supabaseClient: any): Promise<Response> {
+  try {
+    console.log("📥 Fetching document status from Assinafy for:", documentId);
+    
+    // Get document details from Assinafy
+    const response = await makeAssinafyRequest(
+      `https://api.assinafy.com.br/v1/documents/${documentId}`,
+      'GET',
+      apiKey
+    );
+
+    const documentData = await response.json();
+    const doc = documentData.data;
+    
+    console.log("📄 Document status from Assinafy:", doc.status);
+
+    // Check if document is signed/certificated
+    const completionStatuses = ["certificated", "completed", "signed"];
+    const isSigned = completionStatuses.includes(doc.status);
+    
+    const updateData: any = {};
+
+    if (isSigned) {
+      updateData.signature_status = 'signed';
+      updateData.signed_at = doc.updated_at || new Date().toISOString();
+      
+      if (doc.artifacts?.certificated) {
+        updateData.document_url = doc.artifacts.certificated;
+      }
+      
+      console.log("✅ Document is signed, updating to:", updateData);
+    } else {
+      updateData.signature_status = 'pending';
+      console.log("ℹ️ Document is pending, status:", doc.status);
+    }
+
+    // Update contract in database
+    const { data, error } = await supabaseClient
+      .from('contracts')
+      .update(updateData)
+      .eq('assinafy_document_id', documentId)
+      .select('id, signature_status, signed_at');
+
+    if (error) {
+      console.error("❌ Error updating contract:", error);
+      throw new Error(`Erro ao atualizar contrato: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      console.warn("⚠️ No contract found with document_id:", documentId);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Contrato não encontrado com este document_id' 
+        }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("✅ Contract updated successfully:", data);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        status: isSigned ? 'signed' : 'pending',
+        document_status: doc.status,
+        updated: data[0]
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("❌ Sync status error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

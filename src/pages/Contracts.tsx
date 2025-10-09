@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye, FileSearch } from "lucide-react"
+import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye, FileSearch, RefreshCw } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -30,6 +30,8 @@ import { ContractForm } from "@/components/contracts/ContractForm"
 import { ContractTemplates } from "@/components/contracts/ContractTemplates"
 import { AssinafyLogsDialog } from "@/components/contracts/AssinafyLogsDialog"
 import { useContracts } from "@/hooks/useContracts"
+import { supabase } from "@/integrations/supabase/client"
+import { toast } from "sonner"
 
 const ContractsPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
@@ -37,6 +39,7 @@ const ContractsPage = () => {
   const [editingContract, setEditingContract] = useState<string | null>(null)
   const [showLogs, setShowLogs] = useState(false)
   const [selectedContractForLogs, setSelectedContractForLogs] = useState<string | undefined>()
+  const [syncingStatus, setSyncingStatus] = useState<string | null>(null)
   
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
@@ -96,6 +99,38 @@ const ContractsPage = () => {
     setShowForm(false)
     setEditingContract(null)
     loadContracts()
+  }
+
+  const handleSyncStatus = async (contract: any) => {
+    if (!contract.assinafy_document_id) {
+      toast.error('Este contrato não possui ID de documento Assinafy')
+      return
+    }
+
+    setSyncingStatus(contract.id)
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('assinafy-integration', {
+        body: {
+          action: 'syncStatus',
+          documentId: contract.assinafy_document_id
+        }
+      })
+
+      if (error) throw error
+
+      if (data?.success) {
+        toast.success(`Status atualizado: ${data.status === 'signed' ? 'Assinado' : 'Pendente'}`)
+        loadContracts()
+      } else {
+        toast.error(data?.error || 'Erro ao sincronizar status')
+      }
+    } catch (error: any) {
+      console.error('Erro ao sincronizar:', error)
+      toast.error('Erro ao sincronizar status do documento')
+    } finally {
+      setSyncingStatus(null)
+    }
   }
 
   const stats = {
@@ -291,6 +326,15 @@ const ContractsPage = () => {
                                 <FileSearch className="mr-2 h-4 w-4" />
                                 Ver logs
                               </DropdownMenuItem>
+                              {contract.assinafy_document_id && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleSyncStatus(contract)}
+                                  disabled={syncingStatus === contract.id}
+                                >
+                                  <RefreshCw className={`mr-2 h-4 w-4 ${syncingStatus === contract.id ? 'animate-spin' : ''}`} />
+                                  {syncingStatus === contract.id ? 'Sincronizando...' : 'Sincronizar status'}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleEdit(contract.id)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Editar
