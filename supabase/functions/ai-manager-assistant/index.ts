@@ -170,9 +170,17 @@ IMPORTANTE SOBRE DATAS:
 
     const userPrompt = `Mensagem do gestor: "${message}"
 
-Analise a solicitação e responda adequadamente. Se for uma solicitação de ação (forçar cobrança, gerar relatório), inclua o comando apropriado no início da resposta.
+Analise a solicitação e responda adequadamente:
 
-Se a pergunta for sobre algo que NÃO está nos dados fornecidos (clientes, pagamentos, finanças da empresa), use a ferramenta web_search para buscar na internet.`;
+1. Se for um pedido de LEMBRETE (ex: "me lembra", "lembre-me", "agendar lembrete"), use o comando AGENDAR_LEMBRETE
+2. Se for uma solicitação de ação (forçar cobrança, gerar relatório, agendar cobrança), inclua o comando apropriado
+3. Se for pergunta sobre clientes, pagamentos ou finanças da empresa, responda com os dados fornecidos
+4. APENAS se a pergunta for sobre algo completamente fora do contexto da empresa (notícias, informações gerais), use a ferramenta web_search
+
+IMPORTANTE: Pedidos de lembrete NUNCA devem usar web_search. Exemplos:
+- "Me lembra de ligar pro cliente" → AGENDAR_LEMBRETE
+- "Lembre-me de atualizar a base" → AGENDAR_LEMBRETE
+- "Me avisa daqui 2 horas" → AGENDAR_LEMBRETE`;
 
     // Chamar OpenAI API com function calling
     const messages = [
@@ -297,6 +305,11 @@ Se a pergunta for sobre algo que NÃO está nos dados fornecidos (clientes, paga
 
     // Processar comandos
     let finalResponse = aiResponse;
+    
+    // Garantir que sempre há uma resposta
+    if (!finalResponse || finalResponse.trim() === '') {
+      finalResponse = 'Desculpe, não consegui processar sua mensagem. Por favor, tente reformular ou entre em contato com o suporte.';
+    }
     
     // Detectar comando de cobrança
     const forceCollectionMatch = aiResponse.match(/EXECUTAR_COBRANCA:([a-f0-9-]+)/);
