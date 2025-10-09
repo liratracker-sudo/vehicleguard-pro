@@ -101,11 +101,19 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
       })
 
       onSuccess?.()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error)
+      
+      let errorMessage = "Erro ao salvar veículo"
+      
+      // Check for duplicate license plate error
+      if (error?.code === '23505' && error?.message?.includes('vehicles_license_plate_company_id_key')) {
+        errorMessage = `A placa ${formData.license_plate} já está cadastrada no sistema`
+      }
+      
       toast({
         title: "Erro",
-        description: "Erro ao salvar veículo",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
