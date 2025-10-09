@@ -180,11 +180,19 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       console.log('🏢 Company ID:', profile.company_id);
 
       // Create payment transaction record
+      // DEBUG: Log da data original
+      console.log('📅 Data selecionada (objeto Date):', formData.due_date);
+      console.log('📅 Data local toString():', formData.due_date.toString());
+      console.log('📅 Data ISO string:', formData.due_date.toISOString());
+      
       // Formatar data como YYYY-MM-DD usando os valores locais (sem conversão de timezone)
       const year = formData.due_date.getFullYear();
       const month = String(formData.due_date.getMonth() + 1).padStart(2, '0');
       const day = String(formData.due_date.getDate()).padStart(2, '0');
       const dueDateStr = `${year}-${month}-${day}`;
+      
+      console.log('📅 Componentes extraídos:', { year, month, day });
+      console.log('📅 String formatada final:', dueDateStr);
 
       const transactionData = {
         ...formData,
