@@ -456,15 +456,30 @@ Assinatura do Contratante
 
     // Auto-sync pending contracts every 30 seconds
     const syncInterval = setInterval(async () => {
-      const pendingContracts = contracts.filter(
-        c => c.signature_status === 'pending' && c.assinafy_document_id
-      )
+      // Get fresh contracts data
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (pendingContracts.length > 0) {
-        console.log(`Auto-sincronizando ${pendingContracts.length} contrato(s) pendente(s)...`)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (!profile?.company_id) return;
+
+      const { data: contractsData } = await supabase
+        .from('contracts')
+        .select('id, signature_status, assinafy_document_id')
+        .eq('company_id', profile.company_id)
+        .eq('signature_status', 'pending')
+        .not('assinafy_document_id', 'is', null);
+
+      if (contractsData && contractsData.length > 0) {
+        console.log(`Auto-sincronizando ${contractsData.length} contrato(s) pendente(s)...`)
         
         let anyChanged = false
-        for (const contract of pendingContracts) {
+        for (const contract of contractsData) {
           const changed = await syncContractStatus(contract.id, contract.assinafy_document_id!)
           if (changed) anyChanged = true
         }
@@ -476,7 +491,7 @@ Assinatura do Contratante
     }, 30000) // Every 30 seconds
 
     return () => clearInterval(syncInterval)
-  }, [contracts]);
+  }, []); // Empty dependency array - only run once on mount
 
   return {
     contracts,
