@@ -540,10 +540,10 @@ async function getDocumentStatus(apiKey: string, documentId: string): Promise<Re
 
 async function makeAssinafyRequest(url: string, method: string, apiKey: string, body?: any): Promise<Response> {
   console.log(`🌐 Making Assinafy request: ${method} ${url}`);
-  console.log("Request headers: X-Api-Key present:", apiKey ? "✓" : "✗");
+  console.log("Request headers: Authorization present:", apiKey ? "✓" : "✗");
   
   const headers: Record<string, string> = {
-    'X-Api-Key': apiKey,
+    'Authorization': `Bearer ${apiKey}`,
   };
 
   if (body && method !== 'GET') {
