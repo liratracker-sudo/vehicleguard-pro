@@ -609,7 +609,13 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                 <Calendar
                   mode="single"
                   selected={formData.due_date}
-                  onSelect={(date) => date && setFormData({...formData, due_date: date})}
+                  onSelect={(date) => {
+                    if (date) {
+                      // Forçar criação da data às 12:00 do timezone local para evitar problemas de timezone
+                      const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+                      setFormData({...formData, due_date: localDate});
+                    }
+                  }}
                   initialFocus
                   disabled={(date) => date < new Date()}
                   className="p-3 pointer-events-auto"
