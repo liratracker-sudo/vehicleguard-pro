@@ -8,6 +8,7 @@ import { Settings, Users, Shield, Plug, MessageSquare, FileText, CreditCard, Bot
 import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
 import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
 import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
+import { GerencianetIntegration } from "@/components/settings/GerencianetIntegration"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
@@ -46,12 +47,13 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="billing">Cobrança Automática</TabsTrigger>
-            <TabsTrigger value="ai">IA de Cobrança</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="billing">Cobrança</TabsTrigger>
+            <TabsTrigger value="ai">IA</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="assinafy">Assinafy</TabsTrigger>
+            <TabsTrigger value="gerencianet">Gerencianet</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">
@@ -107,6 +109,17 @@ const SettingsPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+                        onClick={() => setActiveTab("gerencianet")}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <CreditCard className="w-8 h-8 text-orange-600" />
+                      <div>
+                        <h4 className="font-medium">Gerencianet</h4>
+                        <p className="text-sm text-muted-foreground">Boletos e PIX</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -122,6 +135,10 @@ const SettingsPage = () => {
 
           <TabsContent value="asaas" className="space-y-6">
             <AsaasIntegration />
+          </TabsContent>
+
+          <TabsContent value="gerencianet" className="space-y-6">
+            <GerencianetIntegration />
           </TabsContent>
         </Tabs>
       </div>

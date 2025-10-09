@@ -25,6 +25,8 @@ serve(async (req) => {
     await supabase.rpc('set_encryption_key_guc', { p_key: GERENCIANET_ENCRYPTION_KEY });
 
     switch (action) {
+      case 'save_settings':
+        return await saveSettings(supabase, params);
       case 'create_boleto':
         return await createBoleto(supabase, params);
       case 'get_boleto':
@@ -47,6 +49,79 @@ serve(async (req) => {
     );
   }
 });
+
+/**
+ * Salvar configurações
+ */
+async function saveSettings(supabase: any, params: any) {
+  const { company_id, client_id, client_secret, is_sandbox } = params;
+
+  try {
+    // Criptografar credenciais
+    const { data: encryptedClientId } = await supabase.rpc('encrypt_gerencianet_credential', {
+      p_credential: client_id
+    });
+
+    const { data: encryptedClientSecret } = await supabase.rpc('encrypt_gerencianet_credential', {
+      p_credential: client_secret
+    });
+
+    if (!encryptedClientId || !encryptedClientSecret) {
+      throw new Error('Erro ao criptografar credenciais');
+    }
+
+    // Verificar se já existe configuração
+    const { data: existing } = await supabase
+      .from('gerencianet_settings')
+      .select('id')
+      .eq('company_id', company_id)
+      .maybeSingle();
+
+    if (existing) {
+      // Atualizar
+      const { error } = await supabase
+        .from('gerencianet_settings')
+        .update({
+          client_id_encrypted: encryptedClientId,
+          client_secret_encrypted: encryptedClientSecret,
+          is_sandbox,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+
+      if (error) throw error;
+    } else {
+      // Criar novo
+      const { error } = await supabase
+        .from('gerencianet_settings')
+        .insert({
+          company_id,
+          client_id_encrypted: encryptedClientId,
+          client_secret_encrypted: encryptedClientSecret,
+          is_sandbox,
+          is_active: true
+        });
+
+      if (error) throw error;
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Configurações salvas com sucesso' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Erro ao salvar configurações:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Erro ao salvar configurações' 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
 
 /**
  * Obter token de autenticação OAuth2
