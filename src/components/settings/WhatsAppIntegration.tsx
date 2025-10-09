@@ -16,8 +16,6 @@ export function WhatsAppIntegration() {
   const { connectionState, checkConnection, reconnect, refreshConnection } = useWhatsAppConnection()
   
   const [config, setConfig] = useState({
-    instanceUrl: "",
-    authToken: "",
     instanceName: "",
     enableLogs: true,
     enableDeliveryStatus: true,
@@ -26,7 +24,6 @@ export function WhatsAppIntegration() {
 
   const [companyId, setCompanyId] = useState("")
   const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [qrCodeData, setQrCodeData] = useState<string | null>(null)
@@ -42,10 +39,10 @@ export function WhatsAppIntegration() {
   // pois estava causando loops infinitos
 
   const handleShowQR = async (forceNew = false) => {
-    if (!config.instanceUrl || !config.authToken || !config.instanceName) {
+    if (!config.instanceName) {
       toast({
         title: "Configuração incompleta",
-        description: "Preencha todos os campos obrigatórios antes de continuar",
+        description: "Preencha o nome da instância antes de continuar",
         variant: "destructive"
       })
       return
@@ -59,8 +56,6 @@ export function WhatsAppIntegration() {
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
           action: 'get_qr_code',
-          instance_url: config.instanceUrl,
-          api_token: config.authToken,
           instance_name: config.instanceName,
           force_new: forceNew,
           company_id: companyId
@@ -116,8 +111,6 @@ export function WhatsAppIntegration() {
 
       if (settings) {
         setConfig({
-          instanceUrl: settings.instance_url,
-          authToken: settings.api_token,
           instanceName: settings.instance_name,
           enableLogs: settings.enable_logs,
           enableDeliveryStatus: settings.enable_delivery_status,
@@ -134,10 +127,10 @@ export function WhatsAppIntegration() {
   }, [])
 
   const handleSaveSettings = async () => {
-    if (!config.instanceName.trim() || !config.authToken.trim() || !companyId) {
+    if (!config.instanceName.trim() || !companyId) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios",
+        description: "Preencha o nome da instância",
         variant: "destructive"
       })
       return
@@ -152,12 +145,12 @@ export function WhatsAppIntegration() {
         .delete()
         .eq('company_id', companyId)
 
-      // Salvar novas configurações
+      // Salvar novas configurações (URL e Token virão dos secrets)
       await supabase.from('whatsapp_settings').upsert({
         company_id: companyId,
         instance_name: config.instanceName,
-        instance_url: config.instanceUrl,
-        api_token: config.authToken,
+        instance_url: 'from_secrets', // Placeholder - será obtido dos secrets
+        api_token: 'from_secrets', // Placeholder - será obtido dos secrets
         is_active: true,
         enable_logs: config.enableLogs,
         enable_delivery_status: config.enableDeliveryStatus,
@@ -166,7 +159,7 @@ export function WhatsAppIntegration() {
 
       toast({ 
         title: "Sucesso", 
-        description: "Configurações salvas e sessões antigas limpas!" 
+        description: "Configurações salvas! As credenciais da API estão configuradas no sistema." 
       })
       refreshConnection()
     } catch (error: any) {
@@ -187,10 +180,10 @@ export function WhatsAppIntegration() {
   }
 
   const handleClearInstance = async () => {
-    if (!config.instanceUrl || !config.authToken || !config.instanceName) {
+    if (!config.instanceName) {
       toast({
         title: "Configuração incompleta",
-        description: "Preencha todos os campos obrigatórios antes de limpar",
+        description: "Preencha o nome da instância antes de limpar",
         variant: "destructive"
       })
       return
@@ -202,8 +195,6 @@ export function WhatsAppIntegration() {
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
           action: 'clear_instance',
-          instance_url: config.instanceUrl,
-          api_token: config.authToken,
           instance_name: config.instanceName,
           company_id: companyId
         }
@@ -249,33 +240,16 @@ export function WhatsAppIntegration() {
           <CardDescription>Configure para manter conexão persistente</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>URL da Instância *</Label>
-              <Input 
-                value={config.instanceUrl}
-                onChange={(e) => setConfig({...config, instanceUrl: e.target.value})}
-                placeholder="https://api.evolution.com.br"
-              />
-            </div>
-            <div>
-              <Label>Nome da Instância *</Label>
-              <Input 
-                value={config.instanceName}
-                onChange={(e) => setConfig({...config, instanceName: e.target.value})}
-                placeholder="minha-instancia"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <Label>Token de Autenticação *</Label>
+          <div className="space-y-2">
+            <Label>Nome da Instância *</Label>
             <Input 
-              type="password"
-              value={config.authToken}
-              onChange={(e) => setConfig({...config, authToken: e.target.value})}
-              placeholder="seu-token-secreto"
+              value={config.instanceName}
+              onChange={(e) => setConfig({...config, instanceName: e.target.value})}
+              placeholder="minha-instancia"
             />
+            <p className="text-sm text-muted-foreground">
+              As credenciais da API (URL e Token) estão configuradas no sistema.
+            </p>
           </div>
 
           <div className="flex gap-2">
@@ -285,7 +259,7 @@ export function WhatsAppIntegration() {
             <Button onClick={handleConnect} disabled={connecting} variant="outline">
               {connecting ? "Conectando..." : "Conectar"}
             </Button>
-            {config.instanceUrl && config.authToken && config.instanceName && (
+            {config.instanceName && (
               <>
                 <Button onClick={handleClearInstance} disabled={clearingInstance} variant="destructive" size="sm">
                   {clearingInstance ? "Limpando..." : "Limpar Instância"}

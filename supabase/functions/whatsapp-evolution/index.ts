@@ -74,7 +74,15 @@ serve(async (req) => {
 async function sendMessage(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = actualPayload;
+  let { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url) {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token) {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
   
   // Validar parâmetros obrigatórios
   if (!instance_url || !api_token || !instance_name || !phone_number || !message) {
@@ -328,7 +336,15 @@ async function sendMessage(payload: any) {
 async function clearInstance(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name, company_id } = actualPayload;
+  let { instance_url, api_token, instance_name, company_id } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url) {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token) {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
 
   console.log('Limpando instância:', { 
     instance_url, 
@@ -432,7 +448,15 @@ async function clearInstance(payload: any) {
 async function checkConnection(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name } = actualPayload;
+  let { instance_url, api_token, instance_name } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url) {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token) {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
   
   // Validar parâmetros obrigatórios
   if (!instance_url || !api_token || !instance_name) {
@@ -517,7 +541,15 @@ async function checkConnection(payload: any) {
 async function sendStatus(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name, message, company_id } = actualPayload;
+  let { instance_url, api_token, instance_name, message, company_id } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url) {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token) {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
   
   console.log('Enviando status via Evolution API:', { instance_name });
 
@@ -571,7 +603,15 @@ async function sendStatus(payload: any) {
 async function getInstanceInfo(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name } = actualPayload;
+  let { instance_url, api_token, instance_name } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url) {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token) {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
   
   console.log('Obtendo informações da instância:', { instance_name });
 
@@ -609,7 +649,15 @@ async function getInstanceInfo(payload: any) {
 async function getQRCode(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  const { instance_url, api_token, instance_name, force_new = false, company_id } = actualPayload;
+  let { instance_url, api_token, instance_name, force_new = false, company_id } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url) {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token) {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
   
   // Validar parâmetros obrigatórios
   if (!instance_url || !api_token || !instance_name) {
