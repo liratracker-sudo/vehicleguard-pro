@@ -818,6 +818,100 @@ export type Database = {
         }
         Relationships: []
       }
+      gerencianet_logs: {
+        Row: {
+          company_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          operation_type: string
+          request_data: Json | null
+          response_data: Json | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation_type: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation_type?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gerencianet_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gerencianet_settings: {
+        Row: {
+          client_id_encrypted: string
+          client_secret_encrypted: string
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_sandbox: boolean
+          last_test_at: string | null
+          test_result: Json | null
+          updated_at: string
+          webhook_token: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          client_id_encrypted: string
+          client_secret_encrypted: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+          webhook_token?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          client_id_encrypted?: string
+          client_secret_encrypted?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+          webhook_token?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gerencianet_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number
@@ -1632,12 +1726,20 @@ export type Database = {
         Args: { p_encrypted_token: string }
         Returns: string
       }
+      decrypt_gerencianet_credential: {
+        Args: { p_encrypted_credential: string }
+        Returns: string
+      }
       decrypt_whatsapp_token: {
         Args: { p_encrypted_token: string }
         Returns: string
       }
       encrypt_asaas_token: {
         Args: { p_token: string }
+        Returns: string
+      }
+      encrypt_gerencianet_credential: {
+        Args: { p_credential: string }
         Returns: string
       }
       encrypt_whatsapp_token: {
