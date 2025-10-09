@@ -76,11 +76,11 @@ async function sendMessage(payload: any) {
   const actualPayload = payload.payload || payload;
   let { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = actualPayload;
   
-  // Buscar credenciais dos secrets se não fornecidas
-  if (!instance_url) {
+  // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
+  if (!instance_url || instance_url === 'from_secrets') {
     instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
   }
-  if (!api_token) {
+  if (!api_token || api_token === 'from_secrets') {
     api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
   }
   
@@ -338,11 +338,11 @@ async function clearInstance(payload: any) {
   const actualPayload = payload.payload || payload;
   let { instance_url, api_token, instance_name, company_id } = actualPayload;
   
-  // Buscar credenciais dos secrets se não fornecidas
-  if (!instance_url) {
+  // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
+  if (!instance_url || instance_url === 'from_secrets') {
     instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
   }
-  if (!api_token) {
+  if (!api_token || api_token === 'from_secrets') {
     api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
   }
 
@@ -450,11 +450,11 @@ async function checkConnection(payload: any) {
   const actualPayload = payload.payload || payload;
   let { instance_url, api_token, instance_name } = actualPayload;
   
-  // Buscar credenciais dos secrets se não fornecidas
-  if (!instance_url) {
+  // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
+  if (!instance_url || instance_url === 'from_secrets') {
     instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
   }
-  if (!api_token) {
+  if (!api_token || api_token === 'from_secrets') {
     api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
   }
   
@@ -543,11 +543,11 @@ async function sendStatus(payload: any) {
   const actualPayload = payload.payload || payload;
   let { instance_url, api_token, instance_name, message, company_id } = actualPayload;
   
-  // Buscar credenciais dos secrets se não fornecidas
-  if (!instance_url) {
+  // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
+  if (!instance_url || instance_url === 'from_secrets') {
     instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
   }
-  if (!api_token) {
+  if (!api_token || api_token === 'from_secrets') {
     api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
   }
   
@@ -605,11 +605,11 @@ async function getInstanceInfo(payload: any) {
   const actualPayload = payload.payload || payload;
   let { instance_url, api_token, instance_name } = actualPayload;
   
-  // Buscar credenciais dos secrets se não fornecidas
-  if (!instance_url) {
+  // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
+  if (!instance_url || instance_url === 'from_secrets') {
     instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
   }
-  if (!api_token) {
+  if (!api_token || api_token === 'from_secrets') {
     api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
   }
   
@@ -651,11 +651,11 @@ async function getQRCode(payload: any) {
   const actualPayload = payload.payload || payload;
   let { instance_url, api_token, instance_name, force_new = false, company_id } = actualPayload;
   
-  // Buscar credenciais dos secrets se não fornecidas
-  if (!instance_url) {
+  // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
+  if (!instance_url || instance_url === 'from_secrets') {
     instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
   }
-  if (!api_token) {
+  if (!api_token || api_token === 'from_secrets') {
     api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
   }
   
