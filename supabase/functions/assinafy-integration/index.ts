@@ -363,12 +363,17 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       console.log("✅ Assignment created successfully:", assignmentData);
     }
 
+    // Prepare signing URL
+    const signingUrl = `https://app.assinafy.com.br/sign/${documentId}`;
+
     return new Response(
       JSON.stringify({
         success: true,
         document_id: documentId,
         signer_id: signerId,
-        signing_url: `https://app.assinafy.com.br/sign/${documentId}`
+        signing_url: signingUrl,
+        client_email: contractData.client_email,
+        client_name: contractData.client_name
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

@@ -100,6 +100,61 @@ serve(async (req) => {
         console.error("[assinafy-webhook] DB update error:", error);
       } else {
         console.log("[assinafy-webhook] updated contracts:", data?.map((r: any) => r.id));
+        
+        // Send WhatsApp notification when document is signed
+        if (setAsSigned && data && data.length > 0) {
+          for (const contract of data) {
+            try {
+              // Get client info
+              const { data: client } = await supabase
+                .from("clients")
+                .select("name, phone")
+                .eq("id", contract.client_id)
+                .single();
+
+              // Get company info
+              const { data: company } = await supabase
+                .from("companies")
+                .select("name, phone")
+                .eq("id", contract.company_id)
+                .single();
+
+              if (client && client.phone) {
+                const clientMessage = `✅ Parabéns ${client.name}!\n\nSeu contrato foi assinado com sucesso! 🎉\n\nVocê receberá uma cópia do documento assinado em breve.\n\nObrigado pela confiança!`;
+                
+                await supabase.functions.invoke('whatsapp-evolution', {
+                  body: {
+                    action: 'sendMessage',
+                    payload: {
+                      phone: client.phone,
+                      message: clientMessage,
+                      instance_name: 'luck'
+                    }
+                  }
+                });
+                console.log("[assinafy-webhook] ✅ WhatsApp sent to client");
+              }
+
+              if (company && company.phone) {
+                const companyMessage = `✅ Contrato assinado!\n\nCliente: ${client?.name || 'N/A'}\nDocumento ID: ${documentId}\n\nO contrato foi assinado digitalmente e está disponível no sistema.`;
+                
+                await supabase.functions.invoke('whatsapp-evolution', {
+                  body: {
+                    action: 'sendMessage',
+                    payload: {
+                      phone: company.phone,
+                      message: companyMessage,
+                      instance_name: 'luck'
+                    }
+                  }
+                });
+                console.log("[assinafy-webhook] ✅ WhatsApp sent to company");
+              }
+            } catch (whatsappError) {
+              console.error("[assinafy-webhook] WhatsApp error:", whatsappError);
+            }
+          }
+        }
       }
     } else {
       console.log("[assinafy-webhook] no state change required for event", eventType);

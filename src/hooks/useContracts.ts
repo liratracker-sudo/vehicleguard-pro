@@ -311,12 +311,70 @@ export function useContracts() {
 
       if (updateError) throw updateError
 
-      // The document creation already sends the signature email automatically
-      console.log('Documento criado e email de assinatura enviado automaticamente')
+      // Send WhatsApp notifications to client and company
+      console.log('Enviando notificações WhatsApp...')
+      
+      // Get current user and company info
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        
+        if (profile?.company_id) {
+          const { data: company } = await supabase
+            .from('companies')
+            .select('name, phone')
+            .eq('id', profile.company_id)
+            .maybeSingle()
+
+          // Send to client
+          const clientMessage = `Olá ${client.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\nAcesse o link abaixo para assinar:\n${signingUrl}\n\nEm caso de dúvidas, entre em contato.`
+          
+          try {
+            await supabase.functions.invoke('whatsapp-evolution', {
+              body: {
+                action: 'sendMessage',
+                payload: {
+                  phone: client.phone,
+                  message: clientMessage,
+                  instance_name: 'luck' // Replace with dynamic instance if needed
+                }
+              }
+            })
+            console.log('✅ Mensagem WhatsApp enviada para o cliente')
+          } catch (whatsappError) {
+            console.error('Erro ao enviar WhatsApp para cliente:', whatsappError)
+          }
+
+          // Send to company if phone exists
+          if (company?.phone) {
+            const companyMessage = `📄 Novo contrato enviado para assinatura!\n\nCliente: ${client.name}\nContrato: ${contract.id.substring(0, 8)}\n\nLink de assinatura:\n${signingUrl}`
+            
+            try {
+              await supabase.functions.invoke('whatsapp-evolution', {
+                body: {
+                  action: 'sendMessage',
+                  payload: {
+                    phone: company.phone,
+                    message: companyMessage,
+                    instance_name: 'luck' // Replace with dynamic instance if needed
+                  }
+                }
+              })
+              console.log('✅ Mensagem WhatsApp enviada para a empresa')
+            } catch (whatsappError) {
+              console.error('Erro ao enviar WhatsApp para empresa:', whatsappError)
+            }
+          }
+        }
+      }
 
       toast({
         title: "Enviado",
-        description: "Contrato enviado para assinatura eletrônica!"
+        description: "Contrato enviado para assinatura! Notificações WhatsApp enviadas."
       })
 
       await loadContracts() // Reload to get updated status
