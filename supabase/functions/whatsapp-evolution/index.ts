@@ -736,10 +736,25 @@ async function getQRCode(payload: any) {
       });
 
       const createResult = await createResponse.json();
-      console.log('Resultado da criação com limpeza:', createResult);
+      console.log('Resultado da criação completo:', JSON.stringify(createResult, null, 2));
 
-      if (createResponse.ok && createResult?.qrcode?.base64) {
-        qrCode = createResult.qrcode.base64;
+      // Tentar diferentes formatos de resposta
+      if (createResponse.ok) {
+        if (createResult?.qrcode?.base64) {
+          qrCode = createResult.qrcode.base64;
+        } else if (createResult?.qrcode?.pairingCode) {
+          // Algumas versões retornam pairingCode ao invés de QR
+          qrCode = createResult.qrcode.pairingCode;
+        } else if (createResult?.base64) {
+          qrCode = createResult.base64;
+        } else if (createResult?.qrcode) {
+          // Tentar usar diretamente se for string
+          qrCode = typeof createResult.qrcode === 'string' ? createResult.qrcode : null;
+        }
+        
+        if (!qrCode) {
+          console.log('QR Code não encontrado nos formatos esperados. Resposta:', createResult);
+        }
       }
     } else {
       // Instância existe, tentar conectar
@@ -754,12 +769,21 @@ async function getQRCode(payload: any) {
       });
 
       const connectResult = await connectResponse.json();
-      console.log('Resultado da conexão:', connectResult);
+      console.log('Resultado da conexão completo:', JSON.stringify(connectResult, null, 2));
 
+      // Tentar diferentes formatos de resposta
       if (connectResult?.base64) {
         qrCode = connectResult.base64;
       } else if (connectResult?.qrcode?.base64) {
         qrCode = connectResult.qrcode.base64;
+      } else if (connectResult?.qrcode?.pairingCode) {
+        qrCode = connectResult.qrcode.pairingCode;
+      } else if (connectResult?.qrcode) {
+        qrCode = typeof connectResult.qrcode === 'string' ? connectResult.qrcode : null;
+      }
+      
+      if (!qrCode && connectResponse.ok) {
+        console.log('QR Code não encontrado na resposta de conexão. Resposta:', connectResult);
       }
     }
 
