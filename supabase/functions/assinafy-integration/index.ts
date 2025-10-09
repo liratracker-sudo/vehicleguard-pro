@@ -324,20 +324,41 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       contractData.client_cpf
     );
     
-    // Get company info for manager signer
+    // Get manager info from user profile
     console.log("🏢 Getting company manager signer...");
-    const { data: companyData } = await supabaseClient
-      .from('companies')
-      .select('email, name')
-      .eq('id', companyId)
-      .single();
+    let managerSignerId: string | null = null;
+    let signerIds = [clientSignerId];
     
-    const managerEmail = companyData?.email || 'liratracker@gmail.com';
-    const managerName = companyData?.name || 'Gestor';
+    if (supabaseClient && companyId) {
+      try {
+        // Get the current user's email (the one creating the contract)
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        
+        if (user?.email) {
+          const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('full_name, email')
+            .eq('user_id', user.id)
+            .single();
+          
+          const managerEmail = profile?.email || user.email;
+          const managerName = profile?.full_name || 'Gestor';
+          
+          // Only add manager as signer if email is different from client
+          if (managerEmail.toLowerCase() !== contractData.client_email.toLowerCase()) {
+            console.log("✅ Manager has different email, adding as signer");
+            managerSignerId = await getOrCreateSigner(managerEmail, managerName);
+            signerIds.push(managerSignerId);
+          } else {
+            console.log("ℹ️ Manager and client have same email, skipping duplicate");
+          }
+        }
+      } catch (error) {
+        console.warn("⚠️ Could not get manager info:", error);
+      }
+    }
     
-    const managerSignerId = await getOrCreateSigner(managerEmail, managerName);
-    
-    console.log("✅ Signers ready - Client:", clientSignerId, "Manager:", managerSignerId);
+    console.log("✅ Signers ready - Client:", clientSignerId, managerSignerId ? `Manager: ${managerSignerId}` : "(no manager)");
 
     // Generate PDF content for the document
     console.log("📄 Generating PDF for contract:", contractData.title);
@@ -429,16 +450,16 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       console.warn("⚠️ Document processing timeout, attempting assignment anyway...");
     }
 
-    // Create assignment for both client and manager to sign
+    // Create assignment for signers
     console.log("📝 Creating assignment for document:", documentId);
-    console.log("📋 Signers - Client:", clientSignerId, "Manager:", managerSignerId);
+    console.log("📋 Signers:", signerIds.length === 1 ? "Client only" : "Client + Manager");
     
     const assignmentResponse = await makeAssinafyRequest(
       `https://api.assinafy.com.br/v1/documents/${documentId}/assignments`,
       'POST',
       apiKey,
       {
-        signer_ids: [clientSignerId, managerSignerId],
+        signer_ids: signerIds,
         method: "virtual",
         message: `Contrato: ${contractData.title}`
       }
@@ -463,7 +484,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     logData.response_data.final = {
       document_id: documentId,
       signer_id: clientSignerId,
-      manager_signer_id: managerSignerId,
+      ...(managerSignerId && { manager_signer_id: managerSignerId }),
       signing_url: signingUrl
     };
 
@@ -488,7 +509,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       JSON.stringify({
         success: true,
         document_id: documentId,
-        signer_id: signerId,
+        signer_id: clientSignerId,
         signing_url: signingUrl,
         client_email: contractData.client_email,
         client_name: contractData.client_name
