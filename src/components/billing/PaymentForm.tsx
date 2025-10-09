@@ -14,6 +14,7 @@ import { useAsaas } from "@/hooks/useAsaas"
 import { supabase } from "@/integrations/supabase/client"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { toISODateBR } from "@/lib/timezone"
 
 interface PaymentFormProps {
   onSuccess?: () => void
@@ -183,7 +184,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         ...formData,
         company_id: profile.company_id,
         status: 'pending',
-        due_date: formData.due_date.toISOString().split('T')[0]
+        due_date: toISODateBR(formData.due_date)
       };
 
       console.log('💾 Creating transaction with data:', transactionData);
@@ -256,7 +257,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         data: {
           customerId: asaasCustomerId,
           value: formData.amount,
-          dueDate: formData.due_date.toISOString().split('T')[0],
+          dueDate: toISODateBR(formData.due_date),
           billingType: formData.transaction_type.toUpperCase() === 'BOLETO' ? 'BOLETO' : 
                       formData.transaction_type.toUpperCase() === 'PIX' ? 'PIX' : 'BOLETO',
           description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
