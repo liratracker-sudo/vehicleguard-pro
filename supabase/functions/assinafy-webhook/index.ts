@@ -36,6 +36,7 @@ serve(async (req) => {
     const event = payload?.event;
 
     if (!event || !event.type) {
+      console.error("[assinafy-webhook] ❌ Invalid event received");
       return new Response(JSON.stringify({ error: "Evento inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -43,7 +44,9 @@ serve(async (req) => {
     }
 
     const eventType: string = event.type;
-    console.log("[assinafy-webhook] received:", eventType, "id:", event.id);
+    console.log("[assinafy-webhook] 📨 Event received:", eventType);
+    console.log("[assinafy-webhook] 📋 Event ID:", event.id);
+    console.log("[assinafy-webhook] 📋 Full event data:", JSON.stringify(event, null, 2));
 
     // Extract document id and relevant data from known event types
     let documentId: string | undefined;
@@ -90,6 +93,8 @@ serve(async (req) => {
     }
 
     if (Object.keys(updateData).length > 0) {
+      console.log("[assinafy-webhook] 📝 Updating contracts with data:", updateData);
+      
       const { data, error } = await supabase
         .from("contracts")
         .update(updateData)
@@ -97,9 +102,30 @@ serve(async (req) => {
         .select("id, company_id, client_id");
 
       if (error) {
-        console.error("[assinafy-webhook] DB update error:", error);
+        console.error("[assinafy-webhook] ❌ DB update error:", error);
+        
+        // Log the error
+        await supabase.from('assinafy_logs').insert({
+          company_id: data?.[0]?.company_id,
+          operation_type: 'webhook',
+          status: 'error',
+          request_data: { event: eventType, document_id: documentId },
+          error_message: error.message
+        });
       } else {
-        console.log("[assinafy-webhook] updated contracts:", data?.map((r: any) => r.id));
+        console.log("[assinafy-webhook] ✅ Updated contracts:", data?.map((r: any) => r.id));
+        
+        // Log successful webhook processing
+        if (data && data.length > 0) {
+          await supabase.from('assinafy_logs').insert({
+            company_id: data[0].company_id,
+            contract_id: data[0].id,
+            operation_type: 'webhook',
+            status: 'success',
+            request_data: { event: eventType, document_id: documentId },
+            response_data: { update_data: updateData }
+          });
+        }
         
         // Send WhatsApp notification when document is signed
         if (setAsSigned && data && data.length > 0) {

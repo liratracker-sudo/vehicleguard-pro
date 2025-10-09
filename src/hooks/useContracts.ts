@@ -275,6 +275,7 @@ export function useContracts() {
       const response = await supabase.functions.invoke('assinafy-integration', {
         body: {
           action: 'createDocument',
+          contract_id: contractId, // Pass contract_id for logging
           client_name: client.name,
           client_email: client.email,
           client_cpf: client.document,
@@ -283,16 +284,17 @@ export function useContracts() {
         }
       })
 
-      console.log('Resposta da API Assinafy:', response)
+      console.log('Resposta completa da API Assinafy:', JSON.stringify(response, null, 2))
 
       if (response.error) {
-        console.error('Erro na edge function:', response.error)
-        throw new Error(`Erro no Assinafy: ${response.error.message}`)
+        console.error('❌ Erro na edge function:', response.error)
+        throw new Error(`Problema na integração: ${response.error.message || 'Erro na Edge Function'}`)
       }
 
       if (!response.data?.success) {
-        console.error('Erro retornado pela API Assinafy:', response.data)
-        throw new Error(response.data?.error || 'Erro ao criar documento no Assinafy. Verifique se a chave da API está configurada corretamente.')
+        console.error('❌ Erro retornado pela API Assinafy:', response.data)
+        const errorDetails = response.data?.details ? `\n\nDetalhes: ${JSON.stringify(response.data.details, null, 2)}` : ''
+        throw new Error(response.data?.error || `Erro ao criar documento no Assinafy.${errorDetails}`)
       }
 
       const documentId = response.data.document_id

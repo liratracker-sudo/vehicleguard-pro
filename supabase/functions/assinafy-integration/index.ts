@@ -154,13 +154,34 @@ serve(async (req) => {
     }
 
     console.log("=== EXECUTING ACTION ===");
+    
+    // Get company_id and contract_id for logging
+    let companyId: string | undefined;
+    let contractId: string | undefined;
+    
+    if (req.headers.get("authorization")?.startsWith("Bearer ")) {
+      const token = req.headers.get("authorization")!.split(" ")[1];
+      const { data: { user } } = await supabase.auth.getUser(token);
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .single();
+        
+        companyId = profile?.company_id;
+        contractId = data.contract_id;
+      }
+    }
+    
     switch (action) {
       case "testConnection":
         console.log("🔄 Testing connection...");
         return await testConnection(assinafyApiKey, assinafyWorkspaceId);
       case "createDocument":
         console.log("📄 Creating document...");
-        return await createDocument(assinafyApiKey, assinafyWorkspaceId, data as ContractData);
+        return await createDocument(assinafyApiKey, assinafyWorkspaceId, data as ContractData, supabase, companyId, contractId);
       case "sendForSignature":
         console.log("✍️ Sending for signature...");
         return await sendForSignature(assinafyApiKey, data.documentId, data.signerEmail, data.signerName);
@@ -223,12 +244,24 @@ async function testConnection(apiKey: string, workspaceId: string): Promise<Resp
   }
 }
 
-async function createDocument(apiKey: string, workspaceId: string, contractData: ContractData): Promise<Response> {
+async function createDocument(apiKey: string, workspaceId: string, contractData: ContractData, supabaseClient?: any, companyId?: string, contractId?: string): Promise<Response> {
+  const logData = {
+    operation_type: 'createDocument',
+    request_data: {
+      client_name: contractData.client_name,
+      client_email: contractData.client_email,
+      title: contractData.title
+    },
+    response_data: {} as any,
+    error_message: null as string | null
+  };
+
   try {
     let signerId: string;
     
     try {
       // First, try to get existing signer by email
+      console.log("🔍 Checking for existing signer with email:", contractData.client_email);
       const existingSignerResponse = await makeAssinafyRequest(
         `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(contractData.client_email)}`,
         'GET',
@@ -236,17 +269,18 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       );
       
       const existingSignerData = await existingSignerResponse.json();
+      console.log("📋 Existing signer response:", JSON.stringify(existingSignerData, null, 2));
       
       if (existingSignerData.data && existingSignerData.data.length > 0) {
         // Signer already exists, use existing ID
         signerId = existingSignerData.data[0].id;
-        console.log("Using existing signer:", signerId);
+        console.log("✅ Using existing signer:", signerId);
       } else {
         throw new Error("Signer not found, will create new one");
       }
     } catch (getSignerError) {
       // Signer doesn't exist, create new one
-      console.log("Creating new signer...");
+      console.log("➕ Creating new signer...");
       
       try {
         const createSignerResponse = await makeAssinafyRequest(
@@ -261,12 +295,13 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
         );
 
         const signerData = await createSignerResponse.json();
+        console.log("📋 Signer creation response:", JSON.stringify(signerData, null, 2));
         signerId = signerData.data.id;
-        console.log("New signer created:", signerId);
+        console.log("✅ New signer created:", signerId);
       } catch (createError: any) {
         // If creation fails because signer already exists, try to get it again
         if (createError.message.includes("já existe")) {
-          console.log("Signer already exists, attempting to get existing signer...");
+          console.log("🔄 Signer already exists, attempting to get existing signer...");
           
           const retrySignerResponse = await makeAssinafyRequest(
             `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(contractData.client_email)}`,
@@ -278,7 +313,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
           
           if (retrySignerData.data && retrySignerData.data.length > 0) {
             signerId = retrySignerData.data[0].id;
-            console.log("Retrieved existing signer after failed creation:", signerId);
+            console.log("✅ Retrieved existing signer after failed creation:", signerId);
           } else {
             throw new Error("Failed to create or retrieve signer");
           }
@@ -289,21 +324,14 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     }
 
     // Generate PDF content for the document
-    console.log("🔄 Creating document with PDF generation...");
+    console.log("📄 Generating PDF for contract:", contractData.title);
     
     const pdfBytes = await generateContractPDF(contractData);
-    console.log("📄 PDF content generated, size:", pdfBytes.length, "bytes");
+    console.log("✅ PDF generated, size:", pdfBytes.length, "bytes");
     
     // Create PDF file multipart form data
-    const boundary = '----formdata-boundary-' + Math.random().toString(36);
     const fileName = `${contractData.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    
-    let formBody = '';
-    formBody += `--${boundary}\r\n`;
-    formBody += `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`;
-    formBody += `Content-Type: application/pdf\r\n\r\n`;
-    formBody += pdfBytes + '\r\n';
-    formBody += `--${boundary}--\r\n`;
+    console.log("📦 Preparing file upload:", fileName);
     
     // Upload document file using FormData
     const pdfBuffer = Uint8Array.from(atob(pdfBytes), c => c.charCodeAt(0));
@@ -312,6 +340,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     const formData = new FormData();
     formData.append('file', pdfBlob, fileName);
     
+    console.log("⬆️ Uploading document to Assinafy...");
     const uploadResponse = await fetch(`https://api.assinafy.com.br/v1/accounts/${workspaceId}/documents`, {
       method: 'POST',
       headers: {
@@ -323,19 +352,28 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
       console.error("❌ Document upload failed:", errorText);
+      logData.error_message = `Upload failed: ${errorText}`;
       throw new Error(`Erro no upload do documento: ${errorText}`);
     }
 
     const documentData = await uploadResponse.json();
-    console.log("✅ Document uploaded successfully:", documentData);
+    console.log("✅ Document uploaded successfully!");
+    console.log("📋 Full response:", JSON.stringify(documentData, null, 2));
+    
+    logData.response_data.uploadResponse = documentData;
 
-    const documentId = documentData.id;
+    // FIX: Access document ID correctly from response structure
+    const documentId = documentData.data?.id || documentData.id;
+    console.log("🔑 Extracted document ID:", documentId);
+    
     if (!documentId) {
-      throw new Error('Documento criado mas ID não encontrado na resposta');
+      console.error("❌ Document ID not found in response structure:", JSON.stringify(documentData, null, 2));
+      logData.error_message = 'Document ID not found in API response';
+      throw new Error('Documento criado mas ID não encontrado na resposta. Estrutura: ' + JSON.stringify(Object.keys(documentData)));
     }
 
     // Create assignment to assign the document to signers
-    console.log("🔄 Creating assignment for document:", documentId);
+    console.log("📝 Creating assignment for document:", documentId);
     
     const assignmentResponse = await makeAssinafyRequest(
       `https://api.assinafy.com.br/v1/assignments`,
@@ -357,14 +395,41 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     if (!assignmentResponse.ok) {
       const errorText = await assignmentResponse.text();
       console.error("❌ Assignment creation failed:", errorText);
+      logData.response_data.assignmentError = errorText;
       // Continue anyway, document was created
     } else {
       const assignmentData = await assignmentResponse.json();
-      console.log("✅ Assignment created successfully:", assignmentData);
+      console.log("✅ Assignment created successfully!");
+      console.log("📋 Assignment data:", JSON.stringify(assignmentData, null, 2));
+      logData.response_data.assignment = assignmentData;
     }
 
     // Prepare signing URL
     const signingUrl = `https://app.assinafy.com.br/sign/${documentId}`;
+    console.log("🔗 Signing URL:", signingUrl);
+    
+    logData.response_data.final = {
+      document_id: documentId,
+      signer_id: signerId,
+      signing_url: signingUrl
+    };
+
+    // Save successful log to database
+    if (supabaseClient && companyId) {
+      try {
+        await supabaseClient.from('assinafy_logs').insert({
+          company_id: companyId,
+          contract_id: contractId,
+          operation_type: 'createDocument',
+          status: 'success',
+          request_data: logData.request_data,
+          response_data: logData.response_data
+        });
+        console.log("✅ Log saved to database");
+      } catch (logError) {
+        console.error("⚠️ Failed to save log:", logError);
+      }
+    }
 
     return new Response(
       JSON.stringify({
@@ -379,10 +444,17 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     );
   } catch (error: any) {
     console.error("❌ Create document error:", error);
+    console.error("📋 Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     
     // Extract detailed error information
     let errorMessage = error.message || 'Erro desconhecido na criação do documento';
     let statusCode = 400;
+    
+    logData.error_message = errorMessage;
     
     // Parse Assinafy API errors
     if (error.message?.includes('Erro na criação do documento:') || error.message?.includes('Erro no upload do documento:')) {
@@ -394,7 +466,25 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
           statusCode = apiError.status || 400;
         }
       } catch (parseError) {
-        console.error("Failed to parse API error:", parseError);
+        console.error("⚠️ Failed to parse API error:", parseError);
+      }
+    }
+    
+    // Save error log to database
+    if (supabaseClient && companyId) {
+      try {
+        await supabaseClient.from('assinafy_logs').insert({
+          company_id: companyId,
+          contract_id: contractId,
+          operation_type: 'createDocument',
+          status: 'error',
+          request_data: logData.request_data,
+          response_data: logData.response_data,
+          error_message: errorMessage
+        });
+        console.log("✅ Error log saved to database");
+      } catch (logError) {
+        console.error("⚠️ Failed to save error log:", logError);
       }
     }
     
@@ -405,7 +495,8 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
         details: {
           originalError: error.message,
           stack: error.stack,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          logData: logData
         }
       }),
       { 
