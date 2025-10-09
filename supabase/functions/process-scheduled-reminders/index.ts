@@ -19,8 +19,11 @@ serve(async (req) => {
 
     console.log('Processando lembretes agendados...');
 
-    // Buscar lembretes pendentes que devem ser enviados (considerando horário de Brasília)
-    const now = nowInBrasilia().toISOString();
+    // Buscar lembretes pendentes que devem ser enviados
+    // A data no banco está em UTC, então comparamos diretamente
+    const now = new Date().toISOString();
+    console.log('Data/hora atual (UTC):', now);
+    
     const { data: pendingReminders, error: fetchError } = await supabase
       .from('scheduled_reminders')
       .select(`
@@ -33,6 +36,8 @@ serve(async (req) => {
       .eq('status', 'pending')
       .lte('scheduled_for', now)
       .limit(50);
+    
+    console.log('Consulta executada. Lembretes encontrados:', pendingReminders?.length || 0);
 
     if (fetchError) {
       console.error('Erro ao buscar lembretes:', fetchError);
