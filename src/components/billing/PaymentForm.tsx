@@ -14,7 +14,7 @@ import { useAsaas } from "@/hooks/useAsaas"
 import { supabase } from "@/integrations/supabase/client"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { toISODateBR } from "@/lib/timezone"
+// Não precisamos de imports de timezone aqui
 
 interface PaymentFormProps {
   onSuccess?: () => void
@@ -180,11 +180,17 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       console.log('🏢 Company ID:', profile.company_id);
 
       // Create payment transaction record
+      // Formatar data como YYYY-MM-DD usando os valores locais (sem conversão de timezone)
+      const year = formData.due_date.getFullYear();
+      const month = String(formData.due_date.getMonth() + 1).padStart(2, '0');
+      const day = String(formData.due_date.getDate()).padStart(2, '0');
+      const dueDateStr = `${year}-${month}-${day}`;
+
       const transactionData = {
         ...formData,
         company_id: profile.company_id,
         status: 'pending',
-        due_date: toISODateBR(formData.due_date)
+        due_date: dueDateStr
       };
 
       console.log('💾 Creating transaction with data:', transactionData);
@@ -257,7 +263,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         data: {
           customerId: asaasCustomerId,
           value: formData.amount,
-          dueDate: toISODateBR(formData.due_date),
+          dueDate: dueDateStr,
           billingType: formData.transaction_type.toUpperCase() === 'BOLETO' ? 'BOLETO' : 
                       formData.transaction_type.toUpperCase() === 'PIX' ? 'PIX' : 'BOLETO',
           description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
