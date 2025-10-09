@@ -28,17 +28,10 @@ serve(async (req) => {
         companies (
           id,
           name
-        ),
-        whatsapp_settings!inner (
-          instance_url,
-          api_token,
-          instance_name,
-          is_active
         )
       `)
       .eq('status', 'pending')
       .lte('scheduled_for', now)
-      .eq('whatsapp_settings.is_active', true)
       .limit(50);
 
     if (fetchError) {
@@ -62,9 +55,27 @@ serve(async (req) => {
     // Processar cada lembrete
     for (const reminder of pendingReminders) {
       try {
-        const whatsappSettings = Array.isArray(reminder.whatsapp_settings) 
-          ? reminder.whatsapp_settings[0] 
-          : reminder.whatsapp_settings;
+        // Buscar configurações do WhatsApp da empresa
+        const { data: whatsappSettings, error: whatsappError } = await supabase
+          .from('whatsapp_settings')
+          .select('*')
+          .eq('company_id', reminder.company_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (whatsappError) {
+          console.error(`Erro ao buscar WhatsApp settings:`, whatsappError);
+          await supabase
+            .from('scheduled_reminders')
+            .update({
+              status: 'failed',
+              error_message: 'Erro ao buscar configurações WhatsApp',
+              sent_at: new Date().toISOString()
+            })
+            .eq('id', reminder.id);
+          failed++;
+          continue;
+        }
 
         if (!whatsappSettings) {
           console.error(`WhatsApp não configurado para empresa ${reminder.company_id}`);
@@ -72,7 +83,7 @@ serve(async (req) => {
             .from('scheduled_reminders')
             .update({
               status: 'failed',
-              error_message: 'WhatsApp não configurado',
+              error_message: 'WhatsApp não configurado ou inativo',
               sent_at: new Date().toISOString()
             })
             .eq('id', reminder.id);
