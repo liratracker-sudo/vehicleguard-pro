@@ -326,7 +326,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     
     // Get company info for manager signer
     console.log("🏢 Getting company manager signer...");
-    const { data: companyData } = await supabase
+    const { data: companyData } = await supabaseClient
       .from('companies')
       .select('email, name')
       .eq('id', companyId)
