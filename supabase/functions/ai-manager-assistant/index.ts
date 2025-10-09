@@ -99,8 +99,18 @@ serve(async (req) => {
       status: c.status
     })) || [];
 
+    // Calcular data/hora atual no fuso horário do Brasil (UTC-3)
+    const now = new Date();
+    const brasiliaTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+    const currentDate = brasiliaTime.toISOString().split('T')[0]; // YYYY-MM-DD
+    const currentTime = brasiliaTime.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+    const currentDateTime = `${currentDate} ${currentTime}`;
+
     // Preparar prompt para a IA
     const systemPrompt = `Você é um assistente de gestão financeira inteligente para ${companyName}.
+
+DATA E HORA ATUAL NO BRASIL: ${currentDateTime} (Horário de Brasília - UTC-3)
+Use SEMPRE esta data/hora como referência para interpretar comandos como "amanhã", "hoje", "daqui a 2 dias", etc.
 
 Suas capacidades:
 1. Fornecer informações completas sobre clientes, cobranças, pagamentos e situação financeira
@@ -154,7 +164,12 @@ COMANDOS ESPECIAIS:
 - Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_DO_PAGAMENTO" (exemplo: "AGENDAR_COBRANCA:2025-10-10 14:00:abc-123-def")
 - Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural
 
-IMPORTANTE: Quando o gestor solicitar lembretes ou cobranças futuras, SEMPRE use os comandos de agendamento acima.`;
+IMPORTANTE SOBRE DATAS:
+- A data/hora atual no Brasil é: ${currentDateTime}
+- Ao interpretar "amanhã", adicione 1 dia à data atual
+- Ao interpretar "hoje", use a data atual
+- SEMPRE use o horário de Brasília (UTC-3) nas datas agendadas
+- Quando o gestor solicitar lembretes ou cobranças futuras, SEMPRE use os comandos de agendamento acima`;
 
     const userPrompt = `Mensagem do gestor: "${message}"
 
@@ -239,17 +254,21 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
       console.log('Agendando lembrete:', { scheduledTime, reminderText });
       
       try {
+        // Converter horário de Brasília para UTC para armazenar no banco
+        const brasiliaDate = new Date(scheduledTime + ':00-03:00');
+        const utcTime = brasiliaDate.toISOString();
+        
         await supabase
           .from('scheduled_reminders')
           .insert({
             company_id,
             manager_phone,
             reminder_text: reminderText.trim(),
-            scheduled_for: scheduledTime,
+            scheduled_for: utcTime,
             action_type: 'reminder'
           });
         
-        finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE:[^\n]+/, `✅ Lembrete agendado para ${scheduledTime}!`);
+        finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE:[^\n]+/, `✅ Lembrete agendado para ${scheduledTime} (Horário de Brasília)!`);
       } catch (error) {
         console.error('Erro ao agendar lembrete:', error);
         finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE:[^\n]+/, '❌ Erro ao agendar lembrete.');
@@ -263,18 +282,22 @@ Analise a solicitação e responda adequadamente. Se for uma solicitação de a�
       console.log('Agendando cobrança:', { scheduledTime, paymentId });
       
       try {
+        // Converter horário de Brasília para UTC para armazenar no banco
+        const brasiliaDate = new Date(scheduledTime + ':00-03:00');
+        const utcTime = brasiliaDate.toISOString();
+        
         await supabase
           .from('scheduled_reminders')
           .insert({
             company_id,
             manager_phone,
             reminder_text: `Cobrança automática agendada`,
-            scheduled_for: scheduledTime,
+            scheduled_for: utcTime,
             action_type: 'collection',
             metadata: { payment_id: paymentId }
           });
         
-        finalResponse = aiResponse.replace(/AGENDAR_COBRANCA:[^\n]+/, `✅ Cobrança agendada para ${scheduledTime}!`);
+        finalResponse = aiResponse.replace(/AGENDAR_COBRANCA:[^\n]+/, `✅ Cobrança agendada para ${scheduledTime} (Horário de Brasília)!`);
       } catch (error) {
         console.error('Erro ao agendar cobrança:', error);
         finalResponse = aiResponse.replace(/AGENDAR_COBRANCA:[^\n]+/, '❌ Erro ao agendar cobrança.');
