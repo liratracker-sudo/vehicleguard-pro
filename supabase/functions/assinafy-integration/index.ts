@@ -272,11 +272,20 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
         );
         
         const existingSignerData = await existingSignerResponse.json();
+        console.log("📥 Search response:", JSON.stringify(existingSignerData, null, 2));
         
         if (existingSignerData.data && existingSignerData.data.length > 0) {
-          const existingId = existingSignerData.data[0].id;
-          console.log("✅ Using existing signer:", existingId);
-          return existingId;
+          // Verify that the returned signer actually has the correct email
+          const matchingSigner = existingSignerData.data.find(
+            (signer: any) => signer.email?.toLowerCase() === email.toLowerCase()
+          );
+          
+          if (matchingSigner) {
+            console.log("✅ Found exact email match signer:", matchingSigner.id, "-", matchingSigner.email);
+            return matchingSigner.id;
+          } else {
+            console.log("⚠️ No exact email match found in results, creating new signer");
+          }
         }
       } catch (getError) {
         console.log("ℹ️ Signer not found, will create new one");
