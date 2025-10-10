@@ -349,20 +349,24 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
       const paymentId = forceCollectionMatch[1];
       console.log('Executando cobrança para pagamento:', paymentId);
       
-      try {
-        // Invocar função de cobrança individual
-        await supabase.functions.invoke('ai-collection', {
-          body: {
-            action: 'process_specific_payment',
-            company_id,
-            payment_id: paymentId
-          }
-        });
-        
+      // Invocar função de cobrança individual
+      const collectionResult = await supabase.functions.invoke('ai-collection', {
+        body: {
+          action: 'process_specific_payment',
+          company_id,
+          payment_id: paymentId
+        }
+      });
+      
+      console.log('Resultado da cobrança:', collectionResult);
+      
+      // Verificar se houve erro ou sucesso
+      if (collectionResult.error || !collectionResult.data?.success) {
+        const errorMsg = collectionResult.error?.message || collectionResult.data?.error || 'Erro desconhecido';
+        console.error('Erro ao executar cobrança:', errorMsg);
+        finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, `❌ Erro ao enviar cobrança: ${errorMsg}`);
+      } else {
         finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, '✅ Cobrança enviada com sucesso!');
-      } catch (error) {
-        console.error('Erro ao executar cobrança:', error);
-        finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, '❌ Erro ao enviar cobrança.');
       }
     }
 
