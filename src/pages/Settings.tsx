@@ -48,14 +48,14 @@ const SettingsPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="billing">Cobrança</TabsTrigger>
-            <TabsTrigger value="ai">IA</TabsTrigger>
-            <TabsTrigger value="integrations">Integrações</TabsTrigger>
-            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-            <TabsTrigger value="assinafy">Assinafy</TabsTrigger>
-            <TabsTrigger value="gerencianet">Gerencianet</TabsTrigger>
-            <TabsTrigger value="cora">Cora</TabsTrigger>
+          <TabsList className="w-full inline-flex h-auto flex-wrap sm:flex-nowrap gap-1 sm:gap-0 p-1 justify-start overflow-x-auto">
+            <TabsTrigger value="billing" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Cobrança</TabsTrigger>
+            <TabsTrigger value="ai" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">IA</TabsTrigger>
+            <TabsTrigger value="integrations" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Integrações</TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">WhatsApp</TabsTrigger>
+            <TabsTrigger value="assinafy" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Assinafy</TabsTrigger>
+            <TabsTrigger value="gerencianet" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Gerencianet</TabsTrigger>
+            <TabsTrigger value="cora" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Cora</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">

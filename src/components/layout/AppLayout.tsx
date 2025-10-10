@@ -29,16 +29,16 @@ export function AppLayout({ children }: AppLayoutProps) {
           
           <div className="flex-1 flex flex-col min-w-0">
             {/* Header */}
-            <header className="h-14 sm:h-16 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-3 sm:px-6 shadow-lg flex-shrink-0">
-              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <header className="h-14 sm:h-16 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-2 sm:px-6 shadow-lg flex-shrink-0 gap-2">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                 <SidebarTrigger className="text-slate-400 hover:text-slate-100 transition-colors flex-shrink-0" />
-                <div className="hidden xs:block min-w-0">
+                <div className="hidden sm:block min-w-0">
                   <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent truncate">VehicleGuard Pro</h1>
                   <p className="text-xs sm:text-sm text-slate-400 truncate">Sistema de Gestão de Rastreamento</p>
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
                 <WhatsAppStatus />
                 <UserNav />
               </div>
