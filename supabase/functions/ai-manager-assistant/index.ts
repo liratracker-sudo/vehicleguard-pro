@@ -103,6 +103,18 @@ serve(async (req) => {
       id: p.id
     })) || [];
 
+    const pendingDetails = pendingPayments?.map(p => ({
+      client: p.clients?.name || 'Cliente não identificado',
+      client_phone: p.clients?.phone,
+      client_email: p.clients?.email,
+      client_document: p.clients?.document,
+      client_address: p.clients?.address,
+      amount: Number(p.amount),
+      due_date: p.due_date,
+      days_until_due: Math.ceil((new Date(p.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+      id: p.id
+    })) || [];
+
     // Informações dos clientes
     const clientsInfo = allClients?.map(c => ({
       id: c.id,
@@ -160,7 +172,18 @@ ${overdueDetails.map((p, i) => `${i + 1}. ${p.client}
    - Dias em atraso: ${p.days_overdue}
    - ID do pagamento: ${p.id}`).join('\n\n') || 'Nenhuma cobrança em atraso'}
 
-REGRAS IMPORTANTES: 
+Cobranças pendentes (não vencidas ainda):
+${pendingDetails.map((p, i) => `${i + 1}. ${p.client}
+   - Telefone: ${p.client_phone || 'Não informado'}
+   - Email: ${p.client_email || 'Não informado'}
+   - Documento: ${p.client_document || 'Não informado'}
+   - Endereço: ${p.client_address || 'Não informado'}
+   - Valor: R$ ${p.amount.toFixed(2)}
+   - Vencimento: ${p.due_date}
+   - Dias até vencer: ${p.days_until_due}
+   - ID do pagamento: ${p.id}`).join('\n\n') || 'Nenhuma cobrança pendente'}
+
+REGRAS IMPORTANTES:
 - NUNCA use LaTeX, fórmulas matemáticas ou código de programação nas respostas
 - Seja direto, objetivo e profissional
 - Use apenas texto simples e números formatados como "R$ 100,00" ou "50%"
@@ -170,10 +193,13 @@ REGRAS IMPORTANTES:
 - VOCÊ PRECISA SEMPRE RESPONDER, NUNCA FIQUE SILENCIOSO
 
 COMANDOS ESPECIAIS:
-- Para forçar cobrança: "EXECUTAR_COBRANCA:ID_DO_PAGAMENTO"
+- Para forçar cobrança IMEDIATA: Use "EXECUTAR_COBRANCA:" seguido do ID REAL do pagamento
+  * ATENÇÃO: SEMPRE use o ID REAL do pagamento listado acima, NUNCA use "ID_DO_PAGAMENTO" como placeholder
+  * Exemplo correto: "EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  * Quando o gestor pedir "dispare a notificação dessa cobrança pendente", identifique qual cobrança (geralmente a mais recente ou única pendente) e use seu ID real
 - Para gerar relatório: "EXECUTAR_RELATORIO"
 - Para agendar lembrete: "AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM" (exemplo: "AGENDAR_LEMBRETE:2025-10-09 09:00:Atualizar base de dados")
-- Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_DO_PAGAMENTO" (exemplo: "AGENDAR_COBRANCA:2025-10-10 14:00:abc-123-def")
+- Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_REAL_DO_PAGAMENTO" - use sempre o ID real do pagamento, não o placeholder
 - Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural
 
 IMPORTANTE SOBRE DATAS:
@@ -193,8 +219,19 @@ Analise a solicitação e responda adequadamente:
 1. Se for um pedido de LEMBRETE (ex: "me lembra", "lembre-me", "agendar lembrete"), use o comando AGENDAR_LEMBRETE no formato:
    AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM
    Exemplo: AGENDAR_LEMBRETE:2025-10-09 14:10:Atualizar a base
-2. Se for uma solicitação de ação (forçar cobrança, gerar relatório, agendar cobrança), inclua o comando apropriado
-3. Se for pergunta sobre clientes, pagamentos ou finanças da empresa, responda com os dados fornecidos
+
+2. Se for solicitação para DISPARAR/FORÇAR COBRANÇA IMEDIATA:
+   - Identifique qual cobrança o gestor está se referindo (pendente, em atraso, cliente específico, etc.)
+   - Use o ID REAL do pagamento listado no contexto acima
+   - NUNCA use placeholders como "ID_DO_PAGAMENTO"
+   - Formato: EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890
+   - Exemplo: Se há uma cobrança pendente com ID "550e8400-e29b-41d4-a716-446655440000", use: EXECUTAR_COBRANCA:550e8400-e29b-41d4-a716-446655440000
+
+3. Se for uma solicitação de gerar relatório, use: EXECUTAR_RELATORIO
+
+4. Se for pergunta sobre clientes, pagamentos ou finanças da empresa, responda com os dados fornecidos
+
+CRÍTICO: Quando usar comandos como EXECUTAR_COBRANCA ou AGENDAR_COBRANCA, SEMPRE extraia e use o ID REAL do pagamento do contexto fornecido. NUNCA deixe "ID_DO_PAGAMENTO" como placeholder.
 
 Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atual é: ${currentDateTime}`;
 
