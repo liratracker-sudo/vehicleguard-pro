@@ -150,12 +150,12 @@ const AuthPage = () => {
       showSignals={true}
       showGrid={true}
     >
-      <div className="container mx-auto px-4 min-h-screen flex items-center justify-center py-4">
+      <div className="container mx-auto px-4 min-h-screen flex items-center justify-center py-8">
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-full max-w-sm"
+          className="w-full max-w-md px-2"
         >
           {/* Logo and Header */}
           <div className="text-center mb-4">
@@ -216,7 +216,7 @@ const AuthPage = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      className="h-9"
+                      className="h-10"
                     />
                   </div>
                   
@@ -231,25 +231,26 @@ const AuthPage = () => {
                         value={formData.password}
                         onChange={handleInputChange}
                         required
-                        className="h-9"
+                        className="h-10 pr-10"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-9 px-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-10 w-10 px-0 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
+                        tabIndex={-1}
                       >
                         {showPassword ? (
-                          <EyeOff className="h-3.5 w-3.5" />
+                          <EyeOff className="h-4 w-4" />
                         ) : (
-                          <Eye className="h-3.5 w-3.5" />
+                          <Eye className="h-4 w-4" />
                         )}
                       </Button>
                     </div>
                   </div>
                   
-                  <Button type="submit" className="w-full mt-4 h-9" disabled={loading}>
+                  <Button type="submit" className="w-full mt-4 h-10" disabled={loading}>
                     {loading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
@@ -267,7 +268,7 @@ const AuthPage = () => {
                       value={formData.fullName}
                       onChange={handleInputChange}
                       required
-                      className="h-9"
+                      className="h-10"
                     />
                   </div>
                   
@@ -281,7 +282,7 @@ const AuthPage = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      className="h-9"
+                      className="h-10"
                     />
                   </div>
                   
@@ -297,19 +298,20 @@ const AuthPage = () => {
                         onChange={handleInputChange}
                         required
                         minLength={6}
-                        className="h-9"
+                        className="h-10 pr-10"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-9 px-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-10 w-10 px-0 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
+                        tabIndex={-1}
                       >
                         {showPassword ? (
-                          <EyeOff className="h-3.5 w-3.5" />
+                          <EyeOff className="h-4 w-4" />
                         ) : (
-                          <Eye className="h-3.5 w-3.5" />
+                          <Eye className="h-4 w-4" />
                         )}
                       </Button>
                     </div>
@@ -318,7 +320,7 @@ const AuthPage = () => {
                     </p>
                   </div>
                   
-                  <Button type="submit" className="w-full mt-4 h-9" disabled={loading}>
+                  <Button type="submit" className="w-full mt-4 h-10" disabled={loading}>
                     {loading ? "Criando conta..." : "Criar conta"}
                   </Button>
                 </form>
