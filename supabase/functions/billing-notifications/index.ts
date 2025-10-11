@@ -1012,7 +1012,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         const key = `pre_due_${days}`;
         if (existingKeys.has(key)) continue;
         
-        const scheduledDate = new Date(dueDate);
+        let scheduledDate = new Date(dueDate);
         scheduledDate.setDate(scheduledDate.getDate() - days);
         
         // Parse send_hour properly (format: HH:MM:SS or HH:MM)
@@ -1053,7 +1053,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         const key = `on_due_${i}`;
         if (existingKeys.has(key)) continue;
         
-        const scheduledDate = new Date(dueDate);
+        let scheduledDate = new Date(dueDate);
         
         // Parse send_hour properly (format: HH:MM:SS or HH:MM)
         const timeParts = settings.send_hour.split(':');

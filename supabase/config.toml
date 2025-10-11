@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.process-scheduled-reminders]
 verify_jwt = false
+
+[functions.billing-notifications]
+verify_jwt = false
+
+[functions.billing-diagnostics]
+verify_jwt = false
