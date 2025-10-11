@@ -45,8 +45,15 @@ export function UserNav() {
   }, [])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    navigate("/auth")
+    // Clear all local storage and session data
+    await supabase.auth.signOut({ scope: 'local' })
+    
+    // Clear any cached data
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Force reload to clear all React state and caches
+    window.location.href = "/auth"
   }
 
   if (!displayUser) {

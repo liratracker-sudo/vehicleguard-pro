@@ -20,6 +20,7 @@ import SettingsPage from "./pages/Settings";
 import BillingDiagnosticsPage from "./pages/BillingDiagnostics";
 import NotFound from "./pages/NotFound";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 const App = () => {
   // Create QueryClient inside component to ensure React is available
@@ -40,19 +41,19 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthPage />} />
-              <Route path="/admin" element={<RoleGuard allowed={['super_admin']}><AdminPage /></RoleGuard>} />
-              <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/plans" element={<PlansPage />} />
-              <Route path="/contracts" element={<ContractsPage />} />
-              <Route path="/vehicles" element={<VehiclesPage />} />
-              <Route path="/billing" element={<BillingPage />} />
-              <Route path="/financial" element={<FinancialPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/white-label" element={<WhiteLabelPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/billing-diagnostics" element={<BillingDiagnosticsPage />} />
+              <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
+              <Route path="/admin" element={<AuthGuard><RoleGuard allowed={['super_admin']}><AdminPage /></RoleGuard></AuthGuard>} />
+              <Route path="/clients" element={<AuthGuard><ClientsPage /></AuthGuard>} />
+              <Route path="/plans" element={<AuthGuard><PlansPage /></AuthGuard>} />
+              <Route path="/contracts" element={<AuthGuard><ContractsPage /></AuthGuard>} />
+              <Route path="/vehicles" element={<AuthGuard><VehiclesPage /></AuthGuard>} />
+              <Route path="/billing" element={<AuthGuard><BillingPage /></AuthGuard>} />
+              <Route path="/financial" element={<AuthGuard><FinancialPage /></AuthGuard>} />
+              <Route path="/reports" element={<AuthGuard><ReportsPage /></AuthGuard>} />
+              <Route path="/white-label" element={<AuthGuard><WhiteLabelPage /></AuthGuard>} />
+              <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
+              <Route path="/billing-diagnostics" element={<AuthGuard><BillingDiagnosticsPage /></AuthGuard>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
