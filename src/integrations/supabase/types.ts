@@ -912,6 +912,103 @@ export type Database = {
           },
         ]
       }
+      inter_logs: {
+        Row: {
+          company_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          operation_type: string
+          request_data: Json | null
+          response_data: Json | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation_type: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation_type?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inter_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inter_settings: {
+        Row: {
+          certificate_base64: string | null
+          client_id_encrypted: string
+          client_secret_encrypted: string
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_sandbox: boolean
+          last_test_at: string | null
+          test_result: Json | null
+          updated_at: string
+          webhook_enabled: boolean | null
+          webhook_url: string | null
+        }
+        Insert: {
+          certificate_base64?: string | null
+          client_id_encrypted: string
+          client_secret_encrypted: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+          webhook_enabled?: boolean | null
+          webhook_url?: string | null
+        }
+        Update: {
+          certificate_base64?: string | null
+          client_id_encrypted?: string
+          client_secret_encrypted?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+          webhook_enabled?: boolean | null
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inter_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number
@@ -1730,6 +1827,10 @@ export type Database = {
         Args: { p_encrypted_credential: string }
         Returns: string
       }
+      decrypt_inter_credential: {
+        Args: { p_encrypted_credential: string }
+        Returns: string
+      }
       decrypt_whatsapp_token: {
         Args: { p_encrypted_token: string }
         Returns: string
@@ -1739,6 +1840,10 @@ export type Database = {
         Returns: string
       }
       encrypt_gerencianet_credential: {
+        Args: { p_credential: string }
+        Returns: string
+      }
+      encrypt_inter_credential: {
         Args: { p_credential: string }
         Returns: string
       }

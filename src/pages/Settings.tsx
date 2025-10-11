@@ -10,6 +10,7 @@ import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
 import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
 import { GerencianetIntegration } from "@/components/settings/GerencianetIntegration"
 import { CoraIntegration } from "@/components/settings/CoraIntegration"
+import { InterIntegration } from "@/components/settings/InterIntegration"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
@@ -56,6 +57,7 @@ const SettingsPage = () => {
             <TabsTrigger value="assinafy" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Assinafy</TabsTrigger>
             <TabsTrigger value="gerencianet" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Gerencianet</TabsTrigger>
             <TabsTrigger value="cora" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Cora</TabsTrigger>
+            <TabsTrigger value="inter" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Inter</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">
@@ -133,6 +135,17 @@ const SettingsPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+                        onClick={() => setActiveTab("inter")}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <CreditCard className="w-8 h-8 text-amber-600" />
+                      <div>
+                        <h4 className="font-medium">Inter</h4>
+                        <p className="text-sm text-muted-foreground">Banco Inter - Boletos e PIX</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -156,6 +169,10 @@ const SettingsPage = () => {
 
           <TabsContent value="cora" className="space-y-6">
             <CoraIntegration />
+          </TabsContent>
+
+          <TabsContent value="inter" className="space-y-6">
+            <InterIntegration />
           </TabsContent>
         </Tabs>
       </div>

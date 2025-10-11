@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.billing-diagnostics]
 verify_jwt = false
+
+[functions.inter-webhook]
+verify_jwt = false
