@@ -20,11 +20,19 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
     email: "",
     phone: "",
     document: "",
+    cep: "",
+    street: "",
+    number: "",
+    complement: "",
+    neighborhood: "",
+    city: "",
+    state: "",
     address: "",
     status: "active"
   })
   
   const [loading, setLoading] = useState(false)
+  const [loadingCep, setLoadingCep] = useState(false)
   const { toast } = useToast()
 
   // Carregar dados do cliente se estiver editando
@@ -47,11 +55,20 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
       if (error) throw error
 
+      const addressData = data.address ? JSON.parse(data.address) : {}
+      
       setFormData({
         name: data.name || "",
         email: data.email || "",
         phone: data.phone || "",
         document: data.document || "",
+        cep: addressData.cep || "",
+        street: addressData.street || "",
+        number: addressData.number || "",
+        complement: addressData.complement || "",
+        neighborhood: addressData.neighborhood || "",
+        city: addressData.city || "",
+        state: addressData.state || "",
         address: data.address || "",
         status: data.status || "active"
       })
@@ -89,6 +106,57 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
     return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
   }
 
+  const formatCep = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    return digits.replace(/(\d{5})(\d{3})/, '$1-$2')
+  }
+
+  const searchCep = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, '')
+    
+    if (cleanCep.length !== 8) return
+    
+    setLoadingCep(true)
+    
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cep/v1/${cleanCep}`)
+      
+      if (!response.ok) throw new Error('CEP não encontrado')
+      
+      const data = await response.json()
+      
+      setFormData(prev => ({
+        ...prev,
+        street: data.street || "",
+        neighborhood: data.neighborhood || "",
+        city: data.city || "",
+        state: data.state || ""
+      }))
+      
+      toast({
+        title: "CEP encontrado",
+        description: "Endereço preenchido automaticamente"
+      })
+    } catch (error: any) {
+      toast({
+        title: "Erro ao buscar CEP",
+        description: error.message || "CEP inválido ou não encontrado",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingCep(false)
+    }
+  }
+
+  const handleCepChange = (value: string) => {
+    const formatted = formatCep(value)
+    setFormData({...formData, cep: formatted})
+    
+    if (formatted.replace(/\D/g, '').length === 8) {
+      searchCep(formatted)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -105,12 +173,22 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
       if (!profile?.company_id) throw new Error('Perfil da empresa não encontrado')
 
+      const addressData = {
+        cep: formData.cep.trim(),
+        street: formData.street.trim(),
+        number: formData.number.trim(),
+        complement: formData.complement.trim(),
+        neighborhood: formData.neighborhood.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim()
+      }
+
       const clientData = {
         name: formData.name.trim(),
         email: formData.email.trim() || null,
         phone: formData.phone.trim(),
         document: formData.document.trim() || null,
-        address: formData.address.trim() || null,
+        address: JSON.stringify(addressData),
         status: formData.status,
         company_id: profile.company_id
       }
@@ -196,13 +274,84 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="address">Endereço Completo</Label>
-            <Textarea
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData({...formData, address: e.target.value})}
-              placeholder="Rua das Flores, 123 - Centro - São Paulo - SP - CEP: 01000-000"
-              rows={3}
+            <Label htmlFor="cep">CEP *</Label>
+            <Input
+              id="cep"
+              value={formData.cep}
+              onChange={(e) => handleCepChange(e.target.value)}
+              placeholder="00000-000"
+              maxLength={9}
+              disabled={loadingCep}
+              required
+            />
+            {loadingCep && <p className="text-xs text-muted-foreground mt-1">Buscando CEP...</p>}
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <Label htmlFor="street">Rua/Avenida *</Label>
+              <Input
+                id="street"
+                value={formData.street}
+                onChange={(e) => setFormData({...formData, street: e.target.value})}
+                placeholder="Rua das Flores"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="number">Número *</Label>
+              <Input
+                id="number"
+                value={formData.number}
+                onChange={(e) => setFormData({...formData, number: e.target.value})}
+                placeholder="123"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="complement">Complemento</Label>
+            <Input
+              id="complement"
+              value={formData.complement}
+              onChange={(e) => setFormData({...formData, complement: e.target.value})}
+              placeholder="Apt 45, Bloco B"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="neighborhood">Bairro *</Label>
+              <Input
+                id="neighborhood"
+                value={formData.neighborhood}
+                onChange={(e) => setFormData({...formData, neighborhood: e.target.value})}
+                placeholder="Centro"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="city">Cidade *</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={(e) => setFormData({...formData, city: e.target.value})}
+                placeholder="São Paulo"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="state">Estado *</Label>
+            <Input
+              id="state"
+              value={formData.state}
+              onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+              placeholder="SP"
+              maxLength={2}
+              required
             />
           </div>
 
