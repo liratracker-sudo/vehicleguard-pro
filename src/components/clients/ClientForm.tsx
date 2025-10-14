@@ -35,7 +35,6 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
   const [loadingCep, setLoadingCep] = useState(false)
   const { toast } = useToast()
 
-  // Carregar dados do cliente se estiver editando
   useEffect(() => {
     if (clientId) {
       loadClient()
@@ -219,161 +218,175 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{clientId ? 'Editar' : 'Cadastrar'} Cliente</CardTitle>
-        <CardDescription>
+      <CardHeader className="p-4 pb-3">
+        <CardTitle className="text-lg">{clientId ? 'Editar' : 'Cadastrar'} Cliente</CardTitle>
+        <CardDescription className="text-xs">
           Preencha os dados do cliente para o sistema de rastreamento
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="name">Nome Completo *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-              placeholder="João da Silva"
-              required
-            />
+      <CardContent className="p-4 pt-0">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <Label htmlFor="name" className="text-sm">Nome Completo *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                placeholder="João da Silva"
+                className="h-9"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="status" className="text-sm">Status</Label>
+              <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="suspended">Suspenso</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email" className="text-sm">E-mail</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="joao@email.com"
+                className="h-9"
               />
             </div>
             <div>
-              <Label htmlFor="phone">Telefone *</Label>
+              <Label htmlFor="phone" className="text-sm">Telefone *</Label>
               <Input
                 id="phone"
                 value={formData.phone}
                 onChange={(e) => setFormData({...formData, phone: formatPhone(e.target.value)})}
                 placeholder="(11) 99999-9999"
                 maxLength={15}
+                className="h-9"
                 required
               />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="document">CPF/CNPJ</Label>
-            <Input
-              id="document"
-              value={formData.document}
-              onChange={(e) => setFormData({...formData, document: formatDocument(e.target.value)})}
-              placeholder="000.000.000-00"
-              maxLength={18}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="document" className="text-sm">CPF/CNPJ</Label>
+              <Input
+                id="document"
+                value={formData.document}
+                onChange={(e) => setFormData({...formData, document: formatDocument(e.target.value)})}
+                placeholder="000.000.000-00"
+                maxLength={18}
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cep" className="text-sm">CEP *</Label>
+              <Input
+                id="cep"
+                value={formData.cep}
+                onChange={(e) => handleCepChange(e.target.value)}
+                placeholder="00000-000"
+                maxLength={9}
+                disabled={loadingCep}
+                className="h-9"
+                required
+              />
+              {loadingCep && <p className="text-xs text-muted-foreground mt-1">Buscando CEP...</p>}
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="cep">CEP *</Label>
-            <Input
-              id="cep"
-              value={formData.cep}
-              onChange={(e) => handleCepChange(e.target.value)}
-              placeholder="00000-000"
-              maxLength={9}
-              disabled={loadingCep}
-              required
-            />
-            {loadingCep && <p className="text-xs text-muted-foreground mt-1">Buscando CEP...</p>}
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <Label htmlFor="street">Rua/Avenida *</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="sm:col-span-3">
+              <Label htmlFor="street" className="text-sm">Rua/Avenida *</Label>
               <Input
                 id="street"
                 value={formData.street}
                 onChange={(e) => setFormData({...formData, street: e.target.value})}
                 placeholder="Rua das Flores"
+                className="h-9"
                 required
               />
             </div>
             <div>
-              <Label htmlFor="number">Número *</Label>
+              <Label htmlFor="number" className="text-sm">Número *</Label>
               <Input
                 id="number"
                 value={formData.number}
                 onChange={(e) => setFormData({...formData, number: e.target.value})}
                 placeholder="123"
+                className="h-9"
                 required
               />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="complement">Complemento</Label>
-            <Input
-              id="complement"
-              value={formData.complement}
-              onChange={(e) => setFormData({...formData, complement: e.target.value})}
-              placeholder="Apt 45, Bloco B"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <Label htmlFor="neighborhood">Bairro *</Label>
+              <Label htmlFor="complement" className="text-sm">Complemento</Label>
+              <Input
+                id="complement"
+                value={formData.complement}
+                onChange={(e) => setFormData({...formData, complement: e.target.value})}
+                placeholder="Apt 45, Bloco B"
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label htmlFor="neighborhood" className="text-sm">Bairro *</Label>
               <Input
                 id="neighborhood"
                 value={formData.neighborhood}
                 onChange={(e) => setFormData({...formData, neighborhood: e.target.value})}
                 placeholder="Centro"
+                className="h-9"
                 required
               />
             </div>
             <div>
-              <Label htmlFor="city">Cidade *</Label>
+              <Label htmlFor="city" className="text-sm">Cidade *</Label>
               <Input
                 id="city"
                 value={formData.city}
                 onChange={(e) => setFormData({...formData, city: e.target.value})}
                 placeholder="São Paulo"
+                className="h-9"
                 required
               />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="state">Estado *</Label>
-            <Input
-              id="state"
-              value={formData.state}
-              onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
-              placeholder="SP"
-              maxLength={2}
-              required
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <Label htmlFor="state" className="text-sm">Estado *</Label>
+              <Input
+                id="state"
+                value={formData.state}
+                onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+                placeholder="SP"
+                maxLength={2}
+                className="h-9"
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="status">Status</Label>
-            <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="suspended">Suspenso</SelectItem>
-                <SelectItem value="inactive">Inativo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={loading}>
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" disabled={loading} size="sm">
               {loading ? "Salvando..." : clientId ? "Atualizar" : "Cadastrar"}
             </Button>
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={onCancel} size="sm">
               Cancelar
             </Button>
           </div>
