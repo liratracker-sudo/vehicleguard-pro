@@ -869,6 +869,22 @@ async function createMissingNotifications(specificPaymentId?: string, specificCo
   
   const results = { created: 0, skipped: 0 };
   
+  // First, update overdue payments status
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const { error: updateError } = await supabase
+    .from('payment_transactions')
+    .update({ status: 'overdue', updated_at: new Date().toISOString() })
+    .eq('status', 'pending')
+    .lt('due_date', today.toISOString().split('T')[0]);
+  
+  if (updateError) {
+    console.error('Error updating overdue payments:', updateError);
+  } else {
+    console.log('✅ Updated overdue payments status');
+  }
+  
   // Build query for companies with notification settings
   let query = supabase
     .from('payment_notification_settings')
@@ -1154,9 +1170,10 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         console.log(`Creating notifications for next day ${nextDay} (${sendsNextDay} sends)`);
         
         for (let sendIndex = existingCountNextDay; sendIndex < sendsNextDay; sendIndex++) {
-          const scheduledDate = new Date(dueDate);
+          let scheduledDate = new Date(dueDate);
           scheduledDate.setDate(scheduledDate.getDate() + nextDay);
-          scheduledDate.setHours(baseHour, baseMinute, 0, 0);
+          // Use Brazil timezone (UTC-3) for scheduling
+          scheduledDate = setBrazilTime(scheduledDate, baseHour, baseMinute);
           
           if (sendIndex === 1) {
             scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
