@@ -1139,12 +1139,15 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
             scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
           }
           
-          // Se o horário já passou, agendar para daqui a 2 minutos
+          // CRITICAL: Para notificações de dias que já passaram, enviar IMEDIATAMENTE
+          // Isso garante que cobranças vencidas sejam notificadas o mais rápido possível
           if (scheduledDate.getTime() < now.getTime()) {
-            scheduledDate.setTime(now.getTime() + (2 * 60 * 1000));
+            // Agendar para agora + 1 minuto para permitir o processamento
+            scheduledDate.setTime(now.getTime() + (1 * 60 * 1000));
+            console.log(`⚡ Scheduling overdue notification for IMMEDIATE send (day ${currentDay}, send ${sendIndex + 1})`);
           }
           
-          console.log(`Creating post-due notification for day ${currentDay}, send ${sendIndex + 1}/${sendsPerDay}`);
+          console.log(`Creating post-due notification for day ${currentDay}, send ${sendIndex + 1}/${sendsPerDay}, scheduled for: ${scheduledDate.toISOString()}`);
           
           notifications.push({
             company_id: settings.company_id,
