@@ -70,13 +70,13 @@ export function NotificationSystemStatus() {
         .eq('company_id', profile.company_id)
         .single();
 
-      // Get latest cron execution logs
+      // Get latest cron execution logs - buscar por todos os jobs de billing
       const { data: logs } = await supabase
         .from('cron_execution_logs')
         .select('*')
-        .eq('job_name', 'billing-notifications-system')
+        .or('job_name.eq.billing-notifications-function,job_name.eq.billing-notifications-manual-9am,job_name.eq.billing-notifications-daily-3pm')
         .order('started_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
       setStatus({
         total_pending: stats.pending || 0,
