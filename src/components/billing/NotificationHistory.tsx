@@ -43,6 +43,19 @@ export function NotificationHistory() {
     notification.status.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Agrupar notificações por payment_id para mostrar próximos disparos
+  const getNextNotifications = (paymentId: string, currentNotificationId: string) => {
+    return notifications
+      .filter(n => 
+        n.payment_id === paymentId && 
+        n.id !== currentNotificationId &&
+        n.status === 'pending' &&
+        new Date(n.scheduled_for) > new Date()
+      )
+      .sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime())
+      .slice(0, 3); // Mostrar próximas 3 notificações
+  };
+
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'pending':
@@ -108,7 +121,8 @@ export function NotificationHistory() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Valor</TableHead>
-                  <TableHead>Agendado</TableHead>
+                  <TableHead>Agendado/Enviado</TableHead>
+                  <TableHead>Próximos Disparos</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tentativas</TableHead>
                   <TableHead>Ações</TableHead>
@@ -117,7 +131,7 @@ export function NotificationHistory() {
               <TableBody>
                 {filteredNotifications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                       {searchTerm ? 'Nenhuma notificação encontrada' : 'Nenhuma notificação registrada'}
                     </TableCell>
                   </TableRow>
@@ -156,11 +170,33 @@ export function NotificationHistory() {
                           {format(new Date(notification.scheduled_for), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                         </div>
                         {notification.sent_at && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1 text-sm text-green-600">
                             <Send className="h-3 w-3" />
                             {format(new Date(notification.sent_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                           </div>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const nextNotifications = getNextNotifications(notification.payment_id, notification.id);
+                          return nextNotifications.length > 0 ? (
+                            <div className="space-y-1">
+                              {nextNotifications.map((next, idx) => (
+                                <div key={next.id} className="flex items-center gap-1 text-xs">
+                                  <Calendar className="h-3 w-3 text-blue-500" />
+                                  <span className="text-muted-foreground">
+                                    {format(new Date(next.scheduled_for), 'dd/MM HH:mm', { locale: ptBR })}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {getEventTypeLabel(next.event_type, next.offset_days)}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Nenhum disparo futuro</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(notification.status)}>
