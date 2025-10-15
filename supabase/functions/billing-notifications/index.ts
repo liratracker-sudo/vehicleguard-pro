@@ -975,17 +975,18 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       continue;
     }
     
-    // Check if we already have PENDING notifications for this payment
-    // We only check pending to allow recreation of failed/sent ones for ongoing overdue payments
+    // Check if we already have notifications for this payment
+    // Check ALL statuses to avoid duplicate key errors
     const { data: existingNotifications } = await supabase
       .from('payment_notifications')
       .select('event_type, offset_days, scheduled_for, status')
       .eq('payment_id', payment.id)
-      .eq('status', 'pending'); // Only check pending notifications
+      .in('status', ['pending', 'sent']); // Check pending and sent to avoid duplicates
 
     // Criar mapa das notificações existentes
     const existingKeys = new Set();
     const existingPostDueDays = new Map(); // Map para controlar quantos disparos já existem por dia
+    const existingOnDueCount = new Map(); // Map para controlar quantos disparos on_due existem
     
     existingNotifications?.forEach(n => {
       if (n.event_type === 'post_due') {
@@ -1009,6 +1010,11 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         
         existingKeys.add(`post_due_${n.offset_days}_${dispatchIndex}`);
       } else if (n.event_type === 'on_due') {
+        // Contar notificações on_due
+        if (!existingOnDueCount.has(n.offset_days)) {
+          existingOnDueCount.set(n.offset_days, 0);
+        }
+        existingOnDueCount.set(n.offset_days, existingOnDueCount.get(n.offset_days) + 1);
         existingKeys.add(`on_due_${n.offset_days}`);
       } else {
         existingKeys.add(`${n.event_type}_${n.offset_days}`);
@@ -1064,8 +1070,10 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     if (settings.on_due && daysPastDue <= 7) { // Allow up to 7 days past due for on-due notifications
       const onDueTimes = settings.on_due_times || 1;
       const intervalHours = settings.on_due_interval_hours || 2;
+      const existingOnDue = existingOnDueCount.get(0) || 0; // Verificar quantas notificações on_due já existem
       
-      for (let i = 0; i < onDueTimes; i++) {
+      // Criar apenas as notificações on_due que faltam
+      for (let i = existingOnDue; i < onDueTimes; i++) {
         const key = `on_due_${i}`;
         if (existingKeys.has(key)) continue;
         
@@ -1201,12 +1209,37 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
   }
 
   if (notifications.length > 0) {
+    // Tentar insert em batch primeiro
     const { error } = await supabase
       .from('payment_notifications')
       .insert(notifications);
 
     if (error) {
-      console.error(`Error creating notifications for company ${settings.company_id}:`, error);
+      // Se houver erro de chave duplicada, tentar inserir um por um ignorando duplicatas
+      if (error.code === '23505') {
+        console.warn(`Duplicate key error for company ${settings.company_id}, inserting individually...`);
+        let successCount = 0;
+        
+        for (const notification of notifications) {
+          const { error: individualError } = await supabase
+            .from('payment_notifications')
+            .insert(notification);
+          
+          if (individualError) {
+            if (individualError.code !== '23505') {
+              console.error(`Error inserting individual notification:`, individualError);
+            }
+            // Se for erro de duplicata, apenas ignorar silenciosamente
+          } else {
+            successCount++;
+          }
+        }
+        
+        console.log(`Created ${successCount}/${notifications.length} notifications for company ${settings.company_id} (skipped duplicates)`);
+        results.created = successCount;
+      } else {
+        console.error(`Error creating notifications for company ${settings.company_id}:`, error);
+      }
     } else {
       console.log(`Created ${notifications.length} notifications for company ${settings.company_id}`);
       results.created = notifications.length;
