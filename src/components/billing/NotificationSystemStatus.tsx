@@ -71,12 +71,18 @@ export function NotificationSystemStatus() {
         .single();
 
       // Get latest cron execution logs - buscar por todos os jobs de billing
-      const { data: logs } = await supabase
+      const { data: logs, error: logsError } = await supabase
         .from('cron_execution_logs')
         .select('*')
-        .or('job_name.eq.billing-notifications-function,job_name.eq.billing-notifications-manual-9am,job_name.eq.billing-notifications-daily-3pm')
+        .in('job_name', ['billing-notifications-function', 'billing-notifications-manual-9am', 'billing-notifications-daily-3pm'])
         .order('started_at', { ascending: false })
         .limit(10);
+
+      if (logsError) {
+        console.error('Erro ao buscar logs do cron:', logsError);
+      } else {
+        console.log('Logs do cron encontrados:', logs?.length || 0);
+      }
 
       setStatus({
         total_pending: stats.pending || 0,
