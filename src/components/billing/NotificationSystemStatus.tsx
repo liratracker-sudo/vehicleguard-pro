@@ -70,14 +70,11 @@ export function NotificationSystemStatus() {
         .eq('company_id', profile.company_id)
         .single();
 
-      // Get latest cron execution logs - buscar por todos os jobs de billing
-      const { data: logs, error: logsError } = await supabase
-        .from('cron_execution_logs')
-        .select('*')
-        .in('job_name', ['billing-notifications-function', 'billing-notifications-manual-9am', 'billing-notifications-daily-3pm'])
-        .order('started_at', { ascending: false })
-        .limit(10);
-
+      // Get latest cron execution logs via edge function (bypasses RLS)
+      const { data: logsResponse, error: logsError } = await supabase.functions.invoke('get-cron-logs');
+      
+      const logs = logsResponse?.logs || [];
+      
       if (logsError) {
         console.error('Erro ao buscar logs do cron:', logsError);
       } else {
