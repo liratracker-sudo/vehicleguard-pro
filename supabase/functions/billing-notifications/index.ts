@@ -1122,6 +1122,9 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       const baseMinute = parseInt(timeParts[1]) || 0;
       const intervalHours = settings.post_due_interval_hours || 6;
       
+      // Contador para espaçar envios imediatos de notificações atrasadas
+      let immediateNotificationCount = 0;
+      
       // Criar notificações para cada dia até hoje
       for (let currentDay = 1; currentDay <= daysPastDue; currentDay++) {
         // Determinar quantos envios para este dia
@@ -1147,12 +1150,14 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
             scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
           }
           
-          // CRITICAL: Para notificações de dias que já passaram, enviar IMEDIATAMENTE
-          // Isso garante que cobranças vencidas sejam notificadas o mais rápido possível
+          // CRITICAL: Para notificações de dias que já passaram, enviar com espaçamento
+          // Isso garante que cobranças vencidas sejam notificadas sem duplicação
           if (scheduledDate.getTime() < now.getTime()) {
-            // Agendar para agora + 1 minuto para permitir o processamento
-            scheduledDate.setTime(now.getTime() + (1 * 60 * 1000));
-            console.log(`⚡ Scheduling overdue notification for IMMEDIATE send (day ${currentDay}, send ${sendIndex + 1})`);
+            // Espaçar envios imediatos: 1min, 3min, 5min, 7min, etc.
+            const delayMinutes = 1 + (immediateNotificationCount * 2);
+            scheduledDate.setTime(now.getTime() + (delayMinutes * 60 * 1000));
+            immediateNotificationCount++;
+            console.log(`⚡ Scheduling overdue notification for send in ${delayMinutes}min (day ${currentDay}, send ${sendIndex + 1})`);
           }
           
           console.log(`Creating post-due notification for day ${currentDay}, send ${sendIndex + 1}/${sendsPerDay}, scheduled for: ${scheduledDate.toISOString()}`);
