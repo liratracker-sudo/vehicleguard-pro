@@ -1112,8 +1112,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     }
 
     // Post-due notifications (for overdue payments)
-    // REGRA: Dias 1, 2, 3 = 1 envio por dia
-    //        Dia 4+ = 2 envios intercalados por dia até pagar
+    // NOVA LÓGICA: Criar apenas a PRÓXIMA notificação respeitando o intervalo de 6h
     if (isOverdue) {
       console.log(`Creating post-due notifications for payment ${payment.id}, ${daysPastDue} days overdue`);
       
@@ -1122,93 +1121,51 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       const baseMinute = parseInt(timeParts[1]) || 0;
       const intervalHours = settings.post_due_interval_hours || 6;
       
-      // Contador para espaçar envios imediatos de notificações atrasadas
-      let immediateNotificationCount = 0;
+      // Buscar a última notificação post_due enviada ou agendada
+      const postDueNotifications = existingNotifications
+        .filter(n => n.event_type === 'post_due')
+        .sort((a, b) => new Date(b.scheduled_for).getTime() - new Date(a.scheduled_for).getTime());
       
-      // Criar notificações para cada dia até hoje
-      for (let currentDay = 1; currentDay <= daysPastDue; currentDay++) {
-        // Determinar quantos envios para este dia
-        // Dias 1-3: 1 envio
-        // Dia 4+: 2 envios intercalados
-        const sendsPerDay = currentDay <= 3 ? 1 : 2;
+      const lastPostDue = postDueNotifications[0];
+      const hasPendingPostDue = postDueNotifications.some(n => n.status === 'pending');
+      
+      // Se já existe uma notificação pendente, não criar outra
+      if (hasPendingPostDue) {
+        console.log(`✅ Post_due notification already pending, skipping creation`);
+      } else {
+        // Calcular quando deve ser a próxima notificação
+        let nextScheduledDate: Date;
         
-        // Verificar quantas notificações já existem para este dia
-        const existingCount = existingPostDueDays.get(currentDay) || 0;
-        
-        // Criar apenas as notificações que faltam
-        for (let sendIndex = existingCount; sendIndex < sendsPerDay; sendIndex++) {
-          const key = `post_due_${currentDay}_${sendIndex}`;
-          if (existingKeys.has(key)) continue;
+        if (!lastPostDue) {
+          // Primeira notificação post_due - enviar agora
+          nextScheduledDate = new Date(now.getTime() + (1 * 60 * 1000)); // +1 min
+          console.log(`🆕 First post_due notification, scheduling for immediate send`);
+        } else {
+          // Próxima notificação = última + intervalo configurado (6h)
+          nextScheduledDate = new Date(lastPostDue.scheduled_for);
+          nextScheduledDate.setHours(nextScheduledDate.getHours() + intervalHours);
+          console.log(`📅 Last post_due at ${lastPostDue.scheduled_for}, scheduling next for ${nextScheduledDate.toISOString()}`);
           
-          let scheduledDate = new Date(dueDate);
-          scheduledDate.setDate(scheduledDate.getDate() + currentDay);
-          // Use Brazil timezone (UTC-3) for scheduling
-          scheduledDate = setBrazilTime(scheduledDate, baseHour, baseMinute);
-          
-          // Segundo envio do dia: adicionar intervalo
-          if (sendIndex === 1) {
-            scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
+          // Se a data calculada já passou, agendar para agora + 1 min
+          if (nextScheduledDate.getTime() < now.getTime()) {
+            nextScheduledDate = new Date(now.getTime() + (1 * 60 * 1000));
+            console.log(`⚡ Adjusted to immediate send: ${nextScheduledDate.toISOString()}`);
           }
-          
-          // CRITICAL: Para notificações de dias que já passaram, enviar com espaçamento
-          // Isso garante que cobranças vencidas sejam notificadas sem duplicação
-          if (scheduledDate.getTime() < now.getTime()) {
-            // Espaçar envios imediatos: 1min, 3min, 5min, 7min, etc.
-            const delayMinutes = 1 + (immediateNotificationCount * 2);
-            scheduledDate.setTime(now.getTime() + (delayMinutes * 60 * 1000));
-            immediateNotificationCount++;
-            console.log(`⚡ Scheduling overdue notification for send in ${delayMinutes}min (day ${currentDay}, send ${sendIndex + 1})`);
-          }
-          
-          console.log(`Creating post-due notification for day ${currentDay}, send ${sendIndex + 1}/${sendsPerDay}, scheduled for: ${scheduledDate.toISOString()}`);
-          
-          notifications.push({
-            company_id: settings.company_id,
-            payment_id: payment.id,
-            client_id: payment.client_id,
-            event_type: 'post_due',
-            offset_days: currentDay,
-            scheduled_for: scheduledDate.toISOString(),
-            status: 'pending',
-            notification_settings_id: settings.id,
-            attempts: 0
-          });
         }
-      }
-      
-      // Criar notificações para o próximo dia (dia atual + 1)
-      // Isso garante que sempre temos notificações agendadas para o futuro
-      const nextDay = daysPastDue + 1;
-      const existingCountNextDay = existingPostDueDays.get(nextDay) || 0;
-      const sendsNextDay = nextDay <= 3 ? 1 : 2;
-      
-      if (existingCountNextDay < sendsNextDay) {
-        console.log(`Creating notifications for next day ${nextDay} (${sendsNextDay} sends)`);
         
-        for (let sendIndex = existingCountNextDay; sendIndex < sendsNextDay; sendIndex++) {
-          let scheduledDate = new Date(dueDate);
-          scheduledDate.setDate(scheduledDate.getDate() + nextDay);
-          // Use Brazil timezone (UTC-3) for scheduling
-          scheduledDate = setBrazilTime(scheduledDate, baseHour, baseMinute);
-          
-          if (sendIndex === 1) {
-            scheduledDate.setHours(scheduledDate.getHours() + intervalHours);
-          }
-          
-          console.log(`Creating next-day notification for day ${nextDay}, send ${sendIndex + 1}/${sendsNextDay}`);
-          
-          notifications.push({
-            company_id: settings.company_id,
-            payment_id: payment.id,
-            client_id: payment.client_id,
-            event_type: 'post_due',
-            offset_days: nextDay,
-            scheduled_for: scheduledDate.toISOString(),
-            status: 'pending',
-            notification_settings_id: settings.id,
-            attempts: 0
-          });
-        }
+        console.log(`Creating next post-due notification scheduled for: ${nextScheduledDate.toISOString()}`);
+        
+        notifications.push({
+          company_id: settings.company_id,
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          event_type: 'post_due',
+          offset_days: daysPastDue,
+          scheduled_for: nextScheduledDate.toISOString(),
+          status: 'pending',
+          notification_settings_id: settings.id,
+          attempts: 0
+        });
       }
     }
   }
