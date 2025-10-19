@@ -1162,30 +1162,6 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
             console.log(`⚡ Payment #${paymentIndex}: Adjusted to immediate send with ${delayMinutes}min delay: ${nextScheduledDate.toISOString()}`);
           }
         }
-          // Primeira notificação post_due - agendar para o horário configurado (9h da manhã no Brasil)
-          nextScheduledDate = setBrazilTime(new Date(), baseHour, baseMinute);
-          
-          // Se já passou do horário de hoje, enviar em alguns minutos
-          if (nextScheduledDate.getTime() < now.getTime()) {
-            // Escalonar múltiplos pagamentos: 2min, 5min, 8min, 11min...
-            const delayMinutes = 2 + ((paymentIndex - 1) * 3);
-            nextScheduledDate = new Date(now.getTime() + (delayMinutes * 60 * 1000));
-          }
-          console.log(`🆕 First post_due notification, scheduling for ${nextScheduledDate.toISOString()}`);
-        } else {
-          // Próxima notificação = última + intervalo configurado (6h)
-          nextScheduledDate = new Date(lastPostDue.scheduled_for);
-          nextScheduledDate.setHours(nextScheduledDate.getHours() + intervalHours);
-          console.log(`📅 Last post_due at ${lastPostDue.scheduled_for}, scheduling next for ${nextScheduledDate.toISOString()}`);
-          
-          // Se a data calculada já passou, agendar com escalonamento
-          if (nextScheduledDate.getTime() < now.getTime()) {
-            // Escalonar múltiplos pagamentos: 2min, 5min, 8min, 11min...
-            const delayMinutes = 2 + ((paymentIndex - 1) * 3);
-            nextScheduledDate = new Date(now.getTime() + (delayMinutes * 60 * 1000));
-            console.log(`⚡ Adjusted to immediate send with ${delayMinutes}min delay: ${nextScheduledDate.toISOString()}`);
-          }
-        }
         
         console.log(`Creating next post-due notification scheduled for: ${nextScheduledDate.toISOString()}`);
         
