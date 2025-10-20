@@ -51,7 +51,7 @@ CREATE TABLE public.payment_transactions (
   transaction_type TEXT NOT NULL, -- 'boleto', 'pix', 'link', 'card'
   amount NUMERIC NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'paid', 'cancelled', 'expired'
-  payment_gateway TEXT, -- 'asaas', 'mercadopago', 'efi'
+  payment_gateway TEXT, -- 'cora', 'asaas', 'mercadopago', 'efi'
   external_id TEXT,
   payment_url TEXT,
   pix_code TEXT,

@@ -17,17 +17,7 @@ serve(async (req) => {
   }
 
   try {
-    interface RequestBody {
-      action: string;
-      payment_id?: string;
-      data?: {
-        status?: string;
-        paid_at?: string;
-      };
-      company_id?: string;
-    }
-
-    const { action, payment_id, data, company_id }: RequestBody = await req.json();
+    const { action, payment_id, data, company_id } = await req.json();
     
     // Create authenticated client
     const authHeader = req.headers.get('Authorization');
@@ -135,8 +125,7 @@ serve(async (req) => {
 
         // Prepare payment reminder message
         const paymentUrl = payment.payment_url || payment.pix_code || 'Contacte-nos para obter o link de pagamento';
-        const clientName = payment.clients?.name || 'Cliente';
-        const message = `Olá ${clientName}, lembramos que você tem um pagamento no valor de R$ ${payment.amount} com vencimento em ${payment.due_date}. ${paymentUrl.startsWith('http') ? `Link para pagamento: ${paymentUrl}` : paymentUrl}`;
+        const message = `Olá ${payment.clients?.name || 'Cliente'}, lembramos que você tem um pagamento no valor de R$ ${payment.amount} com vencimento em ${payment.due_date}. ${paymentUrl.startsWith('http') ? `Link para pagamento: ${paymentUrl}` : paymentUrl}`;
 
         // Send notification via WhatsApp using the user's JWT (RLS-aware)
         const notificationResponse = await supabase.functions.invoke('notify-whatsapp', {
@@ -150,7 +139,6 @@ serve(async (req) => {
 
         let success = true;
         let errMsg = '';
-        
         if (notificationResponse.error) {
           success = false;
           errMsg = notificationResponse.error.message || 'Falha ao chamar notify-whatsapp';
