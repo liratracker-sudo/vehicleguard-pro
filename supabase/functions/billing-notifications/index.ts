@@ -32,8 +32,15 @@ function setBrazilTime(date: Date, hour: number, minute: number): Date {
   const brazilDate = new Date(date);
   
   // Brazil is UTC-3, so to set 9h Brazil time, we need 12h UTC
-  // 9h Brazil + 3h offset = 12h UTC
+  // We set the UTC time directly - when it's 12:00 UTC, it's 09:00 in Brazil
   brazilDate.setUTCHours(hour + 3, minute, 0, 0);
+  
+  // Get the date in Brazil timezone for display
+  const brazilTimeStr = brazilDate.toLocaleString('en-US', { 
+    timeZone: 'America/Sao_Paulo', 
+    hour12: false 
+  });
+  console.log(`🕐 Setting time: ${hour}:${minute.toString().padStart(2, '0')} Brazil = ${brazilDate.toISOString()} UTC (Brazil time: ${brazilTimeStr})`);
   
   return brazilDate;
 }
@@ -865,7 +872,6 @@ async function createMissingNotifications(specificPaymentId?: string, specificCo
   console.log('Creating missing notifications...', { specificPaymentId, specificCompanyId });
   
   const results = { created: 0, skipped: 0 };
-  let paymentIndex = 0; // Para escalonar notificações de múltiplos pagamentos
   
   // First, update overdue payments status
   const today = new Date();
@@ -901,19 +907,24 @@ async function createMissingNotifications(specificPaymentId?: string, specificCo
     return results;
   }
 
+  // Global payment index for staggering notifications across all companies
+  let globalPaymentIndex = 0;
+
   for (const settings of companiesWithSettings) {
-    const companyResults = await createNotificationsForCompany(settings, specificPaymentId);
+    const companyResults = await createNotificationsForCompany(settings, specificPaymentId, globalPaymentIndex);
     results.created += companyResults.created;
     results.skipped += companyResults.skipped;
+    globalPaymentIndex = companyResults.lastPaymentIndex;
   }
   
   return results;
 }
 
-async function createNotificationsForCompany(settings: any, specificPaymentId?: string) {
+async function createNotificationsForCompany(settings: any, specificPaymentId?: string, startPaymentIndex: number = 0) {
   console.log(`Creating notifications for company: ${settings.company_id}${specificPaymentId ? `, payment: ${specificPaymentId}` : ''}`);
   
-  const results = { created: 0, skipped: 0 };
+  const results = { created: 0, skipped: 0, lastPaymentIndex: startPaymentIndex };
+  let paymentIndex = startPaymentIndex;
   
   // Build query for payments that need notifications
   let query = supabase
@@ -958,6 +969,7 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
   for (const payment of paymentsWithoutNotifications) {
     // Incrementar índice para escalonamento de múltiplos pagamentos
     paymentIndex++;
+    results.lastPaymentIndex = paymentIndex;
     
     // Skip payments without valid client data
     if (!payment.clients || !payment.clients.phone) {
