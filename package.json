@@ -5,10 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "setup:test": "node setup-test-environment.js",
+    "setup:check": "node -e \"console.log('🔍 Verificando configuração...'); console.log('URL:', process.env.VITE_SUPABASE_URL); console.log('Project ID:', process.env.VITE_SUPABASE_PROJECT_ID);\"",
+    "env:production": "cp .env.production .env && echo '✅ Ambiente de PRODUÇÃO ativado'",
+    "env:test": "cp .env.test .env && echo '✅ Ambiente de TESTES ativado'",
+    "env:backup": "cp .env .env.backup && echo '💾 Backup do .env criado'",
+    "setup:seed": "node scripts/seed-test-data.js",
+    "setup:validate": "node scripts/validate-setup.js",
+    "setup:help": "echo '🚀 VehicleGuard Pro Setup Commands:\\n\\n📋 Setup:\\n  npm run setup:test     - Configurar ambiente de testes\\n  npm run setup:check    - Verificar configuração atual\\n  npm run setup:validate - Validar setup completo\\n\\n🔄 Ambientes:\\n  npm run env:production - Ativar produção\\n  npm run env:test       - Ativar testes\\n  npm run env:backup     - Backup do .env\\n\\n🛠️  Utilitários:\\n  npm run setup:seed     - Popular dados de teste\\n  npm run setup:help     - Mostrar esta ajuda'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

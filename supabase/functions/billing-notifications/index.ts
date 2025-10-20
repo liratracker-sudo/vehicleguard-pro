@@ -33,6 +33,8 @@ function setBrazilTime(date: Date, hour: number, minute: number): Date {
   
   // Brazil is UTC-3, so to set 9h Brazil time, we need 12h UTC
   // We set the UTC time directly - when it's 12:00 UTC, it's 09:00 in Brazil
+  // CORREÇÃO: Para horário do Brasil (UTC-3), precisamos SOMAR 3 horas ao horário desejado
+  // Exemplo: 9h Brasil = 12h UTC, então 9 + 3 = 12
   brazilDate.setUTCHours(hour + 3, minute, 0, 0);
   
   // Get the date in Brazil timezone for display
