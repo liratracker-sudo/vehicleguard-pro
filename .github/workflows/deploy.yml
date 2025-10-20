@@ -28,18 +28,13 @@ jobs:
       with:
         version: latest
         
-    - name: Link Supabase project
-      run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+    - name: Link to Supabase project
+      run: npx supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         
-    - name: Run database migrations
-      run: supabase db push
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        
-    - name: Deploy Edge Functions
-      run: supabase functions deploy
+    - name: Deploy Supabase functions
+      run: npx supabase functions deploy --no-verify-jwt
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         
