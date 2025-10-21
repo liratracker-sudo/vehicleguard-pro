@@ -72,11 +72,15 @@ export function BillingNotifications() {
       }
 
       if (data) {
-        // Garantir que novos campos tenham valores padrão
-        const settingsWithDefaults = {
+        // Adicionar valores padrão para campos que podem não existir
+        const settingsWithDefaults: NotificationSettings = {
           ...data,
-          post_due_times: data.post_due_times || 2,
-          post_due_interval_hours: data.post_due_interval_hours || 6
+          on_due_times: 1,
+          on_due_interval_hours: 2,
+          post_due_times: 2,
+          post_due_interval_hours: 6,
+          max_attempts_per_notification: 3,
+          retry_interval_hours: 1
         };
         setSettings(settingsWithDefaults);
       } else {
@@ -109,7 +113,17 @@ export function BillingNotifications() {
           throw createError;
         }
 
-        setSettings(created);
+        // Adicionar campos padrão que não existem no DB
+        const createdWithDefaults: NotificationSettings = {
+          ...created,
+          on_due_times: 1,
+          on_due_interval_hours: 2,
+          post_due_times: 2,
+          post_due_interval_hours: 6,
+          max_attempts_per_notification: 3,
+          retry_interval_hours: 1
+        };
+        setSettings(createdWithDefaults);
       }
     } catch (error: any) {
       console.error('Erro ao carregar configurações:', error);

@@ -326,7 +326,7 @@ const ContractsPage = () => {
                                 <FileSearch className="mr-2 h-4 w-4" />
                                 Ver logs
                               </DropdownMenuItem>
-                              {contract.assinafy_document_id && (
+                              {contract.autentique_document_id && (
                                 <DropdownMenuItem 
                                   onClick={() => handleSyncStatus(contract)}
                                   disabled={syncingStatus === contract.id}

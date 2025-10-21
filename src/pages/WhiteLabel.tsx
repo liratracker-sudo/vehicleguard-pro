@@ -115,7 +115,7 @@ const WhiteLabelPage = () => {
         logo: brandingData?.logo_url || "",
         primaryColor: brandingData?.primary_color || "#3b82f6",
         secondaryColor: brandingData?.secondary_color || "#f8fafc",
-        accentColor: brandingData?.accent_color || "#10b981",
+        accentColor: "#10b981", // Cor padrão - accent_color não existe no DB
         domain: brandingData?.subdomain || company?.domain || "",
         favicon: brandingData?.favicon_url || ""
       })

@@ -15,8 +15,7 @@ export interface Contract {
   contract_type: string;
   signature_status: string;
   document_url: string | null;
-  assinafy_document_id: string | null;
-  // Removido: autentique_document_id (migrado para assinafy_document_id)
+  autentique_document_id: string | null; // Corrigido: esta coluna existe no DB
   signed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -470,17 +469,17 @@ Assinatura do Contratante
 
       const { data: contractsData } = await supabase
         .from('contracts')
-        .select('id, signature_status, assinafy_document_id')
+        .select('id, signature_status, autentique_document_id')
         .eq('company_id', profile.company_id)
         .eq('signature_status', 'pending')
-        .not('assinafy_document_id', 'is', null);
+        .not('autentique_document_id', 'is', null);
 
       if (contractsData && contractsData.length > 0) {
         console.log(`Auto-sincronizando ${contractsData.length} contrato(s) pendente(s)...`)
         
         let anyChanged = false
         for (const contract of contractsData) {
-          const changed = await syncContractStatus(contract.id, contract.assinafy_document_id!)
+          const changed = await syncContractStatus(contract.id, contract.autentique_document_id!)
           if (changed) anyChanged = true
         }
 

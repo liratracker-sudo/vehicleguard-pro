@@ -30,27 +30,16 @@ export function useEnsureAsaasWebhook() {
 
         const { data: settings } = await supabase
           .from('asaas_settings')
-          .select('id, webhook_id, webhook_enabled, is_active')
+          .select('id, is_active')
           .eq('company_id', profile.company_id)
           .eq('is_active', true)
           .maybeSingle();
 
         if (!settings) return; // Asaas not configured for this company
 
-        if (!settings.webhook_id || settings.webhook_enabled === false) {
-          const resp = await supabase.functions.invoke('asaas-integration', {
-            body: { action: 'setup_webhook' }
-          });
-
-          if (resp.error || !resp.data?.success) {
-            throw new Error(resp.error?.message || resp.data?.message || 'Falha ao configurar webhook');
-          }
-
-          toast({
-            title: 'Webhook Asaas configurado',
-            description: 'Atualizações de pagamento agora serão recebidas em tempo real.',
-          });
-        }
+        // Webhook não disponível após restauração - desabilitado
+        console.log('Webhook Asaas não configurado (colunas não existem após restauração)');
+        return;
       } catch (err: any) {
         // Silencioso para não atrapalhar o fluxo; logar para diagnóstico
         console.error('useEnsureAsaasWebhook error:', err);

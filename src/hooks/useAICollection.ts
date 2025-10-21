@@ -16,7 +16,7 @@ export interface AIWeeklyReport {
   id: string;
   company_id: string;
   is_active: boolean;
-  manager_phones: string[] | null;
+  manager_phone: string | null; // Corrigido: singular, não plural
   schedule_day: number;
   schedule_time: string;
   last_sent_at: string | null;

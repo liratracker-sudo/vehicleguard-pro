@@ -61,7 +61,7 @@ export function AsaasIntegration() {
           showWebhookToken: false
         })
         setLastTestResult(settings.test_result)
-        setWebhookConfigured(!!settings.webhook_id)
+        setWebhookConfigured(false) // Webhook não está disponível na restauração
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error)

@@ -240,53 +240,12 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [connectionState.reconnectAttempts, checkConnection, toast]);
 
-  // Função para validar sessão usando middleware do banco
+  // Função para validar sessão - DESABILITADO após restauração DB
   const validateSession = useCallback(async (): Promise<boolean> => {
-    try {
-      const companyId = await getUserCompanyId();
-      if (!companyId) return false;
-
-      const { data, error } = await supabase
-        .rpc('validate_whatsapp_session', { p_company_id: companyId });
-
-      if (error) {
-        console.error('Erro ao validar sessão:', error);
-        return false;
-      }
-
-      const validation = data?.[0];
-      if (!validation?.is_valid) {
-        // Sessão inválida - apenas mostrar status, não reconectar automaticamente
-        if (validation?.session_status === 'expired') {
-          setConnectionState(prev => ({
-            ...prev,
-            isConnected: false,
-            connectionStatus: 'expired'
-          }));
-        } else {
-          setConnectionState(prev => ({
-            ...prev,
-            isConnected: false,
-            connectionStatus: validation?.session_status as any || 'disconnected'
-          }));
-        }
-        
-        return false;
-      }
-
-      setConnectionState(prev => ({
-        ...prev,
-        isConnected: true,
-        connectionStatus: 'connected',
-        instanceName: validation.instance_name
-      }));
-      
-      return true;
-    } catch (error) {
-      console.error('Erro ao validar sessão:', error);
-      return false;
-    }
-  }, [reconnect, toast]);
+    // RPC validate_whatsapp_session não existe após restauração
+    console.warn('validateSession: função RPC não disponível');
+    return false;
+  }, []);
 
   // Função para forçar refresh
   const refreshConnection = useCallback(() => {

@@ -39,18 +39,11 @@ export function AssinafyIntegration() {
       if (!profile?.company_id) return
       setCompanyId(profile.company_id)
 
-      // Get company settings
-      const { data: company } = await supabase
-        .from('companies')
-        .select('assinafy_api_key, assinafy_workspace_id')
-        .eq('id', profile.company_id)
-        .single()
-
-      if (company) {
-        setApiKey(company.assinafy_api_key || "")
-        setWorkspaceId(company.assinafy_workspace_id || "")
-        setIsConfigured(Boolean(company.assinafy_api_key && company.assinafy_workspace_id))
-      }
+      // Assinafy não está mais armazenado em companies após restauração
+      // Manter configurações zeradas para permitir nova configuração
+      setApiKey("")
+      setWorkspaceId("")
+      setIsConfigured(false)
     } catch (error: any) {
       console.error('Error loading Assinafy settings:', error)
       toast({
@@ -76,15 +69,14 @@ export function AssinafyIntegration() {
     try {
       setLoading(true)
 
-      const { error } = await supabase
-        .from('companies')
-        .update({ 
-          assinafy_api_key: apiKey.trim(),
-          assinafy_workspace_id: workspaceId.trim()
-        })
-        .eq('id', companyId)
-
-      if (error) throw error
+      // Assinafy settings não disponíveis após restauração do banco
+      // Pode criar uma tabela assinafy_settings separada no futuro
+      toast({
+        title: "Aviso",
+        description: "Integração Assinafy indisponível após restauração. Configure via Edge Function.",
+        variant: "destructive"
+      })
+      return
 
       setIsConfigured(true)
       toast({

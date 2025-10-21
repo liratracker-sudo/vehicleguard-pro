@@ -84,12 +84,15 @@ export function useCompanyAdmin() {
 
   const logActivity = async (companyId: string, activityType: string, description: string, metadata: any = {}) => {
     try {
-      const { error } = await supabase.rpc('log_company_activity', {
-        p_company_id: companyId,
-        p_activity_type: activityType,
-        p_description: description,
-        p_metadata: metadata
-      })
+      // RPC log_company_activity não existe após restauração - inserir diretamente
+      const { error } = await supabase
+        .from('company_activity_logs')
+        .insert({
+          company_id: companyId,
+          activity_type: activityType,
+          description: description,
+          metadata: metadata
+        })
 
       if (error) throw error
     } catch (error: any) {
