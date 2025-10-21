@@ -1,16 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
-import type { 
-  DebugChecks, 
-  NotificationSettings, 
-  PaymentTransaction, 
-  Client, 
-  PaymentNotification, 
-  NotificationSettingsData, 
-  WhatsAppSettings, 
-  AICollectionSettings 
-} from "./types.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,52 +12,39 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Helper function to convert UTC date to Brazil timezone (America/Sao_Paulo = UTC-3)
+function toBrazilTime(date: Date): Date {
+  // Get the timezone offset for Brazil (UTC-3 = -180 minutes)
+  const brazilOffset = -180; // -3 hours in minutes
+  const utcOffset = date.getTimezoneOffset(); // Current timezone offset in minutes
+  
+  // Calculate the difference and adjust
+  const offsetDiff = utcOffset - brazilOffset;
+  
+  // Create new date adjusted to Brazil time
+  const brazilDate = new Date(date.getTime() - (offsetDiff * 60 * 1000));
+  return brazilDate;
+}
+
 // Helper function to set time in Brazil timezone
 function setBrazilTime(date: Date, hour: number, minute: number): Date {
-  try {
-    // Create a date string in Brazil timezone format
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const hourStr = hour.toString().padStart(2, '0');
-    const minuteStr = minute.toString().padStart(2, '0');
-    
-    // Create date string in Brazil timezone
-    const brazilDateStr = `${year}-${month}-${day}T${hourStr}:${minuteStr}:00`;
-    
-    // Parse the date as if it's in Brazil timezone
-    const tempDate = new Date(brazilDateStr);
-    
-    // Get the timezone offset for Brazil at this specific date (handles DST)
-    const brazilOffset = new Date().toLocaleString('en-US', { 
-      timeZone: 'America/Sao_Paulo' 
-    });
-    const utcOffset = new Date().toLocaleString('en-US', { 
-      timeZone: 'UTC' 
-    });
-    
-    // Calculate the actual offset (usually -3 hours, but can be -2 during DST)
-    const offsetMs = new Date(utcOffset).getTime() - new Date(brazilOffset).getTime();
-    
-    // Apply the offset to get the correct UTC time
-    const brazilDate = new Date(tempDate.getTime() + offsetMs);
-    
-    // Verification: Get the date in Brazil timezone for display
-    const brazilTimeStr = brazilDate.toLocaleString('en-US', { 
-      timeZone: 'America/Sao_Paulo', 
-      hour12: false 
-    });
-    
-    console.log(`🕐 Setting time: ${hour}:${minuteStr} Brazil = ${brazilDate.toISOString()} UTC (Brazil time: ${brazilTimeStr})`);
-    
-    return brazilDate;
-  } catch (error) {
-    console.error('❌ Error in setBrazilTime:', error);
-    // Fallback to simple UTC offset calculation
-    const brazilDate = new Date(date);
-    brazilDate.setUTCHours(hour + 3, minute, 0, 0);
-    return brazilDate;
-  }
+  // Create a new date based on the input date
+  const brazilDate = new Date(date);
+  
+  // Brazil is UTC-3, so to set 9h Brazil time, we need 12h UTC
+  // We set the UTC time directly - when it's 12:00 UTC, it's 09:00 in Brazil
+  // CORREÇÃO: Para horário do Brasil (UTC-3), precisamos SOMAR 3 horas ao horário desejado
+  // Exemplo: 9h Brasil = 12h UTC, então 9 + 3 = 12
+  brazilDate.setUTCHours(hour + 3, minute, 0, 0);
+  
+  // Get the date in Brazil timezone for display
+  const brazilTimeStr = brazilDate.toLocaleString('en-US', { 
+    timeZone: 'America/Sao_Paulo', 
+    hour12: false 
+  });
+  console.log(`🕐 Setting time: ${hour}:${minute.toString().padStart(2, '0')} Brazil = ${brazilDate.toISOString()} UTC (Brazil time: ${brazilTimeStr})`);
+  
+  return brazilDate;
 }
 
 serve(async (req) => {
@@ -271,22 +248,18 @@ async function resendSpecificNotification(notificationId: string) {
   } catch (error) {
     console.error(`Failed to resend notification ${notification.id}:`, error);
     
-    // Update with error but don't mark as failed immediately - allow for retries
+    // Update with error
     await supabase
       .from('payment_notifications')
       .update({
-        status: 'pending', // Keep as pending to allow retries
+        status: 'failed',
         attempts: (notification.attempts || 0) + 1,
-        last_error: error instanceof Error ? error.message : String(error),
-        // Schedule for retry in 1 hour
-        scheduled_for: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        last_error: error instanceof Error ? error.message : String(error)
       })
       .eq('id', notification.id);
     
     results.failed++;
-    
-    // Log error but don't break the flow - return results instead of throwing
-    console.log(`Notification ${notification.id} marked for retry due to error: ${error instanceof Error ? error.message : String(error)}`);
+    throw error; // Re-throw to be caught by the main handler
   }
   
   return results;
@@ -331,11 +304,21 @@ async function debugSpecificNotification(notificationId: string) {
       whatsapp_configured: false,
       whatsapp_connected: false,
       template_rendered: false,
-      whatsapp_connection_details: undefined,
+      whatsapp_connection_details: null as any,
       rendered_message: '',
       whatsapp_connection_error: '',
       template_error: ''
-    } as DebugChecks
+    } as {
+      has_phone: boolean;
+      payment_valid: boolean;
+      whatsapp_configured: boolean;
+      whatsapp_connected: boolean;
+      template_rendered: boolean;
+      whatsapp_connection_details?: any;
+      rendered_message?: string;
+      whatsapp_connection_error?: string;
+      template_error?: string;
+    }
   };
 
   console.log('📊 Debug Info:', debugInfo);
@@ -431,7 +414,7 @@ async function debugSpecificNotification(notificationId: string) {
   };
 }
 
-function generateRecommendations(debugInfo: { checks: DebugChecks }): string[] {
+function generateRecommendations(debugInfo: any): string[] {
   const recommendations = [];
 
   if (!debugInfo.checks.has_phone) {
@@ -505,17 +488,6 @@ async function sendPendingNotifications(force = false) {
     payment_status: n.payment_transactions?.status,
     scheduled_for: n.scheduled_for
   })));
-  
-  // Get notification settings once for all notifications (assuming same company)
-  let notificationSettings: NotificationSettings | null = null;
-  if (pendingNotifications && pendingNotifications.length > 0) {
-    const { data: settings } = await supabase
-      .from('payment_notification_settings')
-      .select('max_attempts_per_notification, retry_interval_hours')
-      .eq('company_id', pendingNotifications[0].company_id)
-      .single();
-    notificationSettings = settings;
-  }
 
   for (const notification of pendingNotifications || []) {
     console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
@@ -545,6 +517,13 @@ async function sendPendingNotifications(force = false) {
     }
     
     try {
+      // Get notification settings for the company to use retry settings
+      const { data: notificationSettings } = await supabase
+        .from('payment_notification_settings')
+        .select('max_attempts_per_notification, retry_interval_hours')
+        .eq('company_id', notification.company_id)
+        .single();
+
       await sendSingleNotification(notification);
       
       // Mark as sent with retry limit
@@ -561,6 +540,13 @@ async function sendPendingNotifications(force = false) {
       results.sent++;
     } catch (error) {
       console.error(`Failed to send notification ${notification.id}:`, error);
+      
+      // Get notification settings for retry logic
+      const { data: notificationSettings } = await supabase
+        .from('payment_notification_settings')
+        .select('max_attempts_per_notification, retry_interval_hours')
+        .eq('company_id', notification.company_id)
+        .single();
       
       // Update attempts and mark as failed if too many attempts
       const newAttempts = notification.attempts + 1;
@@ -629,27 +615,7 @@ async function cleanupInvalidNotifications() {
   }
 }
 
-async function sendSingleNotification(notification: {
-  id: string;
-  company_id: string;
-  event_type: string;
-  client_id: string;
-  payment_transactions: {
-    id: string;
-    status: string;
-    amount: number;
-    due_date: string;
-    payment_url?: string;
-    pix_code?: string;
-    barcode?: string;
-    clients: {
-      id: string;
-      name: string;
-      phone: string;
-      email?: string;
-    };
-  };
-}) {
+async function sendSingleNotification(notification: any) {
   const payment = notification.payment_transactions;
   const client = payment.clients;
   
@@ -663,17 +629,6 @@ async function sendSingleNotification(notification: {
   if (!client?.phone) {
     throw new Error('Cliente não possui telefone cadastrado');
   }
-
-  // Validate phone number format
-  const phoneRegex = /^55\d{10,11}$/; // Brazilian phone format: 55 + 10 or 11 digits
-  const cleanPhone = client.phone.replace(/\D/g, ''); // Remove non-digits
-  
-  if (!phoneRegex.test(cleanPhone)) {
-    console.error(`❌ Invalid phone format for client ${client.id}: ${client.phone} (cleaned: ${cleanPhone})`);
-    throw new Error(`Formato de telefone inválido: ${client.phone}. Deve estar no formato brasileiro com código do país (55).`);
-  }
-  
-  console.log(`✅ Phone validation passed for client ${client.id}: ${cleanPhone}`);
 
   // Get WhatsApp settings for company
   const { data: whatsappSettings } = await supabase
@@ -870,25 +825,7 @@ async function logWhatsAppAlert(companyId: string, message: string) {
   }
 }
 
-function renderTemplate(
-  notification: { event_type: string },
-  payment: { 
-    amount: number; 
-    due_date: string; 
-    payment_url?: string; 
-    pix_code?: string;
-    barcode?: string;
-  },
-  client: { name: string },
-  settings: { 
-    pre_due_template?: string;
-    on_due_template?: string;
-    post_due_template?: string;
-    template_pre_due?: string;
-    template_on_due?: string;
-    template_post_due?: string;
-  }
-): string {
+function renderTemplate(notification: any, payment: any, client: any, settings: any): string {
   let template = '';
   
   switch (notification.event_type) {
@@ -985,11 +922,7 @@ async function createMissingNotifications(specificPaymentId?: string, specificCo
   return results;
 }
 
-async function createNotificationsForCompany(
-  settings: NotificationSettingsData,
-  specificPaymentId?: string,
-  startPaymentIndex: number = 0
-) {
+async function createNotificationsForCompany(settings: any, specificPaymentId?: string, startPaymentIndex: number = 0) {
   console.log(`Creating notifications for company: ${settings.company_id}${specificPaymentId ? `, payment: ${specificPaymentId}` : ''}`);
   
   const results = { created: 0, skipped: 0, lastPaymentIndex: startPaymentIndex };
@@ -1112,8 +1045,7 @@ async function createNotificationsForCompany(
 
     // Pre-due notifications (only for future payments)
     if (!isOverdue) {
-      const preDueDays = Array.isArray(settings.pre_due_days) ? settings.pre_due_days : (settings.pre_due_days ? [settings.pre_due_days] : []);
-      for (const days of preDueDays) {
+      for (const days of settings.pre_due_days || []) {
         const key = `pre_due_${days}`;
         if (existingKeys.has(key)) continue;
         
