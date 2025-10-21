@@ -24,13 +24,14 @@ export function RoleGuard({ allowed, children }: RoleGuardProps) {
       
       // Se está verificando super_admin, buscar de user_roles
       if (allowed.includes('super_admin')) {
-        const { data: userRole } = await supabase
+        const { data: userRole, error } = await supabase
           .from('user_roles')
           .select('role')
           .eq('user_id', userId)
           .eq('role', 'super_admin')
-          .single()
+          .maybeSingle()
         
+        console.log('RoleGuard - Super Admin Check:', { userId, userRole, error })
         if (isMounted) setAllowedAccess(!!userRole)
       } else {
         // Para outros roles, buscar de profiles
@@ -38,7 +39,7 @@ export function RoleGuard({ allowed, children }: RoleGuardProps) {
           .from('profiles')
           .select('role')
           .eq('user_id', userId)
-          .single()
+          .maybeSingle()
         const role = profile?.role ?? 'user'
         if (isMounted) setAllowedAccess(allowed.includes(role))
       }

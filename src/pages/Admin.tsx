@@ -30,12 +30,14 @@ const AdminPage = () => {
         .single()
 
       // Verificar se o usuário tem role de super_admin na tabela user_roles
-      const { data: userRole } = await supabase
+      const { data: userRole, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
         .eq('role', 'super_admin')
-        .single()
+        .maybeSingle()
+
+      console.log('Admin Page - Super Admin Check:', { userId: user.id, userRole, roleError })
 
       if (profile) {
         setUserProfile(profile)
