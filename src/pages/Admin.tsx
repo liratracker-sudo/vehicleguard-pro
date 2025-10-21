@@ -29,9 +29,17 @@ const AdminPage = () => {
         .eq('user_id', user.id)
         .single()
 
+      // Verificar se o usuário tem role de super_admin na tabela user_roles
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'super_admin')
+        .single()
+
       if (profile) {
         setUserProfile(profile)
-        setIsSuperAdmin(profile.role === 'super_admin')
+        setIsSuperAdmin(!!userRole)
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error)

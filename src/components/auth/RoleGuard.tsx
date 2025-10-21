@@ -21,13 +21,27 @@ export function RoleGuard({ allowed, children }: RoleGuardProps) {
         return
       }
       const userId = session.user.id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', userId)
-        .single()
-      const role = profile?.role ?? 'user'
-      if (isMounted) setAllowedAccess(allowed.includes(role))
+      
+      // Se está verificando super_admin, buscar de user_roles
+      if (allowed.includes('super_admin')) {
+        const { data: userRole } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .eq('role', 'super_admin')
+          .single()
+        
+        if (isMounted) setAllowedAccess(!!userRole)
+      } else {
+        // Para outros roles, buscar de profiles
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('user_id', userId)
+          .single()
+        const role = profile?.role ?? 'user'
+        if (isMounted) setAllowedAccess(allowed.includes(role))
+      }
       setLoading(false)
     })()
     return () => { isMounted = false }
