@@ -568,6 +568,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                 <SelectContent>
                   <SelectItem value="asaas">Asaas</SelectItem>
                   <SelectItem value="mercadopago">Mercado Pago</SelectItem>
+                  <SelectItem value="cora">Cora</SelectItem>
                   <SelectItem value="efi">Efi Bank</SelectItem>
                 </SelectContent>
               </Select>
