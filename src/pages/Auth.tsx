@@ -17,7 +17,6 @@ const AuthPage = () => {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [resetEmailSent, setResetEmailSent] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -132,38 +131,6 @@ const AuthPage = () => {
     setLoading(false)
   }
 
-  const resetPassword = async () => {
-    if (!formData.email) {
-      toast({
-        title: "Erro",
-        description: "Por favor, digite seu email primeiro",
-        variant: "destructive"
-      })
-      return
-    }
-
-    setLoading(true)
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
-      redirectTo: `${window.location.origin}/auth?reset=true`,
-    })
-
-    if (error) {
-      toast({
-        title: "Erro ao enviar email",
-        description: error.message,
-        variant: "destructive"
-      })
-    } else {
-      setResetEmailSent(true)
-      toast({
-        title: "Email enviado!",
-        description: "Verifique sua caixa de entrada para redefinir sua senha.",
-      })
-    }
-
-    setLoading(false)
-  }
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
       ...prev,
@@ -286,17 +253,6 @@ const AuthPage = () => {
                   <Button type="submit" className="w-full mt-4 h-10" disabled={loading}>
                     {loading ? "Entrando..." : "Entrar"}
                   </Button>
-                  
-                  <div className="text-center mt-3">
-                    <button
-                      type="button"
-                      onClick={resetPassword}
-                      className="text-sm text-blue-400 hover:text-blue-300 underline"
-                      disabled={loading}
-                    >
-                      {resetEmailSent ? "Email enviado! Verifique sua caixa de entrada" : "Esqueci minha senha"}
-                    </button>
-                  </div>
                 </form>
               </TabsContent>
               

@@ -50,7 +50,6 @@ const WhiteLabelPage = () => {
   })
 
   const [integrations, setIntegrations] = useState({
-    cora: { enabled: false, apiKey: "", environment: "sandbox" },
     asaas: { enabled: false, apiKey: "", environment: "sandbox" },
     mercadoPago: { enabled: false, publicKey: "", accessToken: "", environment: "sandbox" },
     efi: { enabled: false, clientId: "", clientSecret: "", environment: "sandbox" },

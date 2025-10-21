@@ -87,7 +87,7 @@ const accounts = [
   {
     id: 1,
     name: "Conta Corrente Principal",
-    bank: "Banco Cora",
+    bank: "Banco Inter",
     balance: 45780.50,
     type: "corrente"
   },
