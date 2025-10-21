@@ -126,7 +126,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_sent_at: string | null
-          manager_phones: string[] | null
+          manager_phone: string | null
           schedule_day: number | null
           schedule_time: string | null
           updated_at: string
@@ -137,7 +137,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_sent_at?: string | null
-          manager_phones?: string[] | null
+          manager_phone?: string | null
           schedule_day?: number | null
           schedule_time?: string | null
           updated_at?: string
@@ -148,7 +148,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_sent_at?: string | null
-          manager_phones?: string[] | null
+          manager_phone?: string | null
           schedule_day?: number | null
           schedule_time?: string | null
           updated_at?: string
@@ -215,12 +215,6 @@ export type Database = {
           last_test_at: string | null
           test_result: Json | null
           updated_at: string
-          webhook_auth_token: string | null
-          webhook_enabled: boolean | null
-          webhook_events: string[] | null
-          webhook_id: string | null
-          webhook_last_setup_at: string | null
-          webhook_url: string | null
         }
         Insert: {
           api_token_encrypted: string
@@ -232,12 +226,6 @@ export type Database = {
           last_test_at?: string | null
           test_result?: Json | null
           updated_at?: string
-          webhook_auth_token?: string | null
-          webhook_enabled?: boolean | null
-          webhook_events?: string[] | null
-          webhook_id?: string | null
-          webhook_last_setup_at?: string | null
-          webhook_url?: string | null
         }
         Update: {
           api_token_encrypted?: string
@@ -249,12 +237,6 @@ export type Database = {
           last_test_at?: string | null
           test_result?: Json | null
           updated_at?: string
-          webhook_auth_token?: string | null
-          webhook_enabled?: boolean | null
-          webhook_events?: string[] | null
-          webhook_id?: string | null
-          webhook_last_setup_at?: string | null
-          webhook_url?: string | null
         }
         Relationships: [
           {
@@ -367,8 +349,6 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
-          assinafy_api_key: string | null
-          assinafy_workspace_id: string | null
           created_at: string
           domain: string | null
           email: string | null
@@ -385,8 +365,6 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          assinafy_api_key?: string | null
-          assinafy_workspace_id?: string | null
           created_at?: string
           domain?: string | null
           email?: string | null
@@ -403,8 +381,6 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          assinafy_api_key?: string | null
-          assinafy_workspace_id?: string | null
           created_at?: string
           domain?: string | null
           email?: string | null
@@ -467,7 +443,6 @@ export type Database = {
       }
       company_branding: {
         Row: {
-          accent_color: string | null
           company_id: string
           created_at: string
           favicon_url: string | null
@@ -487,7 +462,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          accent_color?: string | null
           company_id: string
           created_at?: string
           favicon_url?: string | null
@@ -507,7 +481,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          accent_color?: string | null
           company_id?: string
           created_at?: string
           favicon_url?: string | null
@@ -661,13 +634,6 @@ export type Database = {
             foreignKeyName: "company_subscriptions_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
-            referencedRelation: "public_subscription_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "company_subscriptions_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
             referencedRelation: "subscription_plans"
             referencedColumns: ["id"]
           },
@@ -701,11 +667,18 @@ export type Database = {
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contract_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contracts: {
         Row: {
-          assinafy_document_id: string | null
           autentique_document_id: string | null
           client_id: string
           company_id: string
@@ -724,7 +697,6 @@ export type Database = {
           vehicle_id: string | null
         }
         Insert: {
-          assinafy_document_id?: string | null
           autentique_document_id?: string | null
           client_id: string
           company_id: string
@@ -743,7 +715,6 @@ export type Database = {
           vehicle_id?: string | null
         }
         Update: {
-          assinafy_document_id?: string | null
           autentique_document_id?: string | null
           client_id?: string
           company_id?: string
@@ -1116,7 +1087,15 @@ export type Database = {
           updated_at?: string
           variables?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_notification_settings: {
         Row: {
@@ -1124,15 +1103,9 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
-          max_attempts_per_notification: number | null
           on_due: boolean
-          on_due_interval_hours: number | null
-          on_due_times: number | null
           post_due_days: number[]
-          post_due_interval_hours: number | null
-          post_due_times: number | null
           pre_due_days: number[]
-          retry_interval_hours: number | null
           send_hour: string
           template_on_due: string
           template_post_due: string
@@ -1144,15 +1117,9 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
-          max_attempts_per_notification?: number | null
           on_due?: boolean
-          on_due_interval_hours?: number | null
-          on_due_times?: number | null
           post_due_days?: number[]
-          post_due_interval_hours?: number | null
-          post_due_times?: number | null
           pre_due_days?: number[]
-          retry_interval_hours?: number | null
           send_hour?: string
           template_on_due?: string
           template_post_due?: string
@@ -1164,15 +1131,9 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
-          max_attempts_per_notification?: number | null
           on_due?: boolean
-          on_due_interval_hours?: number | null
-          on_due_times?: number | null
           post_due_days?: number[]
-          post_due_interval_hours?: number | null
-          post_due_times?: number | null
           pre_due_days?: number[]
-          retry_interval_hours?: number | null
           send_hour?: string
           template_on_due?: string
           template_post_due?: string
@@ -1199,7 +1160,6 @@ export type Database = {
           id: string
           last_error: string | null
           message_body: string | null
-          notification_settings_id: string | null
           offset_days: number
           payment_id: string
           scheduled_for: string
@@ -1216,7 +1176,6 @@ export type Database = {
           id?: string
           last_error?: string | null
           message_body?: string | null
-          notification_settings_id?: string | null
           offset_days: number
           payment_id: string
           scheduled_for: string
@@ -1233,7 +1192,6 @@ export type Database = {
           id?: string
           last_error?: string | null
           message_body?: string | null
-          notification_settings_id?: string | null
           offset_days?: number
           payment_id?: string
           scheduled_for?: string
@@ -1254,13 +1212,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_notifications_notification_settings_id_fkey"
-            columns: ["notification_settings_id"]
-            isOneToOne: false
-            referencedRelation: "payment_notification_settings"
             referencedColumns: ["id"]
           },
           {
@@ -1336,6 +1287,27 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -1569,6 +1541,32 @@ export type Database = {
           type?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "system_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
         Relationships: []
       }
       vehicles: {
@@ -1626,7 +1624,22 @@ export type Database = {
           updated_at?: string
           year?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_logs: {
         Row: {
@@ -1677,7 +1690,22 @@ export type Database = {
           status?: string
           template_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_sessions: {
         Row: {
@@ -1716,7 +1744,15 @@ export type Database = {
           token?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_settings: {
         Row: {
@@ -1758,67 +1794,21 @@ export type Database = {
           is_active?: boolean
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
-      public_subscription_plans: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          features: Json | null
-          id: string | null
-          is_active: boolean | null
-          max_api_calls_per_day: number | null
-          max_messages_per_month: number | null
-          max_storage_mb: number | null
-          max_users: number | null
-          max_vehicles: number | null
-          name: string | null
-          price_monthly: number | null
-          price_yearly: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          features?: Json | null
-          id?: string | null
-          is_active?: boolean | null
-          max_api_calls_per_day?: number | null
-          max_messages_per_month?: number | null
-          max_storage_mb?: number | null
-          max_users?: number | null
-          max_vehicles?: number | null
-          name?: string | null
-          price_monthly?: never
-          price_yearly?: never
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          features?: Json | null
-          id?: string | null
-          is_active?: boolean | null
-          max_api_calls_per_day?: number | null
-          max_messages_per_month?: number | null
-          max_storage_mb?: number | null
-          max_users?: number | null
-          max_vehicles?: number | null
-          name?: string | null
-          price_monthly?: never
-          price_yearly?: never
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      check_super_admin_access: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
       decrypt_asaas_token: {
         Args: { p_encrypted_token: string }
         Returns: string
@@ -1851,75 +1841,16 @@ export type Database = {
         Args: { p_token: string }
         Returns: string
       }
-      ensure_system_client_for_company: {
-        Args: { company_uuid: string }
-        Returns: string
-      }
-      get_billing_cron_status: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          active: boolean
-          jobname: string
-          schedule: string
-        }[]
-      }
-      insert_cron_log: {
+      has_role: {
         Args: {
-          p_error_message?: string
-          p_execution_time_ms?: number
-          p_finished_at?: string
-          p_job_name: string
-          p_response_body?: string
-          p_started_at?: string
-          p_status?: string
-        }
-        Returns: string
-      }
-      log_company_activity: {
-        Args: {
-          p_activity_type: string
-          p_company_id: string
-          p_description: string
-          p_metadata?: Json
-          p_user_id?: string
-        }
-        Returns: string
-      }
-      maintain_whatsapp_connection: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      mask_sensitive_data: {
-        Args: { input_text: string }
-        Returns: string
-      }
-      set_encryption_key_guc: {
-        Args: { p_key: string }
-        Returns: undefined
-      }
-      update_cron_log: {
-        Args: {
-          p_error_message?: string
-          p_execution_time_ms?: number
-          p_finished_at?: string
-          p_log_id: string
-          p_response_body?: string
-          p_status?: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
-      validate_whatsapp_session: {
-        Args: { p_company_id: string }
-        Returns: {
-          instance_name: string
-          is_valid: boolean
-          message: string
-          session_status: string
-        }[]
-      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "user" | "admin" | "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2046,6 +1977,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["user", "admin", "super_admin"],
+    },
   },
 } as const
