@@ -263,13 +263,13 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
               <Label htmlFor="plan_id">Plano de Assinatura</Label>
               <Select
                 value={formData.plan_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, plan_id: value }))}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, plan_id: value === 'none' ? '' : value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um plano (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem plano</SelectItem>
+                  <SelectItem value="none">Sem plano</SelectItem>
                   {plans.map((plan) => (
                     <SelectItem key={plan.id} value={plan.id}>
                       {plan.name} - {formatCurrency(plan.price_monthly)}/mês
