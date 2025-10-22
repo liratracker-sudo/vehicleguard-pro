@@ -1,94 +1,14 @@
-import { useState, useEffect } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/integrations/supabase/client"
-
 import { useCompanyAdmin } from "@/hooks/useCompanyAdmin"
 import { CompanyManagement } from "@/components/admin/CompanyManagement"
 import { SubscriptionPlansManagement } from "@/components/admin/SubscriptionPlansManagement"
-import { Building2, Shield, Crown, TrendingUp, CreditCard, FileText, Users } from "lucide-react"
+import { Building2, Crown, TrendingUp, CreditCard, FileText, Users } from "lucide-react"
 
 const AdminPage = () => {
-  
   const { stats, loading: statsLoading } = useCompanyAdmin()
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [userProfile, setUserProfile] = useState<any>(null)
-
-  const loadUserProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-
-      // Verificar se o usuário tem role de super_admin na tabela user_roles
-      const { data: userRole, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'super_admin')
-        .maybeSingle()
-
-      console.log('Admin Page - Super Admin Check:', { userId: user.id, userRole, roleError })
-
-      if (profile) {
-        setUserProfile(profile)
-        setIsSuperAdmin(!!userRole)
-      }
-    } catch (error) {
-      console.error('Erro ao carregar perfil:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-
-  useEffect(() => {
-    loadUserProfile()
-  }, [])
-
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </AppLayout>
-    )
-  }
-
-  if (!isSuperAdmin) {
-    return (
-      <AppLayout>
-        <div className="max-w-2xl mx-auto py-12">
-          <Card>
-            <CardHeader className="text-center">
-              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-yellow-600" />
-              </div>
-              <CardTitle>Acesso Restrito</CardTitle>
-              <CardDescription>
-                Esta área é restrita apenas para Super Administradores do sistema.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Você não tem permissão para acessar esta área.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
-    )
-  }
 
   return (
     <AppLayout>
