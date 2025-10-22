@@ -69,14 +69,21 @@ export function AssinafyIntegration() {
     try {
       setLoading(true)
 
-      // Assinafy settings não disponíveis após restauração do banco
-      // Pode criar uma tabela assinafy_settings separada no futuro
-      toast({
-        title: "Aviso",
-        description: "Integração Assinafy indisponível após restauração. Configure via Edge Function.",
-        variant: "destructive"
+      // Salvar configurações via Edge Function
+      const { data, error } = await supabase.functions.invoke('assinafy-integration', {
+        body: { 
+          action: 'saveSettings',
+          company_id: companyId,
+          apiKey: apiKey.trim(),
+          workspaceId: workspaceId.trim()
+        }
       })
-      return
+
+      if (error) throw error
+
+      if (!data.success) {
+        throw new Error(data.error || 'Falha ao salvar configurações')
+      }
 
       setIsConfigured(true)
       toast({

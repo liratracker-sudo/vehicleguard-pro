@@ -103,12 +103,9 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Verificar conexão com Evolution API
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
-          action: 'checkConnection',
-          payload: {
-            instance_url: settings.instance_url,
-            api_token: settings.api_token,
-            instance_name: settings.instance_name
-          }
+          action: 'check_connection',
+          instance_name: settings.instance_name,
+          company_id: companyId
         }
       });
 
@@ -204,10 +201,10 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Tentar reconectar
       const response = await supabase.functions.invoke('whatsapp-evolution', {
         body: {
-          action: 'getQRCode',
-          payload: {
-            instance_name: settings.instance_name
-          }
+          action: 'get_qr_code',
+          instance_name: settings.instance_name,
+          force_new: false,
+          company_id: companyId
         }
       });
 

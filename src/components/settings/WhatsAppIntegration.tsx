@@ -139,18 +139,30 @@ export function WhatsAppIntegration() {
     try {
       setSaving(true)
       
+      // Obter URL e Token dos secrets da edge function
+      const { data: secretsData, error: secretsError } = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'get_secrets',
+          company_id: companyId
+        }
+      })
+
+      if (secretsError || !secretsData?.instance_url || !secretsData?.api_token) {
+        throw new Error('Credenciais do WhatsApp não configuradas nos secrets do sistema')
+      }
+
       // Primeiro, limpar todas as sessões antigas desta empresa
       await supabase
         .from('whatsapp_sessions')
         .delete()
         .eq('company_id', companyId)
 
-      // Salvar novas configurações (URL e Token virão dos secrets)
+      // Salvar novas configurações com URL e Token reais dos secrets
       await supabase.from('whatsapp_settings').upsert({
         company_id: companyId,
         instance_name: config.instanceName,
-        instance_url: 'from_secrets', // Placeholder - será obtido dos secrets
-        api_token: 'from_secrets', // Placeholder - será obtido dos secrets
+        instance_url: secretsData.instance_url,
+        api_token: secretsData.api_token,
         is_active: true,
         enable_logs: config.enableLogs,
         enable_delivery_status: config.enableDeliveryStatus,

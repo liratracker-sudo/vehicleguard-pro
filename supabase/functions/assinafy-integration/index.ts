@@ -176,6 +176,9 @@ serve(async (req) => {
     }
     
     switch (action) {
+      case "saveSettings":
+        console.log("💾 Saving Assinafy settings...");
+        return await saveSettings(supabase, data.company_id, apiKey, workspaceId);
       case "testConnection":
         console.log("🔄 Testing connection...");
         return await testConnection(assinafyApiKey, assinafyWorkspaceId);
@@ -213,6 +216,42 @@ serve(async (req) => {
     console.log("=== ASSINAFY INTEGRATION END ===");
   }
 });
+
+async function saveSettings(supabaseClient: any, companyId: string, apiKey: string, workspaceId: string): Promise<Response> {
+  try {
+    console.log("Saving Assinafy settings for company:", companyId);
+    
+    if (!companyId || !apiKey || !workspaceId) {
+      throw new Error("Company ID, API Key e Workspace ID são obrigatórios");
+    }
+    
+    const { error } = await supabaseClient
+      .from('companies')
+      .update({
+        assinafy_api_key: apiKey,
+        assinafy_workspace_id: workspaceId
+      })
+      .eq('id', companyId);
+    
+    if (error) {
+      console.error("Error saving Assinafy settings:", error);
+      throw error;
+    }
+    
+    console.log("✅ Assinafy settings saved successfully");
+    
+    return new Response(
+      JSON.stringify({ success: true, message: "Configurações salvas com sucesso!" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("Error in saveSettings:", error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}
 
 async function testConnection(apiKey: string, workspaceId: string): Promise<Response> {
   try {

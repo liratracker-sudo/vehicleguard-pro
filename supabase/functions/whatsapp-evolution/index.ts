@@ -23,6 +23,15 @@ serve(async (req) => {
     console.log('WhatsApp Evolution API request:', { action, payload });
 
     switch (action) {
+      case 'get_secrets':
+        return new Response(
+          JSON.stringify({
+            success: true,
+            instance_url: Deno.env.get('WHATSAPP_EVOLUTION_URL'),
+            api_token: Deno.env.get('WHATSAPP_EVOLUTION_TOKEN')
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       case 'send_message':
         return await sendMessage(payload);
       case 'sendText': {
