@@ -724,6 +724,10 @@ async function getQRCode(payload: any) {
       // Instância não existe, criar nova
       console.log('Criando nova instância com configurações limpas...');
       
+      // Configurar webhook URL
+      const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook`;
+      console.log('Configurando webhook:', webhookUrl);
+      
       const createResponse = await fetch(`${instance_url}/instance/create`, {
         method: 'POST',
         headers: {
@@ -735,8 +739,15 @@ async function getQRCode(payload: any) {
           token: api_token,
           qrcode: true,
           integration: "WHATSAPP-BAILEYS",
-          webhookUrl: "",
-          webhookByEvents: false,
+          webhookUrl: webhookUrl,
+          webhookByEvents: true,
+          webhookEvents: [
+            "CONNECTION_UPDATE",
+            "QRCODE_UPDATED",
+            "MESSAGES_UPDATE",
+            "MESSAGES_UPSERT",
+            "SEND_MESSAGE"
+          ],
           chatwootAccountId: "",
           chatwootToken: "",
           chatwootUrl: "",
@@ -798,6 +809,54 @@ async function getQRCode(payload: any) {
 
     if (qrCode) {
       console.log('QR Code obtido com sucesso para nova sessão limpa');
+      
+      // Salvar/atualizar no banco de dados
+      if (company_id) {
+        console.log('Salvando configurações no banco...');
+        
+        // Atualizar whatsapp_settings com status 'connecting'
+        const { error: settingsError } = await supabase
+          .from('whatsapp_settings')
+          .upsert({
+            company_id,
+            instance_name,
+            instance_url,
+            api_token,
+            connection_status: 'connecting',
+            is_active: true,
+            enable_logs: true,
+            enable_delivery_status: true,
+            updated_at: new Date().toISOString()
+          }, { 
+            onConflict: 'company_id' 
+          });
+
+        if (settingsError) {
+          console.error('Erro ao salvar whatsapp_settings:', settingsError);
+        } else {
+          console.log('whatsapp_settings salvo com sucesso');
+        }
+
+        // Salvar sessão temporária em whatsapp_sessions
+        const { error: sessionError } = await supabase
+          .from('whatsapp_sessions')
+          .insert({
+            company_id,
+            instance_name,
+            session_id: `${instance_name}_${Date.now()}`,
+            token: api_token,
+            status: 'connecting',
+            qr_code: qrCode,
+            expires_at: new Date(Date.now() + 60000).toISOString() // QR expira em 1 minuto
+          });
+
+        if (sessionError) {
+          console.error('Erro ao salvar whatsapp_sessions:', sessionError);
+        } else {
+          console.log('whatsapp_sessions salvo com sucesso');
+        }
+      }
+      
       return new Response(JSON.stringify({
         success: true,
         qrCode: qrCode,

@@ -19,6 +19,99 @@ serve(async (req) => {
     const webhookData = await req.json();
     console.log('Webhook recebido:', JSON.stringify(webhookData, null, 2));
 
+    // CRÍTICO: Processar eventos de conexão
+    if (webhookData.event === 'connection.update' || webhookData.event === 'CONNECTION_UPDATE') {
+      console.log('Processando atualização de conexão:', webhookData.data);
+      
+      const instanceName = webhookData.instance || webhookData.data?.instanceName;
+      const state = webhookData.data?.state || webhookData.data?.instance?.state;
+      
+      if (instanceName && state) {
+        console.log(`Atualizando status da instância ${instanceName} para ${state}`);
+        
+        // Buscar company_id pela instância
+        const { data: settingsData } = await supabase
+          .from('whatsapp_settings')
+          .select('company_id')
+          .eq('instance_name', instanceName)
+          .maybeSingle();
+
+        if (settingsData?.company_id) {
+          const connectionStatus = state === 'open' ? 'connected' : 'disconnected';
+          
+          // Atualizar whatsapp_settings
+          const { error: settingsError } = await supabase
+            .from('whatsapp_settings')
+            .update({
+              connection_status: connectionStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('company_id', settingsData.company_id);
+
+          if (settingsError) {
+            console.error('Erro ao atualizar whatsapp_settings:', settingsError);
+          } else {
+            console.log(`whatsapp_settings atualizado para ${connectionStatus}`);
+          }
+
+          // Atualizar whatsapp_sessions se conectado
+          if (state === 'open') {
+            const { error: sessionError } = await supabase
+              .from('whatsapp_sessions')
+              .update({
+                status: 'connected',
+                connected_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('company_id', settingsData.company_id)
+              .eq('instance_name', instanceName);
+
+            if (sessionError) {
+              console.error('Erro ao atualizar whatsapp_sessions:', sessionError);
+            } else {
+              console.log('whatsapp_sessions atualizado para connected');
+            }
+          }
+        }
+      }
+      
+      return new Response(JSON.stringify({ success: true, message: 'Conexão processada' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Processar QR Code atualizado
+    if (webhookData.event === 'qrcode.updated' || webhookData.event === 'QRCODE_UPDATED') {
+      console.log('QR Code atualizado:', webhookData.data);
+      
+      const instanceName = webhookData.instance || webhookData.data?.instanceName;
+      const qrCode = webhookData.data?.qrcode?.base64 || webhookData.data?.qrcode;
+      
+      if (instanceName && qrCode) {
+        const { data: settingsData } = await supabase
+          .from('whatsapp_settings')
+          .select('company_id')
+          .eq('instance_name', instanceName)
+          .maybeSingle();
+
+        if (settingsData?.company_id) {
+          await supabase
+            .from('whatsapp_sessions')
+            .update({
+              qr_code: qrCode,
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('company_id', settingsData.company_id)
+            .eq('instance_name', instanceName);
+        }
+      }
+      
+      return new Response(JSON.stringify({ success: true, message: 'QR Code processado' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Verifica se é uma mensagem recebida
     if (webhookData.event === 'messages.upsert') {
       const message = webhookData.data;
