@@ -30,10 +30,49 @@ export function WhatsAppIntegration() {
   const [loadingQR, setLoadingQR] = useState(false)
   const [clearingInstance, setClearingInstance] = useState(false)
 
-  // Sincronizar apenas com context global, sem chamar QR automaticamente
+  // Sincronizar com context global e com banco
   useEffect(() => {
     setConfig(prev => ({ ...prev, isConnected: connectionState.isConnected }))
+    
+    // Se conectou, recarregar configurações do banco
+    if (connectionState.isConnected && !config.isConnected) {
+      console.log('WhatsApp conectado! Recarregando configurações...')
+      loadSettings()
+    }
   }, [connectionState.isConnected])
+
+  // Listener em tempo real para mudanças nas configurações
+  useEffect(() => {
+    if (!companyId) return
+
+    const channel = supabase
+      .channel('whatsapp-settings-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_settings',
+          filter: `company_id=eq.${companyId}`
+        },
+        (payload) => {
+          console.log('Configurações do WhatsApp mudaram:', payload)
+          const newData = payload.new as any
+          
+          setConfig({
+            instanceName: newData.instance_name || '',
+            enableLogs: newData.enable_logs,
+            enableDeliveryStatus: newData.enable_delivery_status,
+            isConnected: newData.connection_status === 'connected'
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [companyId])
 
   // Remover o useEffect que chamava QR automaticamente
   // pois estava causando loops infinitos

@@ -264,20 +264,68 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }, 300000); // 5 minutos
 
-    // Remover verificação automática no foco para evitar conflitos
-    // const handleFocus = () => {
-    //   if (!connectionState.isChecking) {
-    //     checkConnection();
-    //   }
-    // };
-    // window.addEventListener('focus', handleFocus);
-
     // Cleanup
     return () => {
       clearInterval(interval);
-      // window.removeEventListener('focus', handleFocus);
     };
   }, []); // Remover dependências para evitar re-execução
+
+  // NOVO: Listener em tempo real para detectar mudanças na conexão
+  useEffect(() => {
+    let channel: any;
+
+    const setupRealtimeListener = async () => {
+      const companyId = await getUserCompanyId();
+      if (!companyId) return;
+
+      // Escutar mudanças na tabela whatsapp_settings
+      channel = supabase
+        .channel('whatsapp-connection-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'whatsapp_settings',
+            filter: `company_id=eq.${companyId}`
+          },
+          (payload) => {
+            console.log('WhatsApp settings mudou:', payload);
+            const newData = payload.new as any;
+            
+            // Atualizar estado imediatamente quando detectar mudança
+            if (newData.connection_status) {
+              setConnectionState(prev => ({
+                ...prev,
+                isConnected: newData.connection_status === 'connected',
+                connectionStatus: newData.connection_status,
+                instanceName: newData.instance_name,
+                lastChecked: new Date()
+              }));
+
+              // Mostrar notificação se mudou para conectado
+              if (newData.connection_status === 'connected' && !connectionState.isConnected) {
+                toast({
+                  title: "WhatsApp Conectado!",
+                  description: "Sua instância do WhatsApp foi conectada com sucesso"
+                });
+              }
+            }
+          }
+        )
+        .subscribe();
+
+      console.log('Listener em tempo real configurado para company_id:', companyId);
+    };
+
+    setupRealtimeListener();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []); // Executar apenas uma vez no mount
 
   // Reset de tentativas de reconexão após um tempo
   useEffect(() => {
