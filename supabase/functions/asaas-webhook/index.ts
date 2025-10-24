@@ -39,36 +39,53 @@ serve(async (req) => {
 
     const authToken = headerToken || queryToken;
 
+    // Para webhooks sem token, tentar identificar a empresa pelo paymentId
     if (!authToken) {
-      // Sem token: tentar autorizar pelo paymentId para contas que não configuraram token
       try {
         webhookData = await req.json();
         const paymentId = webhookData?.payment?.id;
+        const externalReference = webhookData?.payment?.externalReference;
+        
+        console.log('Webhook sem token - tentando autorizar por fallback', { paymentId, externalReference });
+        
         if (paymentId) {
+          // Primeiro, buscar pelo external_id
           const { data: tx } = await supabase
             .from('payment_transactions')
             .select('company_id')
             .eq('external_id', paymentId)
-            .single();
+            .maybeSingle();
+            
           if (tx?.company_id) {
-            const { data: s } = await supabase
-              .from('asaas_settings')
-              .select('company_id, webhook_auth_token, webhook_enabled')
-              .eq('company_id', tx.company_id)
-              .eq('webhook_enabled', true)
+            authorizedCompanyId = tx.company_id;
+            console.log('Empresa identificada pelo external_id:', authorizedCompanyId);
+          } 
+          // Se não encontrou pelo external_id, tentar pelo externalReference (nosso UUID)
+          else if (externalReference) {
+            const { data: txByRef } = await supabase
+              .from('payment_transactions')
+              .select('company_id')
+              .eq('id', externalReference)
               .maybeSingle();
-            if (s && !s.webhook_auth_token) {
-              authorizedCompanyId = tx.company_id;
+              
+            if (txByRef?.company_id) {
+              authorizedCompanyId = txByRef.company_id;
+              console.log('Empresa identificada pelo externalReference:', authorizedCompanyId);
             }
           }
         }
-      } catch (_) {}
+      } catch (err) {
+        console.error('Erro ao processar fallback:', err);
+      }
 
       if (!authorizedCompanyId) {
-        console.error('Webhook sem token e sem autorização por fallback');
+        console.error('Webhook sem token e sem autorização por fallback - aceitando webhook mas sem processar');
+        // Retornar 200 ao invés de 401 para evitar que o Asaas fique reenviando
         return new Response(
-          JSON.stringify({ error: 'Token ausente. Configure o AccessToken no Asaas ou use ?accessToken=TOKEN' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ 
+            message: 'Webhook recebido mas não foi possível identificar a empresa. Verifique se o pagamento existe no sistema.' 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
@@ -134,16 +151,53 @@ serve(async (req) => {
       }
     }
 
-    // Find the payment transaction by external_id (Asaas payment ID)
-    const { data: transaction, error: findError } = await supabase
+    // Find the payment transaction by external_id (Asaas payment ID) or by externalReference
+    let transaction: any = null;
+    let findError: any = null;
+    
+    // Tentar buscar pelo external_id primeiro
+    const { data: txByExternalId, error: errorById } = await supabase
       .from('payment_transactions')
       .select('*')
       .eq('external_id', payment.id)
       .eq('company_id', webhookSettings.company_id)
-      .single();
+      .maybeSingle();
+      
+    if (txByExternalId) {
+      transaction = txByExternalId;
+    } else {
+      // Se não encontrou, tentar pelo externalReference (nosso UUID)
+      const externalReference = payment.externalReference;
+      if (externalReference) {
+        const { data: txByRef, error: errorByRef } = await supabase
+          .from('payment_transactions')
+          .select('*')
+          .eq('id', externalReference)
+          .eq('company_id', webhookSettings.company_id)
+          .maybeSingle();
+          
+        if (txByRef) {
+          transaction = txByRef;
+          
+          // Atualizar o external_id se estava vazio
+          if (!txByRef.external_id) {
+            await supabase
+              .from('payment_transactions')
+              .update({ external_id: payment.id })
+              .eq('id', txByRef.id);
+              
+            console.log(`Updated external_id for payment ${txByRef.id}`);
+          }
+        } else {
+          findError = errorByRef;
+        }
+      } else {
+        findError = errorById;
+      }
+    }
 
-    if (findError) {
-      console.error('Payment not found for external_id:', payment.id);
+    if (!transaction || findError) {
+      console.error('Payment not found for external_id or externalReference:', payment.id, payment.externalReference);
       // Return 200 to avoid webhook retries for unknown payments
       return new Response(
         JSON.stringify({ message: 'Payment not found, ignoring webhook' }),
