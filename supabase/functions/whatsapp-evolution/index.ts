@@ -814,22 +814,39 @@ async function getQRCode(payload: any) {
       if (company_id) {
         console.log('Salvando configurações no banco...');
         
-        // Atualizar whatsapp_settings com status 'connecting'
-        const { error: settingsError } = await supabase
+        // Buscar configurações existentes primeiro
+        const { data: existingSettings } = await supabase
           .from('whatsapp_settings')
-          .upsert({
-            company_id,
-            instance_name,
-            instance_url,
-            api_token,
-            connection_status: 'connecting',
-            is_active: true,
-            enable_logs: true,
-            enable_delivery_status: true,
-            updated_at: new Date().toISOString()
-          }, { 
-            onConflict: 'company_id' 
-          });
+          .select('id')
+          .eq('company_id', company_id)
+          .maybeSingle();
+
+        const settingsData = {
+          company_id,
+          instance_name,
+          instance_url,
+          api_token,
+          connection_status: 'connecting',
+          is_active: true,
+          enable_logs: true,
+          enable_delivery_status: true,
+          updated_at: new Date().toISOString()
+        };
+
+        // Atualizar whatsapp_settings com status 'connecting'
+        let settingsError;
+        if (existingSettings?.id) {
+          const { error } = await supabase
+            .from('whatsapp_settings')
+            .update(settingsData)
+            .eq('id', existingSettings.id);
+          settingsError = error;
+        } else {
+          const { error } = await supabase
+            .from('whatsapp_settings')
+            .insert(settingsData);
+          settingsError = error;
+        }
 
         if (settingsError) {
           console.error('Erro ao salvar whatsapp_settings:', settingsError);

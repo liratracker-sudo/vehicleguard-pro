@@ -86,6 +86,15 @@ export function WhatsAppIntegration() {
       })
       return
     }
+
+    if (!companyId) {
+      toast({
+        title: "Erro",
+        description: "Empresa não identificada. Faça login novamente.",
+        variant: "destructive"
+      })
+      return
+    }
     
     try {
       setLoadingQR(true)
@@ -190,6 +199,13 @@ export function WhatsAppIntegration() {
         throw new Error('Credenciais do WhatsApp não configuradas nos secrets do sistema')
       }
 
+      // Buscar configurações existentes para pegar o ID
+      const { data: existingSettings } = await supabase
+        .from('whatsapp_settings')
+        .select('id')
+        .eq('company_id', companyId)
+        .maybeSingle()
+
       // Primeiro, limpar todas as sessões antigas desta empresa
       await supabase
         .from('whatsapp_sessions')
@@ -197,7 +213,7 @@ export function WhatsAppIntegration() {
         .eq('company_id', companyId)
 
       // Salvar novas configurações com URL e Token reais dos secrets
-      await supabase.from('whatsapp_settings').upsert({
+      const settingsToSave = {
         company_id: companyId,
         instance_name: config.instanceName,
         instance_url: secretsData.instance_url,
@@ -206,7 +222,19 @@ export function WhatsAppIntegration() {
         enable_logs: config.enableLogs,
         enable_delivery_status: config.enableDeliveryStatus,
         connection_status: 'disconnected'
-      }, { onConflict: 'company_id' })
+      }
+
+      // Se já existe, incluir o ID para atualizar; senão, criar novo
+      if (existingSettings?.id) {
+        await supabase
+          .from('whatsapp_settings')
+          .update(settingsToSave)
+          .eq('id', existingSettings.id)
+      } else {
+        await supabase
+          .from('whatsapp_settings')
+          .insert(settingsToSave)
+      }
 
       toast({ 
         title: "Sucesso", 
