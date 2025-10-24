@@ -618,6 +618,24 @@ async function saveWebhookToken(supabaseClient: any, companyId: string, data: an
 
   const webhookUrl = `https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/asaas-webhook`
 
+  // Buscar configurações existentes primeiro
+  const { data: existingSettings } = await supabaseClient
+    .from('asaas_settings')
+    .select('id')
+    .eq('company_id', companyId)
+    .maybeSingle()
+
+  if (!existingSettings) {
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        message: 'Configure a integração com Asaas primeiro antes de salvar o token do webhook' 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Atualizar com o token do webhook
   const { error } = await supabaseClient
     .from('asaas_settings')
     .update({
@@ -625,12 +643,15 @@ async function saveWebhookToken(supabaseClient: any, companyId: string, data: an
       webhook_enabled: true,
       webhook_url: webhookUrl
     })
-    .eq('company_id', companyId)
+    .eq('id', existingSettings.id)
 
   if (error) {
     console.error('Erro ao salvar token do webhook:', error)
     return new Response(
-      JSON.stringify({ success: false, message: 'Falha ao salvar token do webhook' }),
+      JSON.stringify({ 
+        success: false, 
+        message: `Falha ao salvar token do webhook: ${error.message}` 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
