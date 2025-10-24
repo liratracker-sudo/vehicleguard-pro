@@ -712,6 +712,7 @@ async function setupWebhook(supabaseClient: any, companyId: string, data: any) {
   const webhookData = {
     name: "Webhook Automatico - MultiCall",
     url: webhookUrl,
+    email: data?.notification_email || "webhook@multicall.app.br",
     enabled: true,
     interrupted: false,
     authToken: webhookAuthToken,
