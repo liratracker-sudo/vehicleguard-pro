@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.inter-webhook]
 verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
