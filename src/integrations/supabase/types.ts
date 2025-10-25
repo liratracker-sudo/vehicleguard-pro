@@ -215,6 +215,7 @@ export type Database = {
           last_test_at: string | null
           test_result: Json | null
           updated_at: string
+          webhook_auth_token: string | null
         }
         Insert: {
           api_token_encrypted: string
@@ -226,6 +227,7 @@ export type Database = {
           last_test_at?: string | null
           test_result?: Json | null
           updated_at?: string
+          webhook_auth_token?: string | null
         }
         Update: {
           api_token_encrypted?: string
@@ -237,6 +239,7 @@ export type Database = {
           last_test_at?: string | null
           test_result?: Json | null
           updated_at?: string
+          webhook_auth_token?: string | null
         }
         Relationships: [
           {
@@ -404,7 +407,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           metadata: Json | null
           user_agent: string | null
           user_id: string | null
@@ -415,7 +418,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           user_agent?: string | null
           user_id?: string | null
@@ -426,7 +429,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           user_agent?: string | null
           user_id?: string | null
@@ -1825,10 +1828,7 @@ export type Database = {
         Args: { p_encrypted_token: string }
         Returns: string
       }
-      encrypt_asaas_token: {
-        Args: { p_token: string }
-        Returns: string
-      }
+      encrypt_asaas_token: { Args: { p_token: string }; Returns: string }
       encrypt_gerencianet_credential: {
         Args: { p_credential: string }
         Returns: string
@@ -1837,10 +1837,7 @@ export type Database = {
         Args: { p_credential: string }
         Returns: string
       }
-      encrypt_whatsapp_token: {
-        Args: { p_token: string }
-        Returns: string
-      }
+      encrypt_whatsapp_token: { Args: { p_token: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
