@@ -31,91 +31,51 @@ serve(async (req) => {
       );
     }
 
-    // Identificar a empresa pelo payment usando external_id ou externalReference
-    let companyId: string | null = null;
+    // Buscar a transação de pagamento pelo external_id (Asaas payment ID) ou externalReference (nosso UUID)
     const paymentId = payment.id;
     const externalReference = payment.externalReference;
     
     console.log('Buscando transação:', { paymentId, externalReference });
 
+    let transaction: any = null;
+    
     // Tentar buscar pelo external_id primeiro
-    const { data: txByExternalId } = await supabase
+    const { data: txByExternal } = await supabase
       .from('payment_transactions')
-      .select('company_id')
+      .select('*')
       .eq('external_id', paymentId)
       .maybeSingle();
       
-    if (txByExternalId?.company_id) {
-      companyId = txByExternalId.company_id;
-      console.log('Empresa identificada pelo external_id:', companyId);
+    if (txByExternal) {
+      transaction = txByExternal;
+      console.log('Transação encontrada pelo external_id:', transaction.id);
     } 
     // Se não encontrou, tentar pelo externalReference (nosso UUID)
     else if (externalReference) {
       const { data: txByRef } = await supabase
         .from('payment_transactions')
-        .select('company_id')
+        .select('*')
         .eq('id', externalReference)
         .maybeSingle();
         
-      if (txByRef?.company_id) {
-        companyId = txByRef.company_id;
-        console.log('Empresa identificada pelo externalReference:', companyId);
-      }
-    }
-
-    if (!companyId) {
-      console.log('Pagamento não encontrado no sistema - ignorando webhook');
-      // Sempre retornar 200 para evitar que o Asaas pause a fila
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          message: 'Payment not found in system, webhook ignored' 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Find the payment transaction by external_id (Asaas payment ID) or by externalReference
-    let transaction: any = null;
-    
-    // Tentar buscar pelo external_id primeiro
-    const { data: txByExternalId } = await supabase
-      .from('payment_transactions')
-      .select('*')
-      .eq('external_id', payment.id)
-      .eq('company_id', companyId)
-      .maybeSingle();
-      
-    if (txByExternalId) {
-      transaction = txByExternalId;
-    } else {
-      // Se não encontrou, tentar pelo externalReference (nosso UUID)
-      if (externalReference) {
-        const { data: txByRef } = await supabase
-          .from('payment_transactions')
-          .select('*')
-          .eq('id', externalReference)
-          .eq('company_id', companyId)
-          .maybeSingle();
-          
-        if (txByRef) {
-          transaction = txByRef;
-          
-          // Atualizar o external_id se estava vazio
-          if (!txByRef.external_id) {
-            await supabase
-              .from('payment_transactions')
-              .update({ external_id: payment.id })
-              .eq('id', txByRef.id);
-              
-            console.log(`Updated external_id for payment ${txByRef.id}`);
-          }
+      if (txByRef) {
+        transaction = txByRef;
+        console.log('Transação encontrada pelo externalReference:', transaction.id);
+        
+        // Atualizar o external_id se estava vazio
+        if (!txByRef.external_id) {
+          await supabase
+            .from('payment_transactions')
+            .update({ external_id: payment.id })
+            .eq('id', txByRef.id);
+            
+          console.log(`Updated external_id for payment ${txByRef.id}`);
         }
       }
     }
 
     if (!transaction) {
-      console.log('Transação não encontrada no sistema');
+      console.log('Transação não encontrada no sistema - ignorando webhook');
       // Sempre retornar 200 para evitar que o Asaas pause a fila
       return new Response(
         JSON.stringify({ 
@@ -125,6 +85,8 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const companyId = transaction.company_id;
 
     let newStatus = transaction.status;
     let paidAt = transaction.paid_at;
