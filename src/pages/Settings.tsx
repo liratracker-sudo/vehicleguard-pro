@@ -10,6 +10,7 @@ import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
 import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
 import { GerencianetIntegration } from "@/components/settings/GerencianetIntegration"
 import { InterIntegration } from "@/components/settings/InterIntegration"
+import { MercadoPagoIntegration } from "@/components/settings/MercadoPagoIntegration"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
@@ -57,6 +58,7 @@ const SettingsPage = () => {
             <TabsTrigger value="asaas" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Asaas</TabsTrigger>
             <TabsTrigger value="gerencianet" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Gerencianet</TabsTrigger>
             <TabsTrigger value="inter" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Inter</TabsTrigger>
+            <TabsTrigger value="mercadopago" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Mercado Pago</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">
@@ -134,6 +136,17 @@ const SettingsPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+                        onClick={() => setActiveTab("mercadopago")}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <CreditCard className="w-8 h-8 text-blue-500" />
+                      <div>
+                        <h4 className="font-medium">Mercado Pago</h4>
+                        <p className="text-sm text-muted-foreground">Checkout e pagamentos</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -157,6 +170,10 @@ const SettingsPage = () => {
 
           <TabsContent value="inter" className="space-y-6">
             <InterIntegration />
+          </TabsContent>
+
+          <TabsContent value="mercadopago" className="space-y-6">
+            <MercadoPagoIntegration />
           </TabsContent>
         </Tabs>
       </div>
