@@ -289,7 +289,8 @@ async function createCustomer(supabaseClient: any, companyId: string, data: any)
     province: data.province,
     city: data.city,
     postalCode: data.postalCode,
-    externalReference: data.externalReference
+    externalReference: data.externalReference,
+    notificationDisabled: true
   }
 
   try {
