@@ -1206,6 +1206,50 @@ export type Database = {
           },
         ]
       }
+      payment_gateway_methods: {
+        Row: {
+          company_id: string
+          created_at: string
+          gateway_type: string
+          id: string
+          is_active: boolean
+          payment_method: string
+          priority: number
+          settings: Json | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          gateway_type: string
+          id?: string
+          is_active?: boolean
+          payment_method: string
+          priority?: number
+          settings?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          gateway_type?: string
+          id?: string
+          is_active?: boolean
+          payment_method?: string
+          priority?: number
+          settings?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_gateway_methods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_notification_settings: {
         Row: {
           active: boolean

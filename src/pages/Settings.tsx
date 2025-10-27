@@ -11,6 +11,7 @@ import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
 import { GerencianetIntegration } from "@/components/settings/GerencianetIntegration"
 import { InterIntegration } from "@/components/settings/InterIntegration"
 import { MercadoPagoIntegration } from "@/components/settings/MercadoPagoIntegration"
+import { PaymentGatewayConfig } from "@/components/settings/PaymentGatewayConfig"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
@@ -64,12 +65,15 @@ const SettingsPage = () => {
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
-            <WhatsAppIntegration />
-            <AssinafyIntegration />
-            <AsaasIntegration />
-            <GerencianetIntegration />
-            <InterIntegration />
-            <MercadoPagoIntegration />
+            <PaymentGatewayConfig />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+              <WhatsAppIntegration />
+              <AssinafyIntegration />
+              <AsaasIntegration />
+              <GerencianetIntegration />
+              <InterIntegration />
+              <MercadoPagoIntegration />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
