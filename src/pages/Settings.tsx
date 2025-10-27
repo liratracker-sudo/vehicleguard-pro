@@ -53,12 +53,6 @@ const SettingsPage = () => {
             <TabsTrigger value="billing" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Cobrança</TabsTrigger>
             <TabsTrigger value="ai" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">IA</TabsTrigger>
             <TabsTrigger value="integrations" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Integrações</TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">WhatsApp</TabsTrigger>
-            <TabsTrigger value="assinafy" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Assinafy</TabsTrigger>
-            <TabsTrigger value="asaas" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Asaas</TabsTrigger>
-            <TabsTrigger value="gerencianet" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Gerencianet</TabsTrigger>
-            <TabsTrigger value="inter" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Inter</TabsTrigger>
-            <TabsTrigger value="mercadopago" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Mercado Pago</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">
@@ -70,109 +64,11 @@ const SettingsPage = () => {
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Plug className="w-5 h-5" />
-                  Integrações Disponíveis
-                </CardTitle>
-                <CardDescription>
-                  Configure suas integrações com serviços externos
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("whatsapp")}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <MessageSquare className="w-8 h-8 text-green-600" />
-                      <div>
-                        <h4 className="font-medium">WhatsApp Evolution</h4>
-                        <p className="text-sm text-muted-foreground">Conexão Persistente</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("assinafy")}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <FileText className="w-8 h-8 text-blue-600" />
-                      <div>
-                        <h4 className="font-medium">Assinafy</h4>
-                        <p className="text-sm text-muted-foreground">Assinatura Digital</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("asaas")}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <CreditCard className="w-8 h-8 text-purple-600" />
-                      <div>
-                        <h4 className="font-medium">Asaas</h4>
-                        <p className="text-sm text-muted-foreground">Gateway de Pagamento</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("gerencianet")}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <CreditCard className="w-8 h-8 text-orange-600" />
-                      <div>
-                        <h4 className="font-medium">Gerencianet</h4>
-                        <p className="text-sm text-muted-foreground">Boletos e PIX</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("inter")}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <CreditCard className="w-8 h-8 text-amber-600" />
-                      <div>
-                        <h4 className="font-medium">Inter</h4>
-                        <p className="text-sm text-muted-foreground">Banco Inter - Boletos e PIX</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="cursor-pointer hover:shadow-md transition-shadow" 
-                        onClick={() => setActiveTab("mercadopago")}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <CreditCard className="w-8 h-8 text-blue-500" />
-                      <div>
-                        <h4 className="font-medium">Mercado Pago</h4>
-                        <p className="text-sm text-muted-foreground">Checkout e pagamentos</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="whatsapp" className="space-y-6">
             <WhatsAppIntegration />
-          </TabsContent>
-
-          <TabsContent value="assinafy" className="space-y-6">
             <AssinafyIntegration />
-          </TabsContent>
-
-          <TabsContent value="asaas" className="space-y-6">
             <AsaasIntegration />
-          </TabsContent>
-
-          <TabsContent value="gerencianet" className="space-y-6">
             <GerencianetIntegration />
-          </TabsContent>
-
-          <TabsContent value="inter" className="space-y-6">
             <InterIntegration />
-          </TabsContent>
-
-          <TabsContent value="mercadopago" className="space-y-6">
             <MercadoPagoIntegration />
           </TabsContent>
         </Tabs>

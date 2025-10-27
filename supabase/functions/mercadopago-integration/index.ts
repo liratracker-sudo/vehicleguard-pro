@@ -90,10 +90,23 @@ serve(async (req) => {
       case 'save_settings': {
         const { access_token, is_sandbox, webhook_enabled } = params
 
+        if (!access_token) {
+          throw new Error('Access token é obrigatório')
+        }
+
         // Criptografar access token
-        const { data: encrypted } = await supabase.rpc('encrypt_mercadopago_credential', {
+        const { data: encrypted, error: encryptError } = await supabase.rpc('encrypt_mercadopago_credential', {
           p_credential: access_token
         })
+
+        if (encryptError) {
+          console.error('Encryption error:', encryptError)
+          throw new Error('Erro ao criptografar credencial')
+        }
+
+        if (!encrypted) {
+          throw new Error('Falha ao criptografar credencial')
+        }
 
         // Salvar ou atualizar configurações
         const { error: upsertError } = await supabase
@@ -109,13 +122,16 @@ serve(async (req) => {
             onConflict: 'company_id'
           })
 
-        if (upsertError) throw upsertError
+        if (upsertError) {
+          console.error('Upsert error:', upsertError)
+          throw new Error(`Erro ao salvar configurações: ${upsertError.message}`)
+        }
 
         await logOperation('save_settings', 'success', { is_sandbox, webhook_enabled })
 
         return new Response(
           JSON.stringify({ success: true, message: 'Configurações salvas com sucesso' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
       }
 
