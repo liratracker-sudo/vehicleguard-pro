@@ -95,7 +95,7 @@ serve(async (req) => {
           throw new Error('Access token é obrigatório')
         }
 
-        // Criptografar access token
+        // Criptografar access token usando chave única da empresa
         const { data: encrypted, error: encryptError } = await supabase.rpc('encrypt_mercadopago_credential', {
           p_company_id: profile.company_id,
           p_credential: access_token
@@ -103,7 +103,7 @@ serve(async (req) => {
 
         if (encryptError) {
           console.error('Encryption error:', encryptError)
-          throw new Error('Erro ao criptografar credencial')
+          throw new Error(`Erro ao criptografar credencial: ${encryptError.message}`)
         }
 
         if (!encrypted) {
