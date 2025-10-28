@@ -60,6 +60,7 @@ serve(async (req) => {
       }
 
       const { data: decrypted } = await supabase.rpc('decrypt_mercadopago_credential', {
+        p_company_id: profile.company_id,
         p_encrypted_credential: settings.access_token_encrypted
       })
 
@@ -96,6 +97,7 @@ serve(async (req) => {
 
         // Criptografar access token
         const { data: encrypted, error: encryptError } = await supabase.rpc('encrypt_mercadopago_credential', {
+          p_company_id: profile.company_id,
           p_credential: access_token
         })
 

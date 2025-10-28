@@ -370,6 +370,7 @@ export type Database = {
           created_at: string
           domain: string | null
           email: string | null
+          encryption_key: string
           id: string
           is_active: boolean | null
           logo_url: string | null
@@ -386,6 +387,7 @@ export type Database = {
           created_at?: string
           domain?: string | null
           email?: string | null
+          encryption_key?: string
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
@@ -402,6 +404,7 @@ export type Database = {
           created_at?: string
           domain?: string | null
           email?: string | null
+          encryption_key?: string
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
@@ -1974,10 +1977,12 @@ export type Database = {
         Args: { p_encrypted_credential: string }
         Returns: string
       }
-      decrypt_mercadopago_credential: {
-        Args: { p_encrypted_credential: string }
-        Returns: string
-      }
+      decrypt_mercadopago_credential:
+        | {
+            Args: { p_company_id: string; p_encrypted_credential: string }
+            Returns: string
+          }
+        | { Args: { p_encrypted_credential: string }; Returns: string }
       decrypt_whatsapp_token: {
         Args: { p_encrypted_token: string }
         Returns: string
@@ -1991,10 +1996,12 @@ export type Database = {
         Args: { p_credential: string }
         Returns: string
       }
-      encrypt_mercadopago_credential: {
-        Args: { p_credential: string }
-        Returns: string
-      }
+      encrypt_mercadopago_credential:
+        | {
+            Args: { p_company_id: string; p_credential: string }
+            Returns: string
+          }
+        | { Args: { p_credential: string }; Returns: string }
       encrypt_whatsapp_token: { Args: { p_token: string }; Returns: string }
       has_role: {
         Args: {
