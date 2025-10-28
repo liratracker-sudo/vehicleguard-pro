@@ -5,13 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Users, Shield, Plug, MessageSquare, FileText, CreditCard, Bot } from "lucide-react"
-import { WhatsAppIntegration } from "@/components/settings/WhatsAppIntegration"
-import { AssinafyIntegration } from "@/components/settings/AssinafyIntegration"
-import { AsaasIntegration } from "@/components/settings/AsaasIntegration"
-import { GerencianetIntegration } from "@/components/settings/GerencianetIntegration"
-import { InterIntegration } from "@/components/settings/InterIntegration"
-import { MercadoPagoIntegration } from "@/components/settings/MercadoPagoIntegration"
 import { PaymentGatewayConfig } from "@/components/settings/PaymentGatewayConfig"
+import { IntegrationsGrid } from "@/components/settings/IntegrationsGrid"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { supabase } from "@/integrations/supabase/client"
@@ -66,14 +61,7 @@ const SettingsPage = () => {
 
           <TabsContent value="integrations" className="space-y-6">
             <PaymentGatewayConfig />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-              <WhatsAppIntegration />
-              <AssinafyIntegration />
-              <AsaasIntegration />
-              <GerencianetIntegration />
-              <InterIntegration />
-              <MercadoPagoIntegration />
-            </div>
+            <IntegrationsGrid />
           </TabsContent>
         </Tabs>
       </div>
