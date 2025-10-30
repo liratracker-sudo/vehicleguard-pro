@@ -105,7 +105,7 @@ serve(async (req) => {
           systemClient = newSystemClient;
         }
 
-        // Create charge in payment_transactions
+        // Create charge in payment_transactions (without gateway yet)
         const { data: charge, error: chargeError } = await supabase
           .from('payment_transactions')
           .insert({
@@ -115,7 +115,7 @@ serve(async (req) => {
             amount: amount,
             due_date: dueDate.toISOString().split('T')[0],
             status: 'pending',
-            payment_gateway: 'asaas'
+            payment_gateway: null // Will be determined by payment_gateway_methods config
           })
           .select()
           .single();
@@ -145,17 +145,24 @@ serve(async (req) => {
           console.error(`Error triggering notifications for charge ${charge.id}:`, notifError);
         }
 
-        // Try to create charge in Asaas if integration is active
+        // Try to create charge in configured gateway based on payment_gateway_methods
         try {
-          const { data: asaasSettings } = await supabase
-            .from('asaas_settings')
-            .select('*')
+          // Check which gateway is configured for boleto for this company
+          const { data: gatewayConfig } = await supabase
+            .from('payment_gateway_methods')
+            .select('gateway_type, priority')
             .eq('company_id', subscription.company_id)
+            .eq('payment_method', 'boleto')
             .eq('is_active', true)
+            .order('priority', { ascending: false })
+            .limit(1)
             .single();
 
-          if (asaasSettings) {
-            const asaasResponse = await supabase.functions.invoke('asaas-integration', {
+          if (gatewayConfig) {
+            const gateway = gatewayConfig.gateway_type;
+            console.log(`Creating subscription charge in ${gateway} for company ${subscription.company_id}`);
+
+            const gatewayResponse = await supabase.functions.invoke(`${gateway}-integration`, {
               body: {
                 action: 'create_charge',
                 company_id: subscription.company_id,
@@ -164,26 +171,34 @@ serve(async (req) => {
                   value: amount,
                   dueDate: dueDate.toISOString().split('T')[0],
                   description: `Assinatura ${plan.name} - ${subscription.companies.name}`,
-                  externalReference: charge.id
+                  externalReference: charge.id,
+                  customer: {
+                    name: subscription.companies.name,
+                    email: company?.email,
+                    phone: company?.phone
+                  }
                 }
               }
             });
 
-            if (asaasResponse.data?.success && asaasResponse.data?.charge) {
-              // Update charge with Asaas data
+            if (gatewayResponse.data?.success && gatewayResponse.data?.charge) {
+              // Update charge with gateway data
               await supabase
                 .from('payment_transactions')
                 .update({
-                  external_id: asaasResponse.data.charge.id,
-                  payment_url: asaasResponse.data.charge.invoiceUrl,
-                  barcode: asaasResponse.data.charge.bankSlipUrl
+                  external_id: gatewayResponse.data.charge.id,
+                  payment_url: gatewayResponse.data.charge.invoiceUrl || gatewayResponse.data.charge.invoice_url,
+                  barcode: gatewayResponse.data.charge.bankSlipUrl || gatewayResponse.data.charge.bankslip_url,
+                  payment_gateway: gateway
                 })
                 .eq('id', charge.id);
             }
+          } else {
+            console.log(`No gateway configured for boleto - subscription charge created without gateway integration`);
           }
-        } catch (asaasError) {
-          console.error(`Asaas integration failed for company ${subscription.company_id}:`, asaasError);
-          // Continue without Asaas integration
+        } catch (gatewayError) {
+          console.error(`Gateway integration failed for company ${subscription.company_id}:`, gatewayError);
+          // Continue without gateway integration
         }
 
         results.push({

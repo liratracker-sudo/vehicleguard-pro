@@ -263,59 +263,52 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
       }
 
-      // Generate payment using Asaas integration
-      console.log('💳 Creating charge with customer ID:', asaasCustomerId);
+      // Use gateway selection based on payment method configuration
+      console.log('💳 Creating charge in appropriate gateway...');
       
-      const chargeData = {
-        action: 'create_charge',
-        data: {
+      const { createChargeInGateway } = await import('@/hooks/usePaymentGateway');
+      
+      const gatewayResponse = await createChargeInGateway(
+        profile.company_id,
+        formData.transaction_type,
+        {
           customerId: asaasCustomerId,
           value: formData.amount,
           dueDate: dueDateStr,
-          billingType: formData.transaction_type.toUpperCase() === 'BOLETO' ? 'BOLETO' : 
-                      formData.transaction_type.toUpperCase() === 'PIX' ? 'PIX' : 'BOLETO',
           description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
-          externalReference: transaction.id
+          externalReference: transaction.id,
+          customerData: {
+            name: client.name,
+            email: client.email,
+            phone: client.phone,
+            document: client.document
+          }
         }
-      };
-      
-      console.log('💳 Charge data:', chargeData);
+      );
 
-      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke('asaas-integration', {
-        body: chargeData
-      });
+      console.log('💳 Gateway response:', gatewayResponse);
 
-      console.log('💳 Payment response:', paymentResponse);
-      console.log('💳 Payment error:', paymentError);
+      // Update transaction with gateway response if charge was created
+      if (gatewayResponse.charge) {
+        const charge = gatewayResponse.charge;
+        const updateData = {
+          external_id: charge.id,
+          payment_url: charge.invoiceUrl || charge.invoice_url,
+          barcode: charge.bankSlipUrl || charge.bankslip_url,
+          pix_code: charge.pixCode || charge.pix_code || charge.pixQrCodeId,
+          payment_gateway: gatewayResponse.gateway || formData.payment_gateway,
+          updated_at: new Date().toISOString()
+        };
 
-      if (paymentError) {
-        console.error('❌ Payment error:', paymentError);
-        throw new Error(paymentError.message || 'Erro na integração com gateway de pagamento');
+        console.log('🔄 Updating transaction with:', updateData);
+
+        await supabase
+          .from('payment_transactions')
+          .update(updateData)
+          .eq('id', transaction.id);
+      } else if (gatewayResponse.skipped) {
+        console.log('⚠️ Gateway integration skipped - no gateway configured for this payment method');
       }
-
-      if (!paymentResponse?.success) {
-        console.error('❌ Payment response error:', paymentResponse);
-        throw new Error(paymentResponse?.error || 'Falha ao gerar cobrança no gateway');
-      }
-
-      const charge = paymentResponse.charge;
-      console.log('✅ Charge created:', charge);
-
-      // Update transaction with gateway response
-      const updateData = {
-        external_id: charge.id,
-        payment_url: charge.invoiceUrl,
-        barcode: charge.bankSlipUrl,
-        pix_code: charge.pixCode || charge.pixQrCodeId,
-        updated_at: new Date().toISOString()
-      };
-
-      console.log('🔄 Updating transaction with:', updateData);
-
-      await supabase
-        .from('payment_transactions')
-        .update(updateData)
-        .eq('id', transaction.id);
 
       toast({
         title: "Cobrança gerada",
