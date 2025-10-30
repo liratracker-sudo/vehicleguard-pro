@@ -263,52 +263,20 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
       }
 
-      // Use gateway selection based on payment method configuration
-      console.log('💳 Creating charge in appropriate gateway...');
+      // Set payment URL to checkout page (universal link)
+      const checkoutUrl = `${window.location.origin}/checkout/${transaction.id}`;
       
-      const { createChargeInGateway } = await import('@/hooks/usePaymentGateway');
-      
-      const gatewayResponse = await createChargeInGateway(
-        profile.company_id,
-        formData.transaction_type,
-        {
-          customerId: asaasCustomerId,
-          value: formData.amount,
-          dueDate: dueDateStr,
-          description: `Cobrança gerada via sistema - Valor: R$ ${formData.amount}`,
-          externalReference: transaction.id,
-          customerData: {
-            name: client.name,
-            email: client.email,
-            phone: client.phone,
-            document: client.document
-          }
-        }
-      );
+      console.log('🔗 Setting checkout URL:', checkoutUrl);
 
-      console.log('💳 Gateway response:', gatewayResponse);
-
-      // Update transaction with gateway response if charge was created
-      if (gatewayResponse.charge) {
-        const charge = gatewayResponse.charge;
-        const updateData = {
-          external_id: charge.id,
-          payment_url: charge.invoiceUrl || charge.invoice_url,
-          barcode: charge.bankSlipUrl || charge.bankslip_url,
-          pix_code: charge.pixCode || charge.pix_code || charge.pixQrCodeId,
-          payment_gateway: gatewayResponse.gateway || formData.payment_gateway,
+      await supabase
+        .from('payment_transactions')
+        .update({
+          payment_url: checkoutUrl,
           updated_at: new Date().toISOString()
-        };
+        })
+        .eq('id', transaction.id);
 
-        console.log('🔄 Updating transaction with:', updateData);
-
-        await supabase
-          .from('payment_transactions')
-          .update(updateData)
-          .eq('id', transaction.id);
-      } else if (gatewayResponse.skipped) {
-        console.log('⚠️ Gateway integration skipped - no gateway configured for this payment method');
-      }
+      console.log('✅ Transaction created with checkout URL');
 
       toast({
         title: "Cobrança gerada",

@@ -145,61 +145,17 @@ serve(async (req) => {
           console.error(`Error triggering notifications for charge ${charge.id}:`, notifError);
         }
 
-        // Try to create charge in configured gateway based on payment_gateway_methods
-        try {
-          // Check which gateway is configured for boleto for this company
-          const { data: gatewayConfig } = await supabase
-            .from('payment_gateway_methods')
-            .select('gateway_type, priority')
-            .eq('company_id', subscription.company_id)
-            .eq('payment_method', 'boleto')
-            .eq('is_active', true)
-            .order('priority', { ascending: false })
-            .limit(1)
-            .single();
+        // Set payment URL to checkout page (universal link) - gateway integration happens when client chooses payment method
+        const checkoutUrl = `${supabaseUrl.replace('/rest/v1', '')}/checkout/${charge.id}`;
+        
+        await supabase
+          .from('payment_transactions')
+          .update({
+            payment_url: checkoutUrl
+          })
+          .eq('id', charge.id);
 
-          if (gatewayConfig) {
-            const gateway = gatewayConfig.gateway_type;
-            console.log(`Creating subscription charge in ${gateway} for company ${subscription.company_id}`);
-
-            const gatewayResponse = await supabase.functions.invoke(`${gateway}-integration`, {
-              body: {
-                action: 'create_charge',
-                company_id: subscription.company_id,
-                data: {
-                  billingType: 'BOLETO',
-                  value: amount,
-                  dueDate: dueDate.toISOString().split('T')[0],
-                  description: `Assinatura ${plan.name} - ${subscription.companies.name}`,
-                  externalReference: charge.id,
-                  customer: {
-                    name: subscription.companies.name,
-                    email: company?.email,
-                    phone: company?.phone
-                  }
-                }
-              }
-            });
-
-            if (gatewayResponse.data?.success && gatewayResponse.data?.charge) {
-              // Update charge with gateway data
-              await supabase
-                .from('payment_transactions')
-                .update({
-                  external_id: gatewayResponse.data.charge.id,
-                  payment_url: gatewayResponse.data.charge.invoiceUrl || gatewayResponse.data.charge.invoice_url,
-                  barcode: gatewayResponse.data.charge.bankSlipUrl || gatewayResponse.data.charge.bankslip_url,
-                  payment_gateway: gateway
-                })
-                .eq('id', charge.id);
-            }
-          } else {
-            console.log(`No gateway configured for boleto - subscription charge created without gateway integration`);
-          }
-        } catch (gatewayError) {
-          console.error(`Gateway integration failed for company ${subscription.company_id}:`, gatewayError);
-          // Continue without gateway integration
-        }
+        console.log(`Created charge ${charge.id} with checkout URL: ${checkoutUrl}`);
 
         results.push({
           company_id: subscription.company_id,
