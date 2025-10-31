@@ -175,6 +175,15 @@ const BillingPage = () => {
               <span className="hidden xs:inline ml-1">Gerar Cobranças</span>
             </Button>
 
+            <Button 
+              variant="outline"
+              onClick={() => navigate('/billing-diagnostics')}
+              className="flex-shrink-0"
+            >
+              <Settings className="w-4 h-4 sm:mr-2" />
+              <span className="hidden xs:inline ml-1">Diagnósticos</span>
+            </Button>
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="flex-shrink-0">
