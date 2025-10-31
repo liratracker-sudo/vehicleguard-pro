@@ -17,13 +17,28 @@ serve(async (req) => {
   }
 
   try {
-    const { payment_id, payment_method, client_data } = await req.json();
+    const requestData = await req.json();
+    
+    // Validate input data
+    const payment_id = requestData.payment_id?.trim();
+    const payment_method = requestData.payment_method?.trim();
+    const client_data = requestData.client_data;
 
     console.log('Processing checkout:', { payment_id, payment_method });
 
-    // Validar dados
-    if (!payment_id || !payment_method) {
-      throw new Error('Dados incompletos');
+    // Validate required fields
+    if (!payment_id || typeof payment_id !== 'string' || payment_id.length === 0) {
+      throw new Error('payment_id inválido');
+    }
+
+    if (!payment_method || typeof payment_method !== 'string' || payment_method.length === 0) {
+      throw new Error('payment_method inválido');
+    }
+
+    // Validate payment_method against allowed values
+    const allowedMethods = ['pix', 'boleto', 'credit_card', 'debit_card'];
+    if (!allowedMethods.includes(payment_method)) {
+      throw new Error('Método de pagamento inválido');
     }
 
     // Buscar dados do pagamento

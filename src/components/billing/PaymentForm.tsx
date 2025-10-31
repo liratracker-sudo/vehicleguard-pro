@@ -216,53 +216,6 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       
       console.log('✅ Transaction created:', transaction);
 
-      // First, create or get customer in Asaas
-      const client = clients.find(c => c.id === formData.client_id);
-      if (!client) {
-        console.error('❌ Client not found:', formData.client_id);
-        throw new Error('Cliente não encontrado');
-      }
-      
-      console.log('👥 Client found:', client);
-
-      // Try to create customer in Asaas first
-      let asaasCustomerId;
-      try {
-        console.log('🔄 Creating customer in Asaas...');
-        
-        const { data: customerResponse, error: customerError } = await supabase.functions.invoke('asaas-integration', {
-          body: {
-            action: 'create_customer',
-            data: {
-              name: client.name,
-              email: client.email,
-              phone: client.phone,
-              document: client.document,
-              externalReference: client.id
-            }
-          }
-        });
-
-        console.log('👥 Customer response:', customerResponse);
-        console.log('👥 Customer error:', customerError);
-
-        if (customerError) {
-          console.error('❌ Customer creation error:', customerError);
-        }
-
-        if (customerResponse?.success && customerResponse.customer?.id) {
-          asaasCustomerId = customerResponse.customer.id;
-          console.log('✅ Asaas customer ID:', asaasCustomerId);
-        } else {
-          // If customer creation fails, we'll use the document to search
-          console.log('⚠️ Using fallback: searching by document');
-          asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
-        }
-      } catch (error) {
-        console.error('❌ Customer handling error:', error);
-        asaasCustomerId = client.document?.replace(/\D/g, ''); // Use CPF as fallback
-      }
-
       // Set payment URL to checkout page (universal link)
       const checkoutUrl = `${window.location.origin}/checkout/${transaction.id}`;
       
