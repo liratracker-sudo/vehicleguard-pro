@@ -853,11 +853,9 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
   
   const formattedDueDate = dueDate.toLocaleDateString('pt-BR');
   
-  // Create payment link
-  const paymentLink = payment.payment_url || 
-    payment.pix_code ? `PIX: ${payment.pix_code}` :
-    payment.barcode ? `Boleto: ${payment.barcode}` :
-    'Entre em contato para detalhes do pagamento';
+  // ALWAYS use checkout link (universal payment link)
+  const checkoutUrl = `${supabaseUrl.replace('/rest/v1', '')}/checkout/${payment.id}`;
+  const paymentLink = checkoutUrl;
 
   // Replace template variables
   return template

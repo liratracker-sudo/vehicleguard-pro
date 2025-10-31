@@ -1,5 +1,8 @@
 project_id = "mcdidffxwtnqhawqilln"
 
+[functions.update-payment-urls]
+verify_jwt = false
+
 [functions.process-checkout]
 verify_jwt = false
 
