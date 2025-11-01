@@ -149,12 +149,23 @@ export default function Checkout() {
   };
 
   const processPayment = async () => {
-    if (!selectedMethod || !payment) return;
+    if (!selectedMethod || !payment) {
+      console.log('Missing data:', { selectedMethod, payment });
+      return;
+    }
+
+    console.log('Starting payment process:', {
+      payment_id: payment.id,
+      payment_method: selectedMethod,
+      company_id: payment.company_id
+    });
 
     setProcessing(true);
 
     try {
       // Chamar edge function para processar pagamento
+      console.log('Invoking process-checkout function...');
+      
       const { data, error } = await supabase.functions.invoke('process-checkout', {
         body: {
           payment_id: payment.id,
@@ -163,11 +174,24 @@ export default function Checkout() {
         }
       });
 
-      if (error) throw error;
+      console.log('Function response:', { data, error });
+
+      if (error) {
+        console.error('Function error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        console.error('No data received from function');
+        throw new Error('Nenhuma resposta recebida do servidor');
+      }
 
       if (!data.success) {
+        console.error('Function returned error:', data.error);
         throw new Error(data.error || 'Erro ao processar pagamento');
       }
+
+      console.log('Payment processed successfully:', data);
 
       setPaymentResult({
         success: true,
@@ -190,12 +214,19 @@ export default function Checkout() {
 
     } catch (error) {
       console.error('Error processing payment:', error);
+      
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'object' && error !== null
+          ? JSON.stringify(error)
+          : "Erro ao processar pagamento";
+      
       toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Erro ao processar pagamento",
+        title: "Erro ao processar pagamento",
+        description: errorMessage,
         variant: "destructive"
       });
-    } finally {
+      
       setProcessing(false);
     }
   };

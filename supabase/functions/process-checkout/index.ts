@@ -17,14 +17,16 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== PROCESS-CHECKOUT STARTED ===');
     const requestData = await req.json();
+    console.log('Request body:', JSON.stringify(requestData, null, 2));
     
     // Validate input data
     const payment_id = requestData.payment_id?.trim();
     const payment_method = requestData.payment_method?.trim();
     const client_data = requestData.client_data;
 
-    console.log('Processing checkout:', { payment_id, payment_method });
+    console.log('Processing checkout:', { payment_id, payment_method, has_client_data: !!client_data });
 
     // Validate required fields
     if (!payment_id || typeof payment_id !== 'string' || payment_id.length === 0) {
@@ -42,6 +44,7 @@ serve(async (req) => {
     }
 
     // Buscar dados do pagamento
+    console.log('Fetching payment data for ID:', payment_id);
     const { data: payment, error: paymentError } = await supabase
       .from('payment_transactions')
       .select(`
@@ -52,9 +55,21 @@ serve(async (req) => {
       .eq('id', payment_id)
       .single();
 
-    if (paymentError || !payment) {
+    if (paymentError) {
+      console.error('Payment fetch error:', paymentError);
+      throw new Error(`Erro ao buscar pagamento: ${paymentError.message}`);
+    }
+
+    if (!payment) {
+      console.error('Payment not found');
       throw new Error('Pagamento não encontrado');
     }
+
+    console.log('Payment found:', { 
+      id: payment.id, 
+      status: payment.status, 
+      company_id: payment.company_id 
+    });
 
     // Verificar se já foi pago
     if (payment.status === 'paid') {
@@ -68,6 +83,11 @@ serve(async (req) => {
     }
 
     // Determinar qual gateway usar baseado na configuração
+    console.log('Looking for gateway config:', { 
+      company_id: payment.company_id, 
+      payment_method 
+    });
+    
     const { data: gatewayConfig, error: configError } = await supabase
       .from('payment_gateway_methods')
       .select('gateway_type, priority')
@@ -78,7 +98,13 @@ serve(async (req) => {
       .limit(1)
       .single();
 
-    if (configError || !gatewayConfig) {
+    if (configError) {
+      console.error('Gateway config error:', configError);
+      throw new Error(`Erro ao buscar configuração do gateway: ${configError.message}`);
+    }
+
+    if (!gatewayConfig) {
+      console.error('No gateway config found');
       throw new Error('Gateway não configurado para este método de pagamento');
     }
 
