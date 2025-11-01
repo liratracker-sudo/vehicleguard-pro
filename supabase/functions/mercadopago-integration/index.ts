@@ -303,7 +303,68 @@ serve(async (req) => {
         const baseUrl = getMercadoPagoBaseUrl(settings.is_sandbox)
         const { data } = params
 
-        // Criar preferência de pagamento no MercadoPago
+        // Se for PIX, criar pagamento direto via API
+        if (data.billingType === 'PIX') {
+          const paymentData = {
+            transaction_amount: Number(data.value),
+            description: data.description || 'Pagamento',
+            payment_method_id: 'pix',
+            payer: {
+              email: data.customer?.email || 'pagador@email.com',
+              first_name: data.customer?.name?.split(' ')[0] || 'Cliente',
+              last_name: data.customer?.name?.split(' ').slice(1).join(' ') || 'MercadoPago',
+              identification: data.customer?.document ? {
+                type: data.customer.document.replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ',
+                number: data.customer.document.replace(/\D/g, '')
+              } : undefined
+            },
+            external_reference: data.externalReference,
+            date_of_expiration: data.dueDate ? new Date(new Date(data.dueDate).getTime() + 24 * 60 * 60 * 1000).toISOString() : undefined
+          }
+
+          console.log('Creating PIX payment:', JSON.stringify(paymentData, null, 2))
+
+          const response = await fetch(`${baseUrl}/v1/payments`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${settings.access_token}`,
+              'Content-Type': 'application/json',
+              'X-Idempotency-Key': data.externalReference
+            },
+            body: JSON.stringify(paymentData)
+          })
+
+          const result = await response.json()
+
+          if (!response.ok) {
+            console.error('MercadoPago payment error:', result)
+            await logOperation('create_charge', 'error', paymentData, result)
+            throw new Error(result.message || result.error || 'Erro ao criar pagamento PIX')
+          }
+
+          console.log('PIX payment created:', result)
+          await logOperation('create_charge', 'success', paymentData, result)
+
+          // Extrair dados do PIX
+          const pixData = result.point_of_interaction?.transaction_data || {}
+          
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              charge: {
+                id: result.id,
+                status: result.status,
+                invoice_url: result.transaction_details?.external_resource_url,
+                pix_code: pixData.qr_code,
+                qr_code_base64: pixData.qr_code_base64,
+                ticket_url: pixData.ticket_url
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Para outros métodos (boleto, cartão), usar checkout preferences
         const preferenceData = {
           items: [{
             title: data.description || 'Pagamento',
@@ -315,21 +376,19 @@ serve(async (req) => {
             name: data.customer?.name,
             email: data.customer?.email,
             phone: data.customer?.phone ? {
-              area_code: data.customer.phone.substring(1, 3),
-              number: data.customer.phone.replace(/\D/g, '').substring(3)
+              area_code: data.customer.phone.replace(/\D/g, '').substring(0, 2),
+              number: data.customer.phone.replace(/\D/g, '').substring(2)
             } : undefined,
             identification: data.customer?.document ? {
-              type: data.customer.document.length === 11 ? 'CPF' : 'CNPJ',
+              type: data.customer.document.replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ',
               number: data.customer.document.replace(/\D/g, '')
             } : undefined
           },
           external_reference: data.externalReference,
           payment_methods: {
-            excluded_payment_types: data.billingType === 'PIX' 
-              ? [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }]
-              : data.billingType === 'BOLETO'
+            excluded_payment_types: data.billingType === 'BOLETO'
               ? [{ id: 'credit_card' }, { id: 'debit_card' }]
-              : [{ id: 'ticket' }],
+              : [],
             installments: 1
           },
           date_of_expiration: data.dueDate ? new Date(data.dueDate).toISOString() : undefined
@@ -353,16 +412,12 @@ serve(async (req) => {
 
         await logOperation('create_charge', 'success', preferenceData, result)
 
-        // Retornar no formato esperado
         return new Response(
           JSON.stringify({ 
             success: true, 
             charge: {
               id: result.id,
-              invoice_url: result.init_point,
-              sandbox_init_point: result.sandbox_init_point,
-              qr_code: result.qr_code,
-              qr_code_base64: result.qr_code_base64
+              invoice_url: settings.is_sandbox ? result.sandbox_init_point : result.init_point
             }
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

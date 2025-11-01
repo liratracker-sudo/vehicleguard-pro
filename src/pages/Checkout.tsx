@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { QrCode, Receipt, CreditCard, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import QRCode from 'qrcode';
 
 interface PaymentData {
   id: string;
@@ -44,6 +45,7 @@ export default function Checkout() {
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
     payment_url?: string;
@@ -200,16 +202,41 @@ export default function Checkout() {
         barcode: data.barcode
       });
 
-      toast({
-        title: "Pagamento processado",
-        description: "Redirecionando para finalização..."
-      });
+      // Gerar QR Code se tiver chave PIX
+      if (data.pix_code) {
+        try {
+          const qrDataUrl = await QRCode.toDataURL(data.pix_code, {
+            width: 300,
+            margin: 2,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+          setQrCodeDataUrl(qrDataUrl);
+        } catch (err) {
+          console.error('Error generating QR code:', err);
+        }
+      }
 
-      // Redirecionar para URL de pagamento se disponível
-      if (data.payment_url) {
-        setTimeout(() => {
-          window.location.href = data.payment_url;
-        }, 2000);
+      // Se for PIX ou boleto, não redireciona (mostra na tela)
+      if (selectedMethod === 'pix' || selectedMethod === 'boleto') {
+        toast({
+          title: "Pagamento gerado",
+          description: selectedMethod === 'pix' ? "QR Code PIX gerado com sucesso" : "Boleto gerado com sucesso"
+        });
+      } else {
+        toast({
+          title: "Pagamento processado",
+          description: "Redirecionando para finalização..."
+        });
+
+        // Redirecionar para URL de pagamento se disponível
+        if (data.payment_url) {
+          setTimeout(() => {
+            window.location.href = data.payment_url;
+          }, 2000);
+        }
       }
 
     } catch (error) {
@@ -247,8 +274,10 @@ export default function Checkout() {
             {paymentResult.success ? (
               <>
                 <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <CardTitle>Pagamento Confirmado</CardTitle>
-                <CardDescription>Seu pagamento foi processado com sucesso</CardDescription>
+                <CardTitle>Pagamento Gerado</CardTitle>
+                <CardDescription>
+                  {paymentResult.pix_code ? 'Escaneie o QR Code ou copie a chave PIX' : 'Pagamento processado com sucesso'}
+                </CardDescription>
               </>
             ) : (
               <>
@@ -258,6 +287,100 @@ export default function Checkout() {
               </>
             )}
           </CardHeader>
+
+          {paymentResult.success && (
+            <CardContent className="space-y-4">
+              {/* QR Code PIX */}
+              {paymentResult.pix_code && (
+                <div className="space-y-4">
+                  {qrCodeDataUrl ? (
+                    <div className="bg-white p-4 rounded-lg flex items-center justify-center">
+                      <img src={qrCodeDataUrl} alt="QR Code PIX" className="w-64 h-64" />
+                    </div>
+                  ) : (
+                    <div className="bg-white p-4 rounded-lg flex items-center justify-center">
+                      <Loader2 className="h-48 w-48 text-gray-400 animate-spin" />
+                    </div>
+                  )}
+                  
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Chave PIX (Pix Copia e Cola)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={paymentResult.pix_code}
+                        readOnly
+                        className="flex-1 p-2 border rounded text-sm bg-muted font-mono text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(paymentResult.pix_code!);
+                          toast({
+                            title: "Copiado!",
+                            description: "Chave PIX copiada para a área de transferência"
+                          });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg text-sm text-blue-900 dark:text-blue-100">
+                    <p className="font-medium mb-2">Como pagar:</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Abra o app do seu banco</li>
+                      <li>Escolha pagar com PIX</li>
+                      <li>Escaneie o QR Code ou cole a chave</li>
+                      <li>Confirme o pagamento</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+
+              {/* Boleto */}
+              {paymentResult.barcode && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Código de Barras</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={paymentResult.barcode}
+                        readOnly
+                        className="flex-1 p-2 border rounded text-sm bg-muted"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(paymentResult.barcode!);
+                          toast({
+                            title: "Copiado!",
+                            description: "Código de barras copiado"
+                          });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {paymentResult.payment_url && (
+                    <Button
+                      className="w-full"
+                      onClick={() => window.open(paymentResult.payment_url, '_blank')}
+                    >
+                      <Receipt className="mr-2 h-4 w-4" />
+                      Abrir Boleto
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          )}
         </Card>
       </div>
     );
