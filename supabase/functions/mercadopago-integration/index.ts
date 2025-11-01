@@ -22,37 +22,48 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing authorization header')
+    const { action, company_id, ...params } = await req.json()
+    
+    let companyId: string
+
+    // Se company_id foi fornecido (chamada de outra edge function), usa ele
+    if (company_id) {
+      companyId = company_id
+      console.log('MercadoPago Integration - Service call - Action:', action, 'Company:', companyId)
+    } else {
+      // Caso contrário, autentica o usuário (chamada do frontend)
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        throw new Error('Missing authorization header or company_id')
+      }
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      )
+
+      if (authError || !user) {
+        throw new Error('Unauthorized')
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile?.company_id) {
+        throw new Error('Company not found')
+      }
+
+      companyId = profile.company_id
+      console.log('MercadoPago Integration - User call - Action:', action, 'Company:', companyId)
     }
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-
-    if (authError || !user) {
-      throw new Error('Unauthorized')
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!profile?.company_id) {
-      throw new Error('Company not found')
-    }
-
-    const { action, ...params } = await req.json()
-    console.log('MercadoPago Integration - Action:', action, 'Company:', profile.company_id)
 
     const getSettings = async (): Promise<MercadoPagoSettings> => {
       const { data: settings } = await supabase
         .from('mercadopago_settings')
         .select('access_token_encrypted, is_sandbox')
-        .eq('company_id', profile.company_id)
+        .eq('company_id', companyId)
         .single()
 
       if (!settings) {
@@ -60,7 +71,7 @@ serve(async (req) => {
       }
 
       const { data: decrypted } = await supabase.rpc('decrypt_mercadopago_credential', {
-        p_company_id: profile.company_id,
+        p_company_id: companyId,
         p_encrypted_credential: settings.access_token_encrypted
       })
 
@@ -72,7 +83,7 @@ serve(async (req) => {
 
     const logOperation = async (operation: string, status: string, requestData?: any, responseData?: any, errorMessage?: string) => {
       await supabase.from('mercadopago_logs').insert({
-        company_id: profile.company_id,
+        company_id: companyId,
         operation_type: operation,
         status,
         request_data: requestData,
@@ -97,7 +108,7 @@ serve(async (req) => {
 
         // Criptografar access token usando chave única da empresa
         const { data: encrypted, error: encryptError } = await supabase.rpc('encrypt_mercadopago_credential', {
-          p_company_id: profile.company_id,
+          p_company_id: companyId,
           p_credential: access_token
         })
 
@@ -114,7 +125,7 @@ serve(async (req) => {
         const { error: upsertError } = await supabase
           .from('mercadopago_settings')
           .upsert({
-            company_id: profile.company_id,
+            company_id: companyId,
             access_token_encrypted: encrypted,
             is_sandbox: is_sandbox ?? true,
             is_active: true,
@@ -166,7 +177,7 @@ serve(async (req) => {
             last_test_at: new Date().toISOString(),
             test_result: result
           })
-          .eq('company_id', profile.company_id)
+          .eq('company_id', companyId)
 
         return new Response(
           JSON.stringify({ success: true, data: result }),
@@ -283,6 +294,77 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, data: result }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'create_charge': {
+        const settings = await getSettings()
+        const baseUrl = getMercadoPagoBaseUrl(settings.is_sandbox)
+        const { data } = params
+
+        // Criar preferência de pagamento no MercadoPago
+        const preferenceData = {
+          items: [{
+            title: data.description || 'Pagamento',
+            quantity: 1,
+            unit_price: Number(data.value),
+            currency_id: 'BRL'
+          }],
+          payer: {
+            name: data.customer?.name,
+            email: data.customer?.email,
+            phone: data.customer?.phone ? {
+              area_code: data.customer.phone.substring(1, 3),
+              number: data.customer.phone.replace(/\D/g, '').substring(3)
+            } : undefined,
+            identification: data.customer?.document ? {
+              type: data.customer.document.length === 11 ? 'CPF' : 'CNPJ',
+              number: data.customer.document.replace(/\D/g, '')
+            } : undefined
+          },
+          external_reference: data.externalReference,
+          payment_methods: {
+            excluded_payment_types: data.billingType === 'PIX' 
+              ? [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }]
+              : data.billingType === 'BOLETO'
+              ? [{ id: 'credit_card' }, { id: 'debit_card' }]
+              : [{ id: 'ticket' }],
+            installments: 1
+          },
+          date_of_expiration: data.dueDate ? new Date(data.dueDate).toISOString() : undefined
+        }
+
+        const response = await fetch(`${baseUrl}/checkout/preferences`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${settings.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(preferenceData)
+        })
+
+        const result = await response.json()
+
+        if (!response.ok) {
+          await logOperation('create_charge', 'error', preferenceData, result)
+          throw new Error(result.message || 'Erro ao criar cobrança')
+        }
+
+        await logOperation('create_charge', 'success', preferenceData, result)
+
+        // Retornar no formato esperado
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            charge: {
+              id: result.id,
+              invoice_url: result.init_point,
+              sandbox_init_point: result.sandbox_init_point,
+              qr_code: result.qr_code,
+              qr_code_base64: result.qr_code_base64
+            }
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }

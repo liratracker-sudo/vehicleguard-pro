@@ -136,11 +136,15 @@ serve(async (req) => {
     };
 
     console.log('Creating charge in gateway:', gateway);
+    console.log('Charge data:', JSON.stringify(chargeData, null, 2));
 
     const { data: gatewayResponse, error: gatewayError } = await supabase.functions.invoke(
       `${gateway}-integration`,
       { body: chargeData }
     );
+
+    console.log('Gateway response:', JSON.stringify(gatewayResponse, null, 2));
+    console.log('Gateway error:', gatewayError);
 
     if (gatewayError) {
       console.error('Gateway error:', gatewayError);
