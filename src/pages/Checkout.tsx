@@ -73,6 +73,9 @@ export default function Checkout() {
           due_date,
           status,
           company_id,
+          payment_url,
+          pix_code,
+          barcode,
           clients!inner(name, email, phone, document),
           companies!inner(name, logo_url)
         `)
@@ -87,7 +90,30 @@ export default function Checkout() {
 
       // Verificar se já foi pago
       if (paymentData.status === 'paid') {
-        setPaymentResult({ success: true });
+        console.log('Payment already paid, showing success message');
+        setPaymentResult({ 
+          success: true,
+          payment_url: paymentData.payment_url,
+          pix_code: paymentData.pix_code,
+          barcode: paymentData.barcode
+        });
+        
+        // Gerar QR Code se tiver chave PIX
+        if (paymentData.pix_code) {
+          try {
+            const qrDataUrl = await QRCode.toDataURL(paymentData.pix_code, {
+              width: 300,
+              margin: 2,
+              color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+              }
+            });
+            setQrCodeDataUrl(qrDataUrl);
+          } catch (err) {
+            console.error('Error generating QR code for paid payment:', err);
+          }
+        }
         return;
       }
 
@@ -278,6 +304,12 @@ export default function Checkout() {
   }
 
   if (paymentResult) {
+    console.log('=== PAYMENT RESULT STATE ===');
+    console.log('paymentResult:', paymentResult);
+    console.log('qrCodeDataUrl:', qrCodeDataUrl);
+    console.log('has pix_code:', !!paymentResult.pix_code);
+    console.log('=============================');
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
         <Card className="w-full max-w-md">
