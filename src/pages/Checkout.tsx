@@ -195,54 +195,55 @@ export default function Checkout() {
 
       console.log('Payment processed successfully:', data);
 
+      // Finalizar processamento IMEDIATAMENTE
+      setProcessing(false);
+
       // Gerar QR Code se tiver chave PIX ANTES de setar o paymentResult
       if (data.pix_code) {
         console.log('Generating QR Code for PIX:', data.pix_code);
-        try {
-          const qrDataUrl = await QRCode.toDataURL(data.pix_code, {
-            width: 300,
-            margin: 2,
-            color: {
-              dark: '#000000',
-              light: '#FFFFFF'
-            }
-          });
-          console.log('QR Code generated successfully');
-          setQrCodeDataUrl(qrDataUrl);
-        } catch (err) {
-          console.error('Error generating QR code:', err);
-        }
+        const qrDataUrl = await QRCode.toDataURL(data.pix_code, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        console.log('QR Code generated successfully');
+        setQrCodeDataUrl(qrDataUrl);
       }
 
-      // Setar o resultado DEPOIS de gerar o QR Code
-      setPaymentResult({
+      // Setar o resultado e mostrar toast
+      const result = {
         success: true,
         payment_url: data.payment_url,
         pix_code: data.pix_code,
         barcode: data.barcode
-      });
+      };
+      
+      console.log('Setting payment result:', result);
+      setPaymentResult(result);
 
-      // Se for PIX ou boleto, não redireciona (mostra na tela)
-      if (selectedMethod === 'pix' || selectedMethod === 'boleto') {
+      // Toast de sucesso
+      if (selectedMethod === 'pix') {
         toast({
-          title: "Pagamento gerado",
-          description: selectedMethod === 'pix' ? "QR Code PIX gerado com sucesso" : "Boleto gerado com sucesso"
+          title: "PIX gerado com sucesso",
+          description: "Escaneie o QR Code ou copie a chave PIX"
         });
-      } else {
+      } else if (selectedMethod === 'boleto') {
+        toast({
+          title: "Boleto gerado",
+          description: "Boleto gerado com sucesso"
+        });
+      } else if (data.payment_url) {
         toast({
           title: "Pagamento processado",
           description: "Redirecionando para finalização..."
         });
-
-        // Redirecionar para URL de pagamento se disponível
-        if (data.payment_url) {
-          setTimeout(() => {
-            window.location.href = data.payment_url;
-          }, 2000);
-        }
+        setTimeout(() => {
+          window.location.href = data.payment_url;
+        }, 2000);
       }
-
-      setProcessing(false);
 
     } catch (error) {
       console.error('Error processing payment:', error);
