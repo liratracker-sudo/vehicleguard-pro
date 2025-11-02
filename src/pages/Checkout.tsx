@@ -195,25 +195,27 @@ export default function Checkout() {
 
       console.log('Payment processed successfully:', data);
 
-      // Finalizar processamento IMEDIATAMENTE
-      setProcessing(false);
-
-      // Gerar QR Code se tiver chave PIX ANTES de setar o paymentResult
+      // Gerar QR Code se tiver chave PIX (com try/catch isolado)
       if (data.pix_code) {
         console.log('Generating QR Code for PIX:', data.pix_code);
-        const qrDataUrl = await QRCode.toDataURL(data.pix_code, {
-          width: 300,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF'
-          }
-        });
-        console.log('QR Code generated successfully');
-        setQrCodeDataUrl(qrDataUrl);
+        try {
+          const qrDataUrl = await QRCode.toDataURL(data.pix_code, {
+            width: 300,
+            margin: 2,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+          console.log('QR Code generated successfully');
+          setQrCodeDataUrl(qrDataUrl);
+        } catch (qrError) {
+          console.error('Error generating QR code (non-critical):', qrError);
+          // Continua mesmo se o QR Code falhar
+        }
       }
 
-      // Setar o resultado e mostrar toast
+      // Setar o resultado SEMPRE (mesmo se QR Code falhar)
       const result = {
         success: true,
         payment_url: data.payment_url,
@@ -223,6 +225,9 @@ export default function Checkout() {
       
       console.log('Setting payment result:', result);
       setPaymentResult(result);
+      
+      // Finalizar processamento DEPOIS de setar o resultado
+      setProcessing(false);
 
       // Toast de sucesso
       if (selectedMethod === 'pix') {
