@@ -157,31 +157,56 @@ serve(async (req) => {
     }
 
     const charge = gatewayResponse.charge;
+    
+    console.log('=== CHARGE DATA BEFORE UPDATE ===');
+    console.log('charge.id:', charge.id);
+    console.log('charge.pix_code:', charge.pix_code);
+    console.log('charge.pixCode:', charge.pixCode);
+    console.log('charge.qr_code:', charge.qr_code);
+    console.log('charge.invoice_url:', charge.invoice_url);
+    console.log('charge.invoiceUrl:', charge.invoiceUrl);
+    console.log('=================================');
+
+    const updateData = {
+      external_id: charge.id?.toString(),
+      payment_url: charge.invoiceUrl || charge.invoice_url || charge.ticket_url,
+      barcode: charge.bankSlipUrl || charge.bankslip_url,
+      pix_code: charge.pix_code || charge.pixCode || charge.pixQrCodeId || charge.qr_code,
+      payment_gateway: gateway,
+      transaction_type: payment_method,
+      updated_at: new Date().toISOString()
+    };
+    
+    console.log('=== UPDATE DATA ===');
+    console.log(JSON.stringify(updateData, null, 2));
+    console.log('==================');
 
     // Atualizar transaction com dados do gateway
-    await supabase
+    const { error: updateError } = await supabase
       .from('payment_transactions')
-      .update({
-        external_id: charge.id,
-        payment_url: charge.invoiceUrl || charge.invoice_url,
-        barcode: charge.bankSlipUrl || charge.bankslip_url,
-        pix_code: charge.pixCode || charge.pix_code || charge.pixQrCodeId,
-        payment_gateway: gateway,
-        transaction_type: payment_method,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', payment.id);
+      
+    if (updateError) {
+      console.error('Update error:', updateError);
+    }
 
     console.log('Checkout processed successfully');
 
+    const responseData = {
+      success: true,
+      payment_url: charge.invoiceUrl || charge.invoice_url || charge.ticket_url,
+      pix_code: charge.pix_code || charge.pixCode || charge.pixQrCodeId || charge.qr_code,
+      barcode: charge.bankSlipUrl || charge.bankslip_url,
+      external_id: charge.id
+    };
+    
+    console.log('=== RESPONSE DATA ===');
+    console.log(JSON.stringify(responseData, null, 2));
+    console.log('====================');
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        payment_url: charge.invoiceUrl || charge.invoice_url,
-        pix_code: charge.pixCode || charge.pix_code,
-        barcode: charge.bankSlipUrl || charge.bankslip_url,
-        external_id: charge.id
-      }),
+      JSON.stringify(responseData),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

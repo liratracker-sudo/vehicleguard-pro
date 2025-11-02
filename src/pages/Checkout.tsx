@@ -214,6 +214,15 @@ export default function Checkout() {
         throw new Error('Nenhuma resposta recebida do servidor');
       }
 
+      console.log('=== DETAILED RESPONSE DATA ===');
+      console.log('Full data object:', JSON.stringify(data, null, 2));
+      console.log('data.success:', data.success);
+      console.log('data.pix_code exists:', !!data.pix_code);
+      console.log('data.pix_code length:', data.pix_code?.length);
+      console.log('data.payment_url:', data.payment_url);
+      console.log('data.barcode:', data.barcode);
+      console.log('===============================');
+
       if (!data.success) {
         console.error('Function returned error:', data.error);
         throw new Error(data.error || 'Erro ao processar pagamento');
