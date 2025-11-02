@@ -195,15 +195,9 @@ export default function Checkout() {
 
       console.log('Payment processed successfully:', data);
 
-      setPaymentResult({
-        success: true,
-        payment_url: data.payment_url,
-        pix_code: data.pix_code,
-        barcode: data.barcode
-      });
-
-      // Gerar QR Code se tiver chave PIX
+      // Gerar QR Code se tiver chave PIX ANTES de setar o paymentResult
       if (data.pix_code) {
+        console.log('Generating QR Code for PIX:', data.pix_code);
         try {
           const qrDataUrl = await QRCode.toDataURL(data.pix_code, {
             width: 300,
@@ -213,11 +207,20 @@ export default function Checkout() {
               light: '#FFFFFF'
             }
           });
+          console.log('QR Code generated successfully');
           setQrCodeDataUrl(qrDataUrl);
         } catch (err) {
           console.error('Error generating QR code:', err);
         }
       }
+
+      // Setar o resultado DEPOIS de gerar o QR Code
+      setPaymentResult({
+        success: true,
+        payment_url: data.payment_url,
+        pix_code: data.pix_code,
+        barcode: data.barcode
+      });
 
       // Se for PIX ou boleto, não redireciona (mostra na tela)
       if (selectedMethod === 'pix' || selectedMethod === 'boleto') {
@@ -238,6 +241,8 @@ export default function Checkout() {
           }, 2000);
         }
       }
+
+      setProcessing(false);
 
     } catch (error) {
       console.error('Error processing payment:', error);
