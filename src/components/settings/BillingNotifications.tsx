@@ -16,6 +16,7 @@ interface NotificationSettings {
   active: boolean;
   pre_due_days: number[];
   on_due: boolean;
+  on_paid: boolean;
   post_due_days: number[];
   send_hour: string;
   template_pre_due: string;
@@ -74,6 +75,7 @@ export function BillingNotifications() {
           active: true,
           pre_due_days: [3],
           on_due: true,
+          on_paid: true,
           post_due_days: [2],
           send_hour: '09:00',
           template_pre_due: 'Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}). Pague aqui: {{link_pagamento}}',
@@ -337,6 +339,25 @@ export function BillingNotifications() {
               </CardContent>
             </Card>
 
+            <Card className="hover:shadow-md transition-shadow border-green-500/20">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Pagamento Confirmado
+                </CardTitle>
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/10">
+                  <Activity className="h-4 w-4 text-green-500" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-500">
+                  {settings.on_paid ? 'Ativo' : 'Inativo'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {settings.on_paid ? 'WhatsApp automático PIX' : 'Desativado'}
+                </p>
+              </CardContent>
+            </Card>
+
             <Card className="hover:shadow-md transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -402,6 +423,35 @@ export function BillingNotifications() {
                       {settings.post_due_days.length > 0 
                         ? settings.post_due_days.join(', ') + ' dias'
                         : 'Nenhum configurado'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Nova seção: Notificação de Pagamento Confirmado */}
+              <div className="mt-6 pt-4 border-t border-border">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-500/10">
+                    <Activity className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-medium">Notificação de Pagamento Confirmado PIX</Label>
+                      <Switch
+                        checked={settings.on_paid}
+                        onCheckedChange={(checked) => {
+                          const updated = { ...settings, on_paid: checked };
+                          setSettings(updated);
+                          saveSettings(updated);
+                        }}
+                        disabled={saving || !settings.active}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {settings.on_paid 
+                        ? '✅ Cliente receberá WhatsApp automático quando o PIX for confirmado'
+                        : '⚠️ Notificações automáticas de confirmação desativadas'
                       }
                     </p>
                   </div>

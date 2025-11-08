@@ -1260,6 +1260,7 @@ export type Database = {
           created_at: string
           id: string
           on_due: boolean
+          on_paid: boolean
           post_due_days: number[]
           pre_due_days: number[]
           send_hour: string
@@ -1274,6 +1275,7 @@ export type Database = {
           created_at?: string
           id?: string
           on_due?: boolean
+          on_paid?: boolean
           post_due_days?: number[]
           pre_due_days?: number[]
           send_hour?: string
@@ -1288,6 +1290,7 @@ export type Database = {
           created_at?: string
           id?: string
           on_due?: boolean
+          on_paid?: boolean
           post_due_days?: number[]
           pre_due_days?: number[]
           send_hour?: string
