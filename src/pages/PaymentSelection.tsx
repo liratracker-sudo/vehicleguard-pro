@@ -4,9 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, QrCode, Barcode, Loader2, Check, Sparkles, CheckCircle2, XCircle } from "lucide-react";
+import { CreditCard, QrCode, Barcode, Loader2, Check, Sparkles, CheckCircle2, XCircle, Wifi } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import QRCodeLib from 'qrcode';
+import { usePaymentRealtime } from "@/hooks/usePaymentRealtime";
 
 interface PaymentMethod {
   key: string;
@@ -52,6 +53,17 @@ export default function PaymentSelection() {
     barcode?: string;
     error?: string;
   } | null>(null);
+
+  // Hook para detecção em tempo real de pagamento confirmado
+  usePaymentRealtime({
+    transactionId: transactionId || '',
+    onPaymentConfirmed: () => {
+      // Recarregar dados da transação para mostrar status atualizado
+      if (transactionId) {
+        loadTransaction();
+      }
+    }
+  });
 
   useEffect(() => {
     if (transactionId) {
@@ -200,6 +212,14 @@ export default function PaymentSelection() {
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <div className="p-8">
+            {/* Badge de Detecção Automática */}
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 text-green-600 text-sm">
+                <Wifi className="h-4 w-4 animate-pulse" />
+                <span className="font-medium">Detecção automática ativa</span>
+              </div>
+            </div>
+
             <div className="text-center mb-6">
               {paymentResult.success ? (
                 <>
@@ -208,6 +228,11 @@ export default function PaymentSelection() {
                   <p className="text-muted-foreground">
                     {paymentResult.pix_code ? 'Escaneie o QR Code ou copie a chave PIX' : 'Complete o pagamento usando as informações abaixo'}
                   </p>
+                  {paymentResult.pix_code && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      ⚡ Você será notificado automaticamente quando o pagamento for confirmado
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
