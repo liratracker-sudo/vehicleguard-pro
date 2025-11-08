@@ -21,12 +21,6 @@ interface NotificationSettings {
   template_pre_due: string;
   template_on_due: string;
   template_post_due: string;
-  on_due_times: number;
-  on_due_interval_hours: number;
-  post_due_times: number;
-  post_due_interval_hours: number;
-  max_attempts_per_notification: number;
-  retry_interval_hours: number;
 }
 
 export function BillingNotifications() {
@@ -72,17 +66,7 @@ export function BillingNotifications() {
       }
 
       if (data) {
-        // Adicionar valores padrão para campos que podem não existir
-        const settingsWithDefaults: NotificationSettings = {
-          ...data,
-          on_due_times: 1,
-          on_due_interval_hours: 2,
-          post_due_times: 2,
-          post_due_interval_hours: 6,
-          max_attempts_per_notification: 3,
-          retry_interval_hours: 1
-        };
-        setSettings(settingsWithDefaults);
+        setSettings(data as NotificationSettings);
       } else {
         // Create default settings
         const defaultSettings = {
@@ -94,13 +78,7 @@ export function BillingNotifications() {
           send_hour: '09:00',
           template_pre_due: 'Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}). Pague aqui: {{link_pagamento}}',
           template_on_due: 'Olá {{cliente}}, seu pagamento de R$ {{valor}} vence hoje ({{vencimento}}). Pague aqui: {{link_pagamento}}',
-          template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}',
-          on_due_times: 1,
-          on_due_interval_hours: 2,
-          post_due_times: 2,
-          post_due_interval_hours: 6,
-          max_attempts_per_notification: 3,
-          retry_interval_hours: 1
+          template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}'
         };
         
         const { data: created, error: createError } = await supabase
@@ -113,17 +91,7 @@ export function BillingNotifications() {
           throw createError;
         }
 
-        // Adicionar campos padrão que não existem no DB
-        const createdWithDefaults: NotificationSettings = {
-          ...created,
-          on_due_times: 1,
-          on_due_interval_hours: 2,
-          post_due_times: 2,
-          post_due_interval_hours: 6,
-          max_attempts_per_notification: 3,
-          retry_interval_hours: 1
-        };
-        setSettings(createdWithDefaults);
+        setSettings(created as NotificationSettings);
       }
     } catch (error: any) {
       console.error('Erro ao carregar configurações:', error);
@@ -146,20 +114,12 @@ export function BillingNotifications() {
         throw new Error('Configure pelo menos um tipo de notificação');
       }
 
-      if (updatedSettings.on_due && (!updatedSettings.on_due_times || updatedSettings.on_due_times < 1)) {
-        throw new Error('Quantidade de disparos deve ser pelo menos 1');
-      }
-
       console.log('Saving notification settings:', {
         active: updatedSettings.active,
         pre_due_days: updatedSettings.pre_due_days,
         on_due: updatedSettings.on_due,
         post_due_days: updatedSettings.post_due_days,
-        send_hour: updatedSettings.send_hour,
-        on_due_times: updatedSettings.on_due_times,
-        on_due_interval_hours: updatedSettings.on_due_interval_hours,
-        max_attempts_per_notification: updatedSettings.max_attempts_per_notification,
-        retry_interval_hours: updatedSettings.retry_interval_hours
+        send_hour: updatedSettings.send_hour
       });
 
       const { error } = await supabase
@@ -172,12 +132,7 @@ export function BillingNotifications() {
           send_hour: updatedSettings.send_hour,
           template_pre_due: updatedSettings.template_pre_due,
           template_on_due: updatedSettings.template_on_due,
-          template_post_due: updatedSettings.template_post_due,
-          on_due_times: updatedSettings.on_due_times,
-          on_due_interval_hours: updatedSettings.on_due_interval_hours,
-          max_attempts_per_notification: updatedSettings.max_attempts_per_notification,
-          retry_interval_hours: updatedSettings.retry_interval_hours,
-          updated_at: new Date().toISOString()
+          template_post_due: updatedSettings.template_post_due
         })
         .eq('id', updatedSettings.id);
 
@@ -354,13 +309,10 @@ export function BillingNotifications() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {settings.on_due ? settings.on_due_times : '0'}
+                  {settings.on_due ? '1' : '0'}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {settings.on_due 
-                    ? `${settings.on_due_times}x a cada ${settings.on_due_interval_hours}h`
-                    : 'Inativo'
-                  }
+                  {settings.on_due ? 'Ativo' : 'Inativo'}
                 </p>
               </CardContent>
             </Card>
@@ -435,10 +387,7 @@ export function BillingNotifications() {
                   </div>
                   <div className="pl-4">
                     <p className="text-sm text-muted-foreground">
-                      {settings.on_due 
-                        ? `${settings.on_due_times} disparos a cada ${settings.on_due_interval_hours}h`
-                        : 'Desativado'
-                      }
+                      {settings.on_due ? 'Ativo' : 'Desativado'}
                     </p>
                   </div>
                 </div>
