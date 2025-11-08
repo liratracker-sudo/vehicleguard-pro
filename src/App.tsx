@@ -18,7 +18,6 @@ import ReportsPage from "./pages/Reports";
 import WhiteLabelPage from "./pages/WhiteLabel";
 import SettingsPage from "./pages/Settings";
 import BillingDiagnosticsPage from "./pages/BillingDiagnostics";
-import PaymentSelectionPage from "./pages/PaymentSelection";
 import NotFound from "./pages/NotFound";
 import CheckoutPage from "./pages/Checkout";
 import { RoleGuard } from "@/components/auth/RoleGuard";
@@ -45,7 +44,7 @@ const App = () => {
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/checkout/:payment_id" element={<CheckoutPage />} />
-              <Route path="/payment/:transactionId" element={<PaymentSelectionPage />} />
+              <Route path="/payment/:payment_id" element={<CheckoutPage />} />
               <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
               <Route path="/admin" element={<AuthGuard><RoleGuard allowed={['super_admin']}><AdminPage /></RoleGuard></AuthGuard>} />
               <Route path="/clients" element={<AuthGuard><ClientsPage /></AuthGuard>} />
