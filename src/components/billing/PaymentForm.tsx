@@ -216,7 +216,9 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       console.log('✅ Transaction created:', transaction);
 
       // Set payment URL to payment selection page (universal link)
-      const paymentSelectionUrl = `${window.location.origin}/payment/${transaction.id}`;
+      // Use VITE_APP_URL from environment or fallback to current origin
+      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const paymentSelectionUrl = `${baseUrl}/payment/${transaction.id}`;
       
       console.log('🔗 Setting payment selection URL:', paymentSelectionUrl);
 
