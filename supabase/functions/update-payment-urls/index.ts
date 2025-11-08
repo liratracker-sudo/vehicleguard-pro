@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
@@ -36,8 +37,8 @@ serve(async (req) => {
     let skipped = 0;
 
     for (const payment of payments || []) {
-      // Check if URL is already a checkout URL
-      if (payment.payment_url?.includes('/checkout/')) {
+      // Check if URL is already a payment URL with public domain
+      if (payment.payment_url?.includes('/payment/') || payment.payment_url?.includes('/checkout/')) {
         skipped++;
         continue;
       }
@@ -50,8 +51,8 @@ serve(async (req) => {
         payment.payment_url?.includes('bancointer');
 
       if (isGatewayUrl) {
-        // Update to checkout URL
-        const checkoutUrl = `${supabaseUrl.replace('/rest/v1', '')}/checkout/${payment.id}`;
+        // Update to checkout URL with public domain
+        const checkoutUrl = `${appUrl}/payment/${payment.id}`;
         
         const { error: updateError } = await supabase
           .from('payment_transactions')

@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -853,9 +854,8 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
   
   const formattedDueDate = dueDate.toLocaleDateString('pt-BR');
   
-  // ALWAYS use checkout link (universal payment link)
-  const checkoutUrl = `${supabaseUrl.replace('/rest/v1', '')}/checkout/${payment.id}`;
-  const paymentLink = checkoutUrl;
+  // ALWAYS use checkout link (universal payment link) with public domain
+  const paymentLink = `${appUrl}/payment/${payment.id}`;
 
   // Replace template variables
   return template

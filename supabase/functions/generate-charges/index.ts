@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
@@ -146,7 +147,7 @@ serve(async (req) => {
         }
 
         // Set payment URL to checkout page (universal link) - gateway integration happens when client chooses payment method
-        const checkoutUrl = `${supabaseUrl.replace('/rest/v1', '')}/checkout/${charge.id}`;
+        const checkoutUrl = `${appUrl}/payment/${charge.id}`;
         
         await supabase
           .from('payment_transactions')
