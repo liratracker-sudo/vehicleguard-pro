@@ -215,20 +215,20 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       
       console.log('✅ Transaction created:', transaction);
 
-      // Set payment URL to checkout page (universal link)
-      const checkoutUrl = `${window.location.origin}/checkout/${transaction.id}`;
+      // Set payment URL to payment selection page (universal link)
+      const paymentSelectionUrl = `${window.location.origin}/payment/${transaction.id}`;
       
-      console.log('🔗 Setting checkout URL:', checkoutUrl);
+      console.log('🔗 Setting payment selection URL:', paymentSelectionUrl);
 
       await supabase
         .from('payment_transactions')
         .update({
-          payment_url: checkoutUrl,
+          payment_url: paymentSelectionUrl,
           updated_at: new Date().toISOString()
         })
         .eq('id', transaction.id);
 
-      console.log('✅ Transaction created with checkout URL');
+      console.log('✅ Transaction created with payment selection URL');
 
       toast({
         title: "Cobrança gerada",

@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, QrCode, Barcode, Loader2 } from "lucide-react";
+import { CreditCard, QrCode, Barcode, Loader2, Check, Sparkles } from "lucide-react";
 
 interface PaymentMethod {
   key: string;
@@ -17,20 +17,20 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   { 
     key: "pix", 
     label: "PIX", 
-    icon: <QrCode className="h-8 w-8" />,
-    description: "Pagamento instantâneo via QR Code"
+    icon: <QrCode className="h-12 w-12" />,
+    description: "Pagamento instantâneo via QR Code - Aprovação imediata"
   },
   { 
     key: "boleto", 
     label: "Boleto Bancário", 
-    icon: <Barcode className="h-8 w-8" />,
-    description: "Código de barras para pagamento em bancos"
+    icon: <Barcode className="h-12 w-12" />,
+    description: "Pague em qualquer banco ou lotérica - Vence em até 3 dias"
   },
   { 
     key: "credit_card", 
     label: "Cartão de Crédito", 
-    icon: <CreditCard className="h-8 w-8" />,
-    description: "Pagamento com cartão de crédito"
+    icon: <CreditCard className="h-12 w-12" />,
+    description: "Parcele em até 12x - Aprovação instantânea"
   },
 ];
 
@@ -40,6 +40,7 @@ export default function PaymentSelection() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [transaction, setTransaction] = useState<any>(null);
   const [availableMethods, setAvailableMethods] = useState<string[]>([]);
 
@@ -94,34 +95,33 @@ export default function PaymentSelection() {
 
   const handleMethodSelect = async (method: string) => {
     if (!transactionId) return;
+    setSelectedMethod(method);
     setProcessing(true);
 
     try {
-      // Buscar gateway configurado para esse método
-      const { data: gatewayConfig } = await supabase
-        .from("payment_gateway_methods")
-        .select("gateway_type")
-        .eq("company_id", transaction.company_id)
-        .eq("payment_method", method)
-        .eq("is_active", true)
-        .limit(1)
-        .single();
+      console.log('Processing payment method selection:', method);
 
-      if (!gatewayConfig) {
-        throw new Error("Nenhum gateway configurado para este método");
-      }
-
-      // Aqui você chamaria a edge function específica do gateway
-      // Por exemplo: asaas-integration, mercadopago-integration, etc.
-      toast({
-        title: "Processando pagamento",
-        description: `Gerando cobrança via ${gatewayConfig.gateway_type}...`,
+      // Call process-checkout edge function
+      const { data, error } = await supabase.functions.invoke('process-checkout', {
+        body: {
+          payment_id: transactionId,
+          payment_method: method
+        }
       });
 
-      // TODO: Implementar chamada para edge function do gateway específico
-      // const { data, error } = await supabase.functions.invoke(`${gatewayConfig.gateway_type}-integration`, {
-      //   body: { action: 'create_charge', transactionId, method }
-      // });
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao processar pagamento');
+      }
+
+      toast({
+        title: "Sucesso!",
+        description: "Redirecionando para a página de pagamento...",
+      });
+
+      // Redirect to checkout page
+      navigate(`/checkout/${transactionId}`);
 
     } catch (error: any) {
       console.error("Error processing payment:", error);
@@ -130,6 +130,7 @@ export default function PaymentSelection() {
         title: "Erro",
         description: error.message || "Não foi possível processar o pagamento",
       });
+      setSelectedMethod(null);
     } finally {
       setProcessing(false);
     }
@@ -154,62 +155,138 @@ export default function PaymentSelection() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">Escolha a forma de pagamento</h1>
-          <p className="text-muted-foreground">
-            Valor: R$ {transaction.amount?.toFixed(2)}
-          </p>
-          {transaction.client && (
-            <p className="text-sm text-muted-foreground">
-              Cliente: {transaction.client.name}
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-4 md:p-8">
+      <div className="max-w-5xl mx-auto space-y-8">
+        {/* Header Section */}
+        <div className="text-center space-y-4 animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-2">
+            <Sparkles className="h-4 w-4" />
+            Pagamento Seguro
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            Escolha como pagar
+          </h1>
+          <div className="space-y-1">
+            <p className="text-3xl font-bold text-primary">
+              R$ {transaction.amount?.toFixed(2)}
             </p>
-          )}
+            {transaction.client && (
+              <p className="text-sm text-muted-foreground">
+                Pagamento para {transaction.company?.name || 'empresa'}
+              </p>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {PAYMENT_METHODS.filter(method => availableMethods.includes(method.key)).map((method) => (
-            <Card 
-              key={method.key}
-              className="p-6 hover:border-primary transition-colors cursor-pointer"
-              onClick={() => !processing && handleMethodSelect(method.key)}
-            >
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="p-4 bg-primary/10 rounded-full text-primary">
-                  {method.icon}
+        {/* Payment Methods Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          {PAYMENT_METHODS.filter(method => availableMethods.includes(method.key)).map((method, index) => {
+            const isSelected = selectedMethod === method.key;
+            const isProcessing = processing && isSelected;
+            
+            return (
+              <Card 
+                key={method.key}
+                className={`
+                  group relative overflow-hidden transition-all duration-300 cursor-pointer
+                  hover:shadow-2xl hover:scale-105 hover:-translate-y-1
+                  ${isSelected ? 'ring-2 ring-primary shadow-xl scale-105' : 'hover:border-primary/50'}
+                  ${isProcessing ? 'pointer-events-none' : ''}
+                `}
+                style={{ animationDelay: `${0.2 + index * 0.1}s` }}
+                onClick={() => !processing && handleMethodSelect(method.key)}
+              >
+                {/* Gradient Background Effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                
+                {/* Content */}
+                <div className="relative p-8 flex flex-col items-center text-center space-y-6">
+                  {/* Icon Container */}
+                  <div className={`
+                    relative p-6 rounded-2xl transition-all duration-300
+                    ${isSelected 
+                      ? 'bg-primary text-primary-foreground shadow-lg' 
+                      : 'bg-primary/10 text-primary group-hover:bg-primary/20 group-hover:scale-110'
+                    }
+                  `}>
+                    {isProcessing ? (
+                      <Loader2 className="h-12 w-12 animate-spin" />
+                    ) : isSelected ? (
+                      <Check className="h-12 w-12" />
+                    ) : (
+                      method.icon
+                    )}
+                    
+                    {/* Pulse Effect */}
+                    {isSelected && (
+                      <div className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-20" />
+                    )}
+                  </div>
+
+                  {/* Text Content */}
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-xl">
+                      {method.label}
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {method.description}
+                    </p>
+                  </div>
+
+                  {/* Action Button */}
+                  <Button 
+                    className="w-full group-hover:shadow-lg transition-all duration-300" 
+                    variant={isSelected ? "default" : "outline"}
+                    disabled={processing}
+                    size="lg"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processando...
+                      </>
+                    ) : isSelected ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Selecionado
+                      </>
+                    ) : (
+                      "Continuar"
+                    )}
+                  </Button>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{method.label}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {method.description}
-                  </p>
-                </div>
-                <Button 
-                  className="w-full" 
-                  disabled={processing}
-                >
-                  {processing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processando...
-                    </>
-                  ) : (
-                    "Selecionar"
-                  )}
-                </Button>
-              </div>
-            </Card>
-          ))}
+
+                {/* Bottom Border Effect */}
+                <div className={`
+                  absolute bottom-0 left-0 right-0 h-1 transition-all duration-300
+                  ${isSelected ? 'bg-primary' : 'bg-primary/0 group-hover:bg-primary/50'}
+                `} />
+              </Card>
+            );
+          })}
         </div>
 
+        {/* No Methods Available */}
         {availableMethods.length === 0 && (
-          <Card className="p-6 text-center">
-            <p className="text-muted-foreground">
-              Nenhum método de pagamento disponível no momento
-            </p>
+          <Card className="p-8 text-center animate-fade-in">
+            <div className="space-y-2">
+              <p className="text-lg font-medium">
+                Nenhum método de pagamento disponível
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Entre em contato com o suporte para mais informações
+              </p>
+            </div>
           </Card>
         )}
+
+        {/* Security Badge */}
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: '0.4s' }}>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+            <span>Pagamento 100% seguro</span>
+          </div>
+        </div>
       </div>
     </div>
   );
