@@ -25,9 +25,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
   const [formData, setFormData] = useState({
     client_id: "",
     contract_id: "",
-    transaction_type: "boleto",
     amount: 0,
-    payment_gateway: "asaas",
     due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias a partir de hoje
   })
   
@@ -198,6 +196,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         ...formData,
         company_id: profile.company_id,
         status: 'pending',
+        transaction_type: 'link', // Link de pagamento universal
         due_date: dueDateStr
       };
 
@@ -233,13 +232,13 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
       toast({
         title: "Cobrança gerada",
-        description: `${getPaymentTypeLabel(formData.transaction_type)} gerado com sucesso!`
+        description: "Link de pagamento gerado com sucesso!"
       });
 
       console.log('✅ Payment generation completed successfully');
 
       // Auto-send WhatsApp notification
-      await sendWhatsAppNotification(transaction.client_id, transaction.id, formData.transaction_type, formData.amount);
+      await sendWhatsAppNotification(transaction.client_id, transaction.id, transaction.amount);
 
       onSuccess?.();
     } catch (error) {
@@ -257,7 +256,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     }
   };
 
-  const sendWhatsAppNotification = async (clientId: string, paymentId: string, type: string, amount: number) => {
+  const sendWhatsAppNotification = async (clientId: string, paymentId: string, amount: number) => {
     try {
       const client = clients.find(c => c.id === clientId)
       if (!client || !client.phone) return
@@ -314,11 +313,11 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          {getPaymentIcon(formData.transaction_type)}
+          <Link2 className="h-4 w-4" />
           Gerar Cobrança
         </CardTitle>
         <CardDescription>
-          Emita boletos, PIX e links de pagamento via gateways integrados
+          Gera um link único de pagamento onde o cliente escolhe o método
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -450,43 +449,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="transaction_type">Tipo de Cobrança *</Label>
-              <Select 
-                value={formData.transaction_type}
-                onValueChange={(value) => setFormData({...formData, transaction_type: value})}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BOLETO">Boleto Bancário</SelectItem>
-                  <SelectItem value="PIX">PIX</SelectItem>
-                  <SelectItem value="CREDIT_CARD">Cartão de Crédito</SelectItem>
-                  <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="payment_gateway">Gateway *</Label>
-              <Select 
-                value={formData.payment_gateway}
-                onValueChange={(value) => setFormData({...formData, payment_gateway: value})}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asaas">Asaas</SelectItem>
-                  <SelectItem value="mercadopago">Mercado Pago</SelectItem>
-                  <SelectItem value="cora">Cora</SelectItem>
-                  <SelectItem value="efi">Efi Bank</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="amount">Valor (R$) *</Label>
               <Input
