@@ -190,11 +190,26 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     )}
                   </div>
 
-                  {/* Botões rápidos */}
+                  {/* Botões rápidos - Opções Recomendadas */}
                   <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground">Adicionar rapidamente:</div>
+                    <div className="text-xs font-medium text-foreground">⚡ Opções Recomendadas:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[1, 3, 5, 7, 10].map((day) => (
+                        <Button
+                          key={day}
+                          size="sm"
+                          variant={localSettings.pre_due_days.includes(day) ? "secondary" : "default"}
+                          className="h-7 px-3 text-xs font-medium"
+                          disabled={localSettings.pre_due_days.includes(day)}
+                          onClick={() => addQuickDay(localSettings.pre_due_days, 'pre', day)}
+                        >
+                          {day} {day === 1 ? 'dia' : 'dias'}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Outras opções:</div>
                     <div className="flex flex-wrap gap-1">
-                      {[1, 2, 3, 5, 7, 10, 15].map((day) => (
+                      {[2, 15, 20, 30].map((day) => (
                         <Button
                           key={day}
                           size="sm"
@@ -338,11 +353,26 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     </div>
                   )}
 
-                  {/* Botões rápidos */}
+                  {/* Botões rápidos - Opções Recomendadas */}
                   <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground">Adicionar rapidamente:</div>
+                    <div className="text-xs font-medium text-foreground">⚡ Opções Recomendadas:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[1, 3, 5, 7, 10].map((day) => (
+                        <Button
+                          key={day}
+                          size="sm"
+                          variant={localSettings.post_due_days.includes(day) ? "secondary" : "default"}
+                          className="h-7 px-3 text-xs font-medium"
+                          disabled={localSettings.post_due_days.includes(day)}
+                          onClick={() => addQuickDay(localSettings.post_due_days, 'post', day)}
+                        >
+                          {day} {day === 1 ? 'dia' : 'dias'}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Outras opções:</div>
                     <div className="flex flex-wrap gap-1">
-                      {[1, 2, 3, 5, 7, 10, 15].map((day) => (
+                      {[2, 15, 20, 30].map((day) => (
                         <Button
                           key={day}
                           size="sm"
