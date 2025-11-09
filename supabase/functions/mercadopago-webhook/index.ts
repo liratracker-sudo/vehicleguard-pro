@@ -28,108 +28,146 @@ serve(async (req) => {
     // Verificar se é uma notificação de pagamento
     if (type === 'payment') {
       const paymentId = data?.id || id
+      console.log('MercadoPago Webhook - Payment ID:', paymentId)
 
       if (!paymentId) {
         console.error('Payment ID não encontrado no webhook')
         return new Response(
-          JSON.stringify({ error: 'Payment ID não encontrado' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: true, message: 'Payment ID não encontrado' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      console.log('Processing payment notification:', paymentId)
+      console.log('Processing payment notification for ID:', paymentId)
 
-      // Buscar detalhes do pagamento usando a API do Mercado Pago
-      // Precisamos identificar qual empresa está relacionada a este pagamento
-      // Isso pode ser feito através do external_reference
+      // Buscar a transação no banco usando o external_id (que é o payment ID do Mercado Pago)
+      const { data: transaction, error: transactionError } = await supabase
+        .from('payment_transactions')
+        .select('*, company_id')
+        .eq('external_id', paymentId.toString())
+        .single()
 
-      const externalReference = data?.external_reference
+      console.log('Transaction search result:', transaction ? 'Found' : 'Not found', transactionError)
 
-      if (externalReference) {
-        // Buscar a transação no banco de dados
-        const { data: transaction } = await supabase
-          .from('payment_transactions')
-          .select('*, company_id')
-          .eq('external_id', externalReference)
-          .single()
-
-        if (transaction) {
-          console.log('Transaction found:', transaction.id, 'Company:', transaction.company_id)
-
-          // Buscar configurações do Mercado Pago da empresa
-          const { data: settings } = await supabase
-            .from('mercadopago_settings')
-            .select('access_token_encrypted, is_sandbox')
-            .eq('company_id', transaction.company_id)
-            .single()
-
-          if (settings) {
-            // Descriptografar token
-            const { data: accessToken } = await supabase.rpc('decrypt_mercadopago_credential', {
-              p_encrypted_credential: settings.access_token_encrypted
-            })
-
-            // Buscar detalhes do pagamento na API do Mercado Pago
-            const baseUrl = 'https://api.mercadopago.com'
-            const response = await fetch(`${baseUrl}/v1/payments/${paymentId}`, {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-              }
-            })
-
-            const paymentData = await response.json()
-            console.log('Payment data from API:', JSON.stringify(paymentData, null, 2))
-
-            // Atualizar status da transação
-            let newStatus = 'pending'
-            let paidAt = null
-
-            switch (paymentData.status) {
-              case 'approved':
-                newStatus = 'paid'
-                paidAt = paymentData.date_approved || new Date().toISOString()
-                break
-              case 'rejected':
-              case 'cancelled':
-                newStatus = 'cancelled'
-                break
-              case 'refunded':
-                newStatus = 'refunded'
-                break
-              case 'in_process':
-              case 'pending':
-                newStatus = 'pending'
-                break
-            }
-
-            const updateData: any = {
-              status: newStatus,
-              updated_at: new Date().toISOString()
-            }
-
-            if (paidAt) {
-              updateData.paid_at = paidAt
-            }
-
-            await supabase
-              .from('payment_transactions')
-              .update(updateData)
-              .eq('id', transaction.id)
-
-            console.log('Transaction updated:', transaction.id, 'New status:', newStatus)
-
-            // Log do webhook
-            await supabase.from('mercadopago_logs').insert({
-              company_id: transaction.company_id,
-              operation_type: 'webhook',
-              status: 'success',
-              request_data: body,
-              response_data: paymentData
-            })
-          }
-        }
+      if (!transaction) {
+        console.log('Transaction not found for payment ID:', paymentId)
+        return new Response(
+          JSON.stringify({ success: true, message: 'Transaction not found' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
+
+      console.log('Transaction found:', transaction.id, 'Company:', transaction.company_id)
+
+      // Buscar configurações do Mercado Pago da empresa
+      const { data: settings, error: settingsError } = await supabase
+        .from('mercadopago_settings')
+        .select('access_token_encrypted, is_sandbox, company_id')
+        .eq('company_id', transaction.company_id)
+        .single()
+
+      console.log('Settings search result:', settings ? 'Found' : 'Not found', settingsError)
+
+      if (!settings) {
+        console.error('MercadoPago settings not found for company:', transaction.company_id)
+        return new Response(
+          JSON.stringify({ success: true, message: 'Settings not found' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Descriptografar token
+      const { data: accessToken, error: decryptError } = await supabase.rpc('decrypt_mercadopago_credential', {
+        p_company_id: transaction.company_id,
+        p_encrypted_credential: settings.access_token_encrypted
+      })
+
+      console.log('Decryption result:', accessToken ? 'Success' : 'Failed', decryptError)
+
+      if (!accessToken || decryptError) {
+        console.error('Failed to decrypt access token:', decryptError)
+        return new Response(
+          JSON.stringify({ success: true, message: 'Failed to decrypt token' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Buscar detalhes do pagamento na API do Mercado Pago
+      const baseUrl = 'https://api.mercadopago.com'
+      const mpResponse = await fetch(`${baseUrl}/v1/payments/${paymentId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!mpResponse.ok) {
+        console.error('Failed to fetch payment from MercadoPago API:', mpResponse.status)
+        return new Response(
+          JSON.stringify({ success: true, message: 'Failed to fetch payment details' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const paymentData = await mpResponse.json()
+      console.log('Payment data from API - Status:', paymentData.status, 'Status Detail:', paymentData.status_detail)
+
+      // Atualizar status da transação
+      let newStatus = transaction.status // Manter status atual por padrão
+      let paidAt = null
+
+      switch (paymentData.status) {
+        case 'approved':
+          newStatus = 'paid'
+          paidAt = paymentData.date_approved || new Date().toISOString()
+          console.log('Payment approved, updating to paid')
+          break
+        case 'rejected':
+        case 'cancelled':
+          newStatus = 'cancelled'
+          console.log('Payment rejected/cancelled')
+          break
+        case 'refunded':
+          newStatus = 'refunded'
+          console.log('Payment refunded')
+          break
+        case 'in_process':
+        case 'pending':
+          newStatus = 'pending'
+          console.log('Payment in process/pending')
+          break
+        default:
+          console.log('Unknown payment status:', paymentData.status)
+      }
+
+      const updateData: any = {
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      }
+
+      if (paidAt) {
+        updateData.paid_at = paidAt
+      }
+
+      const { error: updateError } = await supabase
+        .from('payment_transactions')
+        .update(updateData)
+        .eq('id', transaction.id)
+
+      if (updateError) {
+        console.error('Failed to update transaction:', updateError)
+      } else {
+        console.log('Transaction updated successfully:', transaction.id, 'New status:', newStatus)
+      }
+
+      // Log do webhook
+      await supabase.from('mercadopago_logs').insert({
+        company_id: transaction.company_id,
+        operation_type: 'webhook',
+        status: updateError ? 'error' : 'success',
+        request_data: body,
+        response_data: paymentData
+      })
     }
 
     return new Response(
