@@ -192,26 +192,59 @@ serve(async (req) => {
           ? "https://cdpj.partners.bancointer.com.br"
           : "https://cdpj.partners.bancointer.com.br";
 
+        // Formatar dados para o formato do Banco Inter
+        const chargeData = params.charge_data || params.data;
+        const interChargeData = {
+          seuNumero: chargeData.externalReference || Date.now().toString(),
+          valorNominal: Number(chargeData.value),
+          dataVencimento: chargeData.dueDate,
+          numDiasAgenda: 0,
+          pagador: {
+            cpfCnpj: chargeData.customer?.document?.replace(/\D/g, '') || '',
+            nome: chargeData.customer?.name || 'Cliente',
+            email: chargeData.customer?.email || '',
+            telefone: chargeData.customer?.phone?.replace(/\D/g, '') || '',
+            endereco: chargeData.customer?.address || 'Rua Principal',
+            numero: chargeData.customer?.addressNumber || '100',
+            bairro: chargeData.customer?.province || 'Centro',
+            cidade: chargeData.customer?.city || 'São Paulo',
+            uf: chargeData.customer?.state || 'SP',
+            cep: chargeData.customer?.postalCode?.replace(/\D/g, '') || '00000000'
+          },
+          mensagem: {
+            linha1: chargeData.description || 'Pagamento'
+          }
+        };
+
         const response = await fetch(`${baseUrl}/cobranca/v3/cobrancas`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(params.charge_data),
+          body: JSON.stringify(interChargeData),
         });
 
-        const data = await response.json();
+        const result = await response.json();
 
         if (!response.ok) {
-          await logOperation("create_charge", "error", params.charge_data, data, data.message);
-          throw new Error(data.message || "Erro ao criar cobrança");
+          await logOperation("create_charge", "error", interChargeData, result, result.message);
+          throw new Error(result.message || "Erro ao criar cobrança");
         }
 
-        await logOperation("create_charge", "success", params.charge_data, data);
+        await logOperation("create_charge", "success", interChargeData, result);
 
+        // Retornar no formato padrão esperado pelo process-checkout
         return new Response(
-          JSON.stringify({ success: true, data }),
+          JSON.stringify({ 
+            success: true, 
+            charge: {
+              id: result.codigoSolicitacao || result.nossoNumero,
+              invoice_url: result.linhaDigitavel ? `data:text/plain;base64,${btoa(result.linhaDigitavel)}` : undefined,
+              barcode: result.linhaDigitavel,
+              pix_code: result.pixCopiaECola
+            }
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

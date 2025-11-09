@@ -27,6 +27,8 @@ serve(async (req) => {
     switch (action) {
       case 'save_settings':
         return await saveSettings(supabase, params);
+      case 'create_charge':
+        return await createCharge(supabase, params);
       case 'create_boleto':
         return await createBoleto(supabase, params);
       case 'get_boleto':
@@ -117,6 +119,139 @@ async function saveSettings(supabase: any, params: any) {
       JSON.stringify({ 
         success: false, 
         message: error instanceof Error ? error.message : 'Erro ao salvar configurações' 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+/**
+ * Criar cobrança (wrapper padronizado)
+ */
+async function createCharge(supabase: any, params: any) {
+  const { company_id, data } = params;
+
+  try {
+    // Buscar configurações da Gerencianet
+    const { data: settings, error: settingsError } = await supabase
+      .from('gerencianet_settings')
+      .select('client_id_encrypted, client_secret_encrypted, is_sandbox, is_active')
+      .eq('company_id', company_id)
+      .eq('is_active', true)
+      .single();
+
+    if (settingsError || !settings) {
+      throw new Error('Configurações da Gerencianet não encontradas ou inativas');
+    }
+
+    // Descriptografar credenciais
+    const { data: clientId } = await supabase.rpc('decrypt_gerencianet_credential', {
+      p_encrypted_credential: settings.client_id_encrypted
+    });
+
+    const { data: clientSecret } = await supabase.rpc('decrypt_gerencianet_credential', {
+      p_encrypted_credential: settings.client_secret_encrypted
+    });
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Erro ao descriptografar credenciais');
+    }
+
+    // Obter access token
+    const accessToken = await getAccessToken(clientId, clientSecret, settings.is_sandbox);
+
+    // Preparar dados do boleto
+    const boletoData = {
+      items: [
+        {
+          name: data.description || 'Cobrança',
+          value: Math.round(Number(data.value) * 100), // Converter para centavos
+          amount: 1
+        }
+      ],
+      payment: {
+        banking_billet: {
+          customer: {
+            name: data.customer?.name || 'Cliente',
+            email: data.customer?.email || 'noreply@example.com',
+            phone_number: data.customer?.phone?.replace(/\D/g, '').substring(0, 11) || '',
+            cpf: data.customer?.document?.replace(/\D/g, '') || '',
+            address: {
+              street: 'Rua Principal',
+              number: '100',
+              neighborhood: 'Centro',
+              zipcode: '00000000',
+              city: 'São Paulo',
+              state: 'SP',
+              complement: ''
+            }
+          },
+          expire_at: data.dueDate,
+          configurations: {
+            fine: 200, // 2%
+            interest: 33 // 0.33% ao dia (1% ao mês)
+          },
+          message: data.description || 'Cobrança referente aos serviços prestados'
+        }
+      }
+    };
+
+    const baseUrl = settings.is_sandbox
+      ? 'https://cobrancas-h.api.efipay.com.br'
+      : 'https://cobrancas.api.efipay.com.br';
+
+    const response = await fetch(`${baseUrl}/v1/charge`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(boletoData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      // Registrar log de erro
+      await supabase.from('gerencianet_logs').insert({
+        company_id,
+        operation_type: 'create_charge',
+        request_data: boletoData,
+        status: 'error',
+        error_message: `Erro ao criar boleto: ${JSON.stringify(error)}`
+      });
+      throw new Error(`Erro ao criar boleto: ${JSON.stringify(error)}`);
+    }
+
+    const result = await response.json();
+    
+    // Registrar log de sucesso
+    await supabase.from('gerencianet_logs').insert({
+      company_id,
+      operation_type: 'create_charge',
+      request_data: boletoData,
+      response_data: result,
+      status: 'success'
+    });
+
+    // Retornar no formato padrão esperado pelo process-checkout
+    return new Response(
+      JSON.stringify({
+        success: true,
+        charge: {
+          id: result.data?.charge_id,
+          invoice_url: result.data?.link || result.data?.pdf?.charge,
+          barcode: result.data?.barcode,
+          pix_code: result.data?.pix?.qrcode
+        }
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error('Erro ao criar cobrança Gerencianet:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || 'Erro ao criar cobrança'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

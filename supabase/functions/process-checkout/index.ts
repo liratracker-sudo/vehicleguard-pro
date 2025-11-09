@@ -119,21 +119,66 @@ serve(async (req) => {
       document: payment.clients.document || client_data?.document
     };
 
-    // Criar cobrança no gateway selecionado
+    console.log('Client data:', JSON.stringify(clientData, null, 2));
+
     const billingType = getBillingType(payment_method);
-    
-    const chargeData = {
-      action: 'create_charge',
-      company_id: payment.company_id,
-      data: {
-        billingType: billingType,
-        value: payment.amount,
-        dueDate: payment.due_date,
-        description: `Pagamento - ${payment.companies.name}`,
-        externalReference: payment.id,
-        customer: clientData
+    let chargeData: any;
+
+    // Para Asaas, precisamos criar cliente primeiro e usar customerId
+    if (gateway === 'asaas') {
+      console.log('Creating customer in Asaas first...');
+      const { data: customerResponse, error: customerError } = await supabase.functions.invoke(
+        'asaas-integration',
+        { 
+          body: {
+            action: 'create_customer',
+            company_id: payment.company_id,
+            data: clientData
+          }
+        }
+      );
+
+      console.log('Customer response:', JSON.stringify(customerResponse, null, 2));
+
+      if (customerError || !customerResponse?.success) {
+        console.error('Customer creation error:', customerError || customerResponse);
+        throw new Error(`Erro ao criar cliente: ${customerError?.message || customerResponse?.error || 'Erro desconhecido'}`);
       }
-    };
+
+      const customerId = customerResponse.customer?.id;
+      if (!customerId) {
+        throw new Error('ID do cliente não retornado pelo Asaas');
+      }
+
+      console.log('Customer created with ID:', customerId);
+
+      chargeData = {
+        action: 'create_charge',
+        company_id: payment.company_id,
+        data: {
+          customerId: customerId,
+          billingType: billingType,
+          value: payment.amount,
+          dueDate: payment.due_date,
+          description: `Pagamento - ${payment.companies.name}`,
+          externalReference: payment.id
+        }
+      };
+    } else {
+      // Para outros gateways (MercadoPago, Inter, Gerencianet), passar dados do cliente diretamente
+      chargeData = {
+        action: 'create_charge',
+        company_id: payment.company_id,
+        data: {
+          billingType: billingType,
+          value: payment.amount,
+          dueDate: payment.due_date,
+          description: `Pagamento - ${payment.companies.name}`,
+          externalReference: payment.id,
+          customer: clientData
+        }
+      };
+    }
 
     console.log('Creating charge in gateway:', gateway);
     console.log('Charge data:', JSON.stringify(chargeData, null, 2));
