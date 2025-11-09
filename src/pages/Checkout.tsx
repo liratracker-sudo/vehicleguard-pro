@@ -554,6 +554,28 @@ export default function Checkout() {
               </Button>
             )}
 
+            {/* Loading Overlay */}
+            {processing && (
+              <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+                <div className="bg-card border rounded-lg p-8 shadow-lg animate-scale-in">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative">
+                      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                      <div className="absolute inset-0 h-12 w-12 animate-ping text-primary/20">
+                        <Loader2 className="h-12 w-12" />
+                      </div>
+                    </div>
+                    <div className="text-center space-y-2">
+                      <h3 className="font-semibold text-lg">Processando pagamento</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Aguarde enquanto geramos seu pagamento...
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Informações de segurança */}
             <div className="text-center text-xs text-muted-foreground pt-2">
               <p>🔒 Pagamento seguro e criptografado</p>
