@@ -43,17 +43,21 @@ serve(async (req) => {
         throw new Error('Cliente sem telefone cadastrado');
       }
 
-      // Buscar configurações de IA
+      // Buscar configurações de IA (usar padrão se não existir)
       const { data: aiSettings } = await supabase
         .from('ai_collection_settings')
         .select('*')
         .eq('company_id', payment.company_id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (!aiSettings) {
-        throw new Error('Configurações de IA não encontradas ou inativas');
-      }
+      // Usar configurações padrão se não estiverem configuradas
+      const settings = aiSettings || {
+        openai_model: 'gpt-4o-mini',
+        system_prompt: 'Você é um assistente de cobrança profissional e educado. Gere mensagens de cobrança claras, respeitosas e objetivas.'
+      };
+
+      console.log('Usando configurações de IA:', aiSettings ? 'personalizadas' : 'padrão');
 
       // Calcular dias de atraso
       const daysOverdue = Math.floor(
@@ -88,11 +92,11 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: aiSettings.openai_model || 'gpt-4o-mini',
+          model: settings.openai_model || 'gpt-4o-mini',
           messages: [
             { 
               role: 'system', 
-              content: `${aiSettings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
+              content: `${settings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
             },
             { role: 'user', content: prompt }
           ],
@@ -140,18 +144,22 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
         console.error('Configurações do WhatsApp não encontradas ou inativas');
       }
 
-      // Salvar log da IA após enviar
-      await supabase.from('ai_collection_logs').insert({
-        company_id: payment.company_id,
-        payment_id: payment.id,
-        client_id: client.id,
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens,
-        model_used: aiSettings.openai_model || 'gpt-4o-mini',
-        generated_message: generatedMessage,
-        sent_successfully: messageSent
-      });
+      // Salvar log da IA após enviar (se configurações existirem)
+      if (aiSettings) {
+        await supabase.from('ai_collection_logs').insert({
+          company_id: payment.company_id,
+          payment_id: payment.id,
+          client_id: client.id,
+          prompt_tokens: usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens,
+          total_tokens: usage.total_tokens,
+          model_used: settings.openai_model || 'gpt-4o-mini',
+          generated_message: generatedMessage,
+          sent_successfully: messageSent
+        });
+      } else {
+        console.log('Logs de IA não salvos - configurações não encontradas na tabela');
+      }
 
       return new Response(
         JSON.stringify({ 
@@ -185,17 +193,21 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
         );
       }
 
-      // Buscar configurações de IA
+      // Buscar configurações de IA (usar padrão se não existir)
       const { data: aiSettings } = await supabase
         .from('ai_collection_settings')
         .select('*')
         .eq('company_id', company_id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (!aiSettings) {
-        throw new Error('Configurações de IA não encontradas ou inativas');
-      }
+      // Usar configurações padrão se não estiverem configuradas
+      const settings = aiSettings || {
+        openai_model: 'gpt-4o-mini',
+        system_prompt: 'Você é um assistente de cobrança profissional e educado. Gere mensagens de cobrança claras, respeitosas e objetivas.'
+      };
+
+      console.log('Process overdue - Usando configurações:', aiSettings ? 'personalizadas' : 'padrão');
 
       const results = [];
 
@@ -242,11 +254,11 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
               'Content-Type': 'application/json',
             },
           body: JSON.stringify({
-            model: aiSettings.openai_model || 'gpt-4o-mini',
+            model: settings.openai_model || 'gpt-4o-mini',
             messages: [
               { 
                 role: 'system', 
-                content: `${aiSettings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
+                content: `${settings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
               },
               { role: 'user', content: prompt }
             ],
@@ -290,18 +302,20 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
             messageSent = whatsappResult.data?.success || false;
           }
 
-          // Salvar log da IA após enviar
-          await supabase.from('ai_collection_logs').insert({
-            company_id,
-            payment_id: payment.id,
-            client_id: client.id,
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
-            model_used: aiSettings.openai_model || 'gpt-4o-mini',
-            generated_message: generatedMessage,
-            sent_successfully: messageSent
-          });
+          // Salvar log da IA após enviar (se configurações existirem)
+          if (aiSettings) {
+            await supabase.from('ai_collection_logs').insert({
+              company_id,
+              payment_id: payment.id,
+              client_id: client.id,
+              prompt_tokens: usage.prompt_tokens,
+              completion_tokens: usage.completion_tokens,
+              total_tokens: usage.total_tokens,
+              model_used: settings.openai_model || 'gpt-4o-mini',
+              generated_message: generatedMessage,
+              sent_successfully: messageSent
+            });
+          }
 
           results.push({
             payment_id: payment.id,
@@ -313,15 +327,17 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
         } catch (error) {
           console.error(`Erro ao processar pagamento ${payment.id}:`, error);
           
-          // Salvar erro no log
-          await supabase.from('ai_collection_logs').insert({
-            company_id,
-            payment_id: payment.id,
-            client_id: client.id,
-            model_used: aiSettings.openai_model || 'gpt-4o-mini',
-            sent_successfully: false,
-            error_message: error instanceof Error ? error.message : String(error)
-          });
+          // Salvar erro no log (se configurações existirem)
+          if (aiSettings) {
+            await supabase.from('ai_collection_logs').insert({
+              company_id,
+              payment_id: payment.id,
+              client_id: client.id,
+              model_used: settings.openai_model || 'gpt-4o-mini',
+              sent_successfully: false,
+              error_message: error instanceof Error ? error.message : String(error)
+            });
+          }
 
           results.push({
             payment_id: payment.id,
@@ -377,17 +393,21 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
         ?.filter(p => p.status === 'overdue')
         .reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
-      // Buscar configurações de IA
+      // Buscar configurações de IA (usar padrão se não existir)
       const { data: aiSettings } = await supabase
         .from('ai_collection_settings')
         .select('*')
         .eq('company_id', company_id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (!aiSettings) {
-        throw new Error('Configurações de IA não encontradas');
-      }
+      // Usar configurações padrão se não estiverem configuradas
+      const settings = aiSettings || {
+        openai_model: 'gpt-4o-mini',
+        system_prompt: 'Você é um assistente financeiro que gera relatórios executivos concisos.'
+      };
+
+      console.log('Relatório semanal - Usando configurações:', aiSettings ? 'personalizadas' : 'padrão');
 
       // Gerar relatório com IA
       const prompt = `Gere um relatório executivo resumido da semana com os seguintes dados:
@@ -405,9 +425,9 @@ O relatório deve ser profissional e conciso para envio via WhatsApp ao gestor.`
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: aiSettings.openai_model || 'gpt-4o-mini',
+          model: settings.openai_model || 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: 'Você é um assistente financeiro que gera relatórios executivos concisos.' },
+            { role: 'system', content: settings.system_prompt },
             { role: 'user', content: prompt }
           ],
           max_tokens: 800,
