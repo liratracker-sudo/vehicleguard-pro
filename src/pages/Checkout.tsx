@@ -323,50 +323,50 @@ export default function Checkout() {
     
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
+        <Card className="w-full max-w-lg">
+          <CardHeader className="text-center pb-4">
             {paymentResult.success ? (
               <>
-                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <CardTitle>Pagamento Gerado</CardTitle>
-                <CardDescription>
+                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                <CardTitle className="text-xl">Pagamento Gerado</CardTitle>
+                <CardDescription className="text-sm">
                   {paymentResult.pix_code ? 'Escaneie o QR Code ou copie a chave PIX' : 'Pagamento processado com sucesso'}
                 </CardDescription>
               </>
             ) : (
               <>
-                <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-                <CardTitle>Pagamento Indisponível</CardTitle>
-                <CardDescription>{paymentResult.error}</CardDescription>
+                <XCircle className="h-12 w-12 text-destructive mx-auto mb-3" />
+                <CardTitle className="text-xl">Pagamento Indisponível</CardTitle>
+                <CardDescription className="text-sm">{paymentResult.error}</CardDescription>
               </>
             )}
           </CardHeader>
 
           {paymentResult.success && (
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {/* QR Code PIX */}
               {paymentResult.pix_code && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {qrCodeDataUrl ? (
-                    <div className="bg-white p-4 rounded-lg flex items-center justify-center">
-                      <img src={qrCodeDataUrl} alt="QR Code PIX" className="w-64 h-64" />
+                    <div className="bg-white p-3 rounded-lg flex items-center justify-center">
+                      <img src={qrCodeDataUrl} alt="QR Code PIX" className="w-48 h-48" />
                     </div>
                   ) : (
-                    <div className="bg-white p-4 rounded-lg flex items-center justify-center">
-                      <Loader2 className="h-48 w-48 text-gray-400 animate-spin" />
+                    <div className="bg-white p-3 rounded-lg flex items-center justify-center">
+                      <Loader2 className="h-36 w-36 text-gray-400 animate-spin" />
                     </div>
                   )}
                   
-                  <Separator />
+                  <Separator className="my-2" />
                   
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Chave PIX (Pix Copia e Cola)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Chave PIX (Pix Copia e Cola)</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={paymentResult.pix_code}
                         readOnly
-                        className="flex-1 p-2 border rounded text-sm bg-muted font-mono text-xs"
+                        className="flex-1 p-2 border rounded text-xs bg-muted font-mono"
                       />
                       <Button
                         size="sm"
@@ -383,9 +383,9 @@ export default function Checkout() {
                     </div>
                   </div>
 
-                  <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg text-sm text-blue-900 dark:text-blue-100">
-                    <p className="font-medium mb-2">Como pagar:</p>
-                    <ol className="list-decimal list-inside space-y-1">
+                  <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-xs text-blue-900 dark:text-blue-100">
+                    <p className="font-medium mb-1.5">Como pagar:</p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-xs">
                       <li>Abra o app do seu banco</li>
                       <li>Escolha pagar com PIX</li>
                       <li>Escaneie o QR Code ou cole a chave</li>
@@ -397,15 +397,15 @@ export default function Checkout() {
 
               {/* Boleto */}
               {paymentResult.barcode && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Código de Barras</label>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Código de Barras</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={paymentResult.barcode}
                         readOnly
-                        className="flex-1 p-2 border rounded text-sm bg-muted"
+                        className="flex-1 p-2 border rounded text-xs bg-muted font-mono"
                       />
                       <Button
                         size="sm"
@@ -424,6 +424,7 @@ export default function Checkout() {
 
                   {paymentResult.payment_url && (
                     <Button
+                      size="default"
                       className="w-full"
                       onClick={() => window.open(paymentResult.payment_url, '_blank')}
                     >
