@@ -41,10 +41,11 @@ export function AICollectionSettings() {
   useEffect(() => {
     if (weeklyReport) {
       setReportActive(weeklyReport.is_active);
-      // Corrigido: manager_phone é string, não array
-      setManagerPhones(weeklyReport.manager_phone 
-        ? [weeklyReport.manager_phone] 
-        : [""]);
+      setManagerPhones(
+        weeklyReport.manager_phones && weeklyReport.manager_phones.length > 0
+          ? weeklyReport.manager_phones
+          : [""]
+      );
       setScheduleDay(weeklyReport.schedule_day.toString());
       setScheduleTime(weeklyReport.schedule_time);
     }
@@ -59,13 +60,11 @@ export function AICollectionSettings() {
   };
 
   const handleSaveReport = async () => {
-    // manager_phone é string, não array - pegar primeiro telefone válido
     const validPhones = managerPhones.filter(phone => phone.trim() !== "");
-    const firstValidPhone = validPhones.length > 0 ? validPhones[0] : null;
     
     await saveWeeklyReport({
       is_active: reportActive,
-      manager_phone: firstValidPhone,
+      manager_phones: validPhones,
       schedule_day: parseInt(scheduleDay),
       schedule_time: scheduleTime
     });
