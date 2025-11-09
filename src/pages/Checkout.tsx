@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { QrCode, Receipt, CreditCard, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -508,26 +510,26 @@ export default function Checkout() {
                   <p className="text-sm mt-2">Entre em contato com {payment.company.name}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3">
-                  {availableMethods.map((method) => (
-                    <Button
-                      key={method.key}
-                      variant={selectedMethod === method.key ? "default" : "outline"}
-                      className="h-auto py-4 px-6 justify-start"
-                      onClick={() => setSelectedMethod(method.key)}
-                    >
-                      <div className="flex items-center gap-3">
-                        {method.icon}
-                        <div className="text-left">
-                          <div className="font-semibold">{method.label}</div>
-                          <div className="text-xs opacity-70">
-                            via {method.gateway}
-                          </div>
-                        </div>
+                <RadioGroup value={selectedMethod || ''} onValueChange={setSelectedMethod}>
+                  <div className="grid grid-cols-2 gap-3">
+                    {availableMethods.map((method) => (
+                      <div key={method.key}>
+                        <RadioGroupItem
+                          value={method.key}
+                          id={method.key}
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor={method.key}
+                          className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-card p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
+                        >
+                          {method.icon}
+                          <span className="text-sm font-medium">{method.label}</span>
+                        </Label>
                       </div>
-                    </Button>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </RadioGroup>
               )}
             </div>
 
