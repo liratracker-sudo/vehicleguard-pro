@@ -455,24 +455,24 @@ export default function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted py-8 px-4">
+      <div className="max-w-lg mx-auto">
         <Card>
-          <CardHeader className="text-center">
+          <CardHeader className="text-center pb-4">
             {payment.company.logo_url && (
               <img 
                 src={payment.company.logo_url} 
                 alt={payment.company.name}
-                className="h-16 mx-auto mb-4 object-contain"
+                className="h-12 mx-auto mb-3 object-contain"
               />
             )}
-            <CardTitle className="text-2xl">{payment.company.name}</CardTitle>
-            <CardDescription>Pagamento seguro e rápido</CardDescription>
+            <CardTitle className="text-xl">{payment.company.name}</CardTitle>
+            <CardDescription className="text-sm">Pagamento seguro e rápido</CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             {/* Detalhes do pagamento */}
-            <div className="space-y-2">
+            <div className="space-y-1.5 text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Cliente:</span>
                 <span className="font-medium">{payment.client.name}</span>
@@ -485,33 +485,33 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status:</span>
-                <Badge variant={payment.status === 'overdue' ? 'destructive' : 'secondary'}>
+                <Badge variant={payment.status === 'overdue' ? 'destructive' : 'secondary'} className="text-xs">
                   {payment.status === 'pending' ? 'Pendente' : 'Vencido'}
                 </Badge>
               </div>
-              <Separator />
-              <div className="flex justify-between items-center pt-2">
-                <span className="text-lg font-semibold">Valor:</span>
-                <span className="text-2xl font-bold text-primary">
+              <Separator className="my-2" />
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-base font-semibold">Valor:</span>
+                <span className="text-xl font-bold text-primary">
                   R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-2" />
 
             {/* Seleção de método de pagamento */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-lg">Escolha a forma de pagamento</h3>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-base">Escolha a forma de pagamento</h3>
               
               {availableMethods.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-6 text-muted-foreground text-sm">
                   <p>Nenhum método de pagamento disponível no momento.</p>
-                  <p className="text-sm mt-2">Entre em contato com {payment.company.name}</p>
+                  <p className="text-xs mt-1">Entre em contato com {payment.company.name}</p>
                 </div>
               ) : (
                 <RadioGroup value={selectedMethod || ''} onValueChange={setSelectedMethod}>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     {availableMethods.map((method) => (
                       <div key={method.key}>
                         <RadioGroupItem
@@ -521,10 +521,12 @@ export default function Checkout() {
                         />
                         <Label
                           htmlFor={method.key}
-                          className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-card p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
+                          className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-muted bg-card p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all h-20"
                         >
-                          {method.icon}
-                          <span className="text-sm font-medium">{method.label}</span>
+                          <div className="[&>svg]:h-4 [&>svg]:w-4">
+                            {method.icon}
+                          </div>
+                          <span className="text-xs font-medium">{method.label}</span>
                         </Label>
                       </div>
                     ))}
@@ -536,7 +538,7 @@ export default function Checkout() {
             {/* Botão de pagamento */}
             {availableMethods.length > 0 && (
               <Button
-                size="lg"
+                size="default"
                 className="w-full"
                 disabled={!selectedMethod || processing}
                 onClick={processPayment}
@@ -553,9 +555,8 @@ export default function Checkout() {
             )}
 
             {/* Informações de segurança */}
-            <div className="text-center text-xs text-muted-foreground">
+            <div className="text-center text-xs text-muted-foreground pt-2">
               <p>🔒 Pagamento seguro e criptografado</p>
-              <p>Seus dados estão protegidos</p>
             </div>
           </CardContent>
         </Card>
