@@ -147,7 +147,7 @@ serve(async (req) => {
         }
 
         // Set payment URL to checkout page (universal link) - gateway integration happens when client chooses payment method
-        const checkoutUrl = `${appUrl}/payment/${charge.id}`;
+        const checkoutUrl = `${appUrl}/checkout/${charge.id}`;
         
         await supabase
           .from('payment_transactions')

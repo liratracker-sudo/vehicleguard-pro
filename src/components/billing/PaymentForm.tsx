@@ -215,22 +215,22 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       
       console.log('✅ Transaction created:', transaction);
 
-      // Set payment URL to payment selection page (universal link)
+      // Set payment URL to checkout page (universal link)
       // Use VITE_APP_URL from environment or fallback to current origin
       const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const paymentSelectionUrl = `${baseUrl}/payment/${transaction.id}`;
+      const checkoutUrl = `${baseUrl}/checkout/${transaction.id}`;
       
-      console.log('🔗 Setting payment selection URL:', paymentSelectionUrl);
+      console.log('🔗 Setting checkout URL:', checkoutUrl);
 
       await supabase
         .from('payment_transactions')
         .update({
-          payment_url: paymentSelectionUrl,
+          payment_url: checkoutUrl,
           updated_at: new Date().toISOString()
         })
         .eq('id', transaction.id);
 
-      console.log('✅ Transaction created with payment selection URL');
+      console.log('✅ Transaction created with checkout URL');
 
       toast({
         title: "Cobrança gerada",

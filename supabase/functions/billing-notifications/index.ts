@@ -855,7 +855,7 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
   const formattedDueDate = dueDate.toLocaleDateString('pt-BR');
   
   // ALWAYS use checkout link (universal payment link) with public domain
-  const paymentLink = `${appUrl}/payment/${payment.id}`;
+  const paymentLink = `${appUrl}/checkout/${payment.id}`;
 
   // Replace template variables
   return template

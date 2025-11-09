@@ -52,7 +52,7 @@ serve(async (req) => {
 
       if (isGatewayUrl) {
         // Update to checkout URL with public domain
-        const checkoutUrl = `${appUrl}/payment/${payment.id}`;
+        const checkoutUrl = `${appUrl}/checkout/${payment.id}`;
         
         const { error: updateError } = await supabase
           .from('payment_transactions')
