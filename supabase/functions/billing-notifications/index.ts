@@ -1071,7 +1071,6 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           offset_days: days,
           scheduled_for: scheduledDate.toISOString(),
           status: 'pending',
-          notification_settings_id: settings.id,
           attempts: 0
         });
       }
@@ -1116,7 +1115,6 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           offset_days: i, // Usando offset_days para identificar o número do disparo
           scheduled_for: scheduledDate.toISOString(),
           status: 'pending',
-          notification_settings_id: settings.id,
           attempts: 0
         });
       }
@@ -1183,7 +1181,6 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
           offset_days: daysPastDue,
           scheduled_for: nextScheduledDate.toISOString(),
           status: 'pending',
-          notification_settings_id: settings.id,
           attempts: 0
         });
       }
