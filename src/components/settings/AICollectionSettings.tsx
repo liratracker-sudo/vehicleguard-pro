@@ -23,7 +23,7 @@ export function AICollectionSettings() {
 
   const [isActive, setIsActive] = useState(false);
   const [model, setModel] = useState("gpt-4o-mini");
-  const [systemPrompt, setSystemPrompt] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("Você é um assistente de comunicação de cobrança para um SaaS. Sua prioridade é a recuperação financeira mantendo um relacionamento cordial com o cliente. Siga as instruções fornecidas no prompt do usuário para gerar mensagens personalizadas e adequadas ao contexto.");
   
   const [reportActive, setReportActive] = useState(false);
   const [managerPhones, setManagerPhones] = useState<string[]>([""]);
@@ -105,7 +105,7 @@ export function AICollectionSettings() {
             Configurações de IA
           </CardTitle>
           <CardDescription>
-            Configure a inteligência artificial para gerar mensagens personalizadas de cobrança
+            Configure a IA para gerar mensagens de cobrança dinâmicas baseadas no contexto do cliente, adaptando o tom conforme os dias de atraso
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -113,7 +113,7 @@ export function AICollectionSettings() {
             <div className="space-y-0.5">
               <Label>Ativar IA de Cobrança</Label>
               <p className="text-sm text-muted-foreground">
-                Use IA para gerar mensagens personalizadas
+                Substitui mensagens padronizadas por textos dinâmicos gerados pela IA
               </p>
             </div>
             <Switch checked={isActive} onCheckedChange={setIsActive} />
@@ -139,11 +139,11 @@ export function AICollectionSettings() {
               id="systemPrompt"
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Você é um assistente de cobrança profissional e educado da empresa Lira Tracker. Gere mensagens personalizadas de cobrança considerando o histórico e situação do cliente. Sempre termine as mensagens com 'Atenciosamente, Lira Tracker' sem incluir nome de atendente."
+              placeholder="Ex: Você é um assistente de comunicação de cobrança para um SaaS. Sua prioridade é a recuperação financeira mantendo um relacionamento cordial com o cliente..."
               rows={6}
             />
             <p className="text-xs text-muted-foreground">
-              Define como a IA deve se comportar ao gerar mensagens
+              A IA adaptará automaticamente o tom baseado em: 1-7 dias (cordial), 8-30 dias (profissional), 30+ dias (formal/firme)
             </p>
           </div>
 

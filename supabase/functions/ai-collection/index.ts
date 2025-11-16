@@ -54,7 +54,7 @@ serve(async (req) => {
       // Usar configurações padrão se não estiverem configuradas
       const settings = aiSettings || {
         openai_model: 'gpt-4o-mini',
-        system_prompt: 'Você é um assistente de cobrança profissional e educado. Gere mensagens de cobrança claras, respeitosas e objetivas.'
+        system_prompt: 'Você é um assistente de comunicação de cobrança para um SaaS. Sua prioridade é a recuperação financeira mantendo um relacionamento cordial com o cliente.'
       };
 
       console.log('Usando configurações de IA:', aiSettings ? 'personalizadas' : 'padrão');
@@ -73,16 +73,61 @@ serve(async (req) => {
 
       const companyName = companyInfo?.name || 'Lira Tracker';
 
-      // Preparar prompt para a IA
-      const prompt = `Cliente: ${client.name}
-Valor: R$ ${payment.amount}
-Data de vencimento: ${new Date(payment.due_date).toLocaleDateString('pt-BR')}
-Dias de atraso: ${daysOverdue}
-Status do pagamento: ${payment.status}
-Nome da empresa: ${companyName}
+      // Determinar histórico de pagamento
+      const { data: pastPayments } = await supabase
+        .from('payment_transactions')
+        .select('status, due_date, paid_at')
+        .eq('client_id', client.id)
+        .eq('company_id', payment.company_id)
+        .neq('id', payment.id)
+        .order('due_date', { ascending: false })
+        .limit(5);
 
-Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp. 
-IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir nome de atendente ou placeholders vazios.`;
+      let paymentHistory = 'Primeiro Atraso';
+      if (pastPayments && pastPayments.length > 0) {
+        const latePayments = pastPayments.filter(p => {
+          if (p.paid_at && p.due_date) {
+            return new Date(p.paid_at) > new Date(p.due_date);
+          }
+          return false;
+        });
+        paymentHistory = latePayments.length > 1 ? 'Atrasos Recorrentes' : 'Histórico Regular';
+      }
+
+      // Determinar tom baseado em dias de atraso
+      let toneInstruction = '';
+      if (daysOverdue <= 7) {
+        toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento. O foco é apenas o lembrete.';
+      } else if (daysOverdue <= 30) {
+        toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço e ofereça opções de renegociação se aplicável.';
+      } else {
+        toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
+      }
+
+      // Gerar link de pagamento
+      const paymentLink = payment.payment_url || `https://vehicleguard-pro.lovable.app/checkout/${payment.id}`;
+
+      // Preparar prompt estruturado para a IA
+      const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
+
+**DADOS DO CLIENTE E CONTEXTO:**
+1. Nome do Cliente: ${client.name}
+2. Valor Pendente: R$${payment.amount.toFixed(2)}
+3. Dias de Atraso: ${daysOverdue} dias
+4. Histórico de Pagamento: ${paymentHistory}
+5. Link de Pagamento Direto: ${paymentLink}
+
+**DEFINIÇÃO DO TOM DE VOZ:**
+${toneInstruction}
+
+**RESTRIÇÕES E REGRAS:**
+* A mensagem deve ser iniciada com a saudação personalizada e a menção direta ao SaaS (${companyName}).
+* **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
+* Inclua o valor (R$${payment.amount.toFixed(2)}) e os dias de atraso (${daysOverdue} dias) no corpo da mensagem de forma clara.
+* O call-to-action (CTA) principal deve ser o link de pagamento.
+* Termine a mensagem com "Atenciosamente, ${companyName}".
+
+**GERE APENAS O TEXTO DA MENSAGEM.**`;
 
       // Chamar OpenAI API
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -96,11 +141,11 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
           messages: [
             { 
               role: 'system', 
-              content: `${settings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
+              content: settings.system_prompt || 'Você é um assistente de comunicação de cobrança para um SaaS. Sua prioridade é a recuperação financeira mantendo um relacionamento cordial com o cliente.'
             },
             { role: 'user', content: prompt }
           ],
-          max_tokens: 500,
+          max_tokens: 600,
           temperature: 0.7
         }),
       });
@@ -204,7 +249,7 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
       // Usar configurações padrão se não estiverem configuradas
       const settings = aiSettings || {
         openai_model: 'gpt-4o-mini',
-        system_prompt: 'Você é um assistente de cobrança profissional e educado. Gere mensagens de cobrança claras, respeitosas e objetivas.'
+        system_prompt: 'Você é um assistente de comunicação de cobrança para um SaaS. Sua prioridade é a recuperação financeira mantendo um relacionamento cordial com o cliente.'
       };
 
       console.log('Process overdue - Usando configurações:', aiSettings ? 'personalizadas' : 'padrão');
@@ -234,18 +279,63 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
 
         const companyName = companyInfo?.name || 'Lira Tracker';
 
-        // Preparar prompt para a IA
-        const prompt = `Cliente: ${client.name}
-Valor: R$ ${payment.amount}
-Data de vencimento: ${new Date(payment.due_date).toLocaleDateString('pt-BR')}
-Dias de atraso: ${daysOverdue}
-Status do pagamento: ${payment.status}
-Nome da empresa: ${companyName}
+        // Determinar histórico de pagamento
+        const { data: pastPayments } = await supabase
+          .from('payment_transactions')
+          .select('status, due_date, paid_at')
+          .eq('client_id', client.id)
+          .eq('company_id', company_id)
+          .neq('id', payment.id)
+          .order('due_date', { ascending: false })
+          .limit(5);
 
-Gere uma mensagem de cobrança educada e profissional para enviar via WhatsApp. 
-IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir nome de atendente ou placeholders vazios.`;
+        let paymentHistory = 'Primeiro Atraso';
+        if (pastPayments && pastPayments.length > 0) {
+          const latePayments = pastPayments.filter(p => {
+            if (p.paid_at && p.due_date) {
+              return new Date(p.paid_at) > new Date(p.due_date);
+            }
+            return false;
+          });
+          paymentHistory = latePayments.length > 1 ? 'Atrasos Recorrentes' : 'Histórico Regular';
+        }
+
+        // Determinar tom baseado em dias de atraso
+        let toneInstruction = '';
+        if (daysOverdue <= 7) {
+          toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento. O foco é apenas o lembrete.';
+        } else if (daysOverdue <= 30) {
+          toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço e ofereça opções de renegociação se aplicável.';
+        } else {
+          toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
+        }
+
+        // Gerar link de pagamento
+        const paymentLink = payment.payment_url || `https://vehicleguard-pro.lovable.app/checkout/${payment.id}`;
 
         try {
+          // Preparar prompt estruturado para a IA
+          const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
+
+**DADOS DO CLIENTE E CONTEXTO:**
+1. Nome do Cliente: ${client.name}
+2. Valor Pendente: R$${payment.amount.toFixed(2)}
+3. Dias de Atraso: ${daysOverdue} dias
+4. Histórico de Pagamento: ${paymentHistory}
+5. Link de Pagamento Direto: ${paymentLink}
+
+**DEFINIÇÃO DO TOM DE VOZ:**
+${toneInstruction}
+
+**RESTRIÇÕES E REGRAS:**
+* A mensagem deve ser iniciada com a saudação personalizada e a menção direta ao SaaS (${companyName}).
+* **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
+* Inclua o valor (R$${payment.amount.toFixed(2)}) e os dias de atraso (${daysOverdue} dias) no corpo da mensagem de forma clara.
+* O call-to-action (CTA) principal deve ser o link de pagamento.
+* Termine a mensagem com "Atenciosamente, ${companyName}".
+
+**GERE APENAS O TEXTO DA MENSAGEM.**`;
+
           // Chamar OpenAI API
           const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -258,11 +348,11 @@ IMPORTANTE: Termine a mensagem com "Atenciosamente, ${companyName}" sem incluir 
             messages: [
               { 
                 role: 'system', 
-                content: `${settings.system_prompt}\n\nIMPORTANTE: Nunca inclua placeholders como [Seu Nome], [Nome da Empresa], [Nome do Atendente] ou similares. Use o nome da empresa fornecido no contexto.` 
+                content: settings.system_prompt || 'Você é um assistente de comunicação de cobrança para um SaaS. Sua prioridade é a recuperação financeira mantendo um relacionamento cordial com o cliente.'
               },
               { role: 'user', content: prompt }
             ],
-            max_tokens: 500,
+            max_tokens: 600,
             temperature: 0.7
           }),
           });
