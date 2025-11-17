@@ -43,8 +43,7 @@ const WhiteLabelPage = () => {
     companyName: "",
     logo: "",
     primaryColor: "#3b82f6",
-    secondaryColor: "#f8fafc", 
-    accentColor: "#10b981",
+    secondaryColor: "#f8fafc",
     domain: "",
     favicon: ""
   })
@@ -115,7 +114,6 @@ const WhiteLabelPage = () => {
         logo: brandingData?.logo_url || "",
         primaryColor: brandingData?.primary_color || "#3b82f6",
         secondaryColor: brandingData?.secondary_color || "#f8fafc",
-        accentColor: "#10b981", // Cor padrão - accent_color não existe no DB
         domain: brandingData?.subdomain || company?.domain || "",
         favicon: brandingData?.favicon_url || ""
       })
@@ -152,7 +150,6 @@ const WhiteLabelPage = () => {
           logo_url: branding.logo,
           primary_color: branding.primaryColor,
           secondary_color: branding.secondaryColor,
-          accent_color: branding.accentColor,
           favicon_url: branding.favicon,
           subdomain: branding.domain
         }, { onConflict: 'company_id' })
@@ -457,22 +454,6 @@ const WhiteLabelPage = () => {
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="accentColor">Cor de Destaque</Label>
-                      <div className="flex gap-2">
-                        <div 
-                          className="w-10 h-10 rounded border"
-                          style={{ backgroundColor: branding.accentColor }}
-                        />
-                        <Input
-                          id="accentColor"
-                          type="color"
-                          value={branding.accentColor}
-                          onChange={(e) => handleBrandingChange('accentColor', e.target.value)}
-                          className="w-20"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -488,7 +469,7 @@ const WhiteLabelPage = () => {
                   <div 
                     className="rounded-lg p-6 border-2"
                     style={{ 
-                      background: `linear-gradient(135deg, ${branding.primaryColor}, ${branding.accentColor})`,
+                      background: `linear-gradient(135deg, ${branding.primaryColor}, ${branding.secondaryColor})`,
                       color: 'white'
                     }}
                   >
