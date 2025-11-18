@@ -29,21 +29,26 @@ function toBrazilTime(date: Date): Date {
 
 // Helper function to set time in Brazil timezone
 function setBrazilTime(date: Date, hour: number, minute: number): Date {
-  // Create a new date based on the input date
-  const brazilDate = new Date(date);
+  // Create a date string in Brazil timezone format
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hourStr = String(hour).padStart(2, '0');
+  const minuteStr = String(minute).padStart(2, '0');
   
-  // Brazil is UTC-3, so to set 9h Brazil time, we need 12h UTC
-  // We set the UTC time directly - when it's 12:00 UTC, it's 09:00 in Brazil
-  brazilDate.setUTCHours(hour + 3, minute, 0, 0);
+  // Create a date string representing the time in Brazil
+  const brazilDateStr = `${year}-${month}-${day}T${hourStr}:${minuteStr}:00`;
   
-  // Get the date in Brazil timezone for display
-  const brazilTimeStr = brazilDate.toLocaleString('en-US', { 
-    timeZone: 'America/Sao_Paulo', 
-    hour12: false 
-  });
-  console.log(`🕐 Setting time: ${hour}:${minute.toString().padStart(2, '0')} Brazil = ${brazilDate.toISOString()} UTC (Brazil time: ${brazilTimeStr})`);
+  // Parse this as a local time in America/Sao_Paulo timezone
+  // Then convert to UTC for storage
+  const localDate = new Date(brazilDateStr);
   
-  return brazilDate;
+  // Brazil is UTC-3, so we need to add 3 hours to get UTC
+  const utcDate = new Date(localDate.getTime() + (3 * 60 * 60 * 1000));
+  
+  console.log(`🕐 Setting time: ${hour}:${minuteStr} Brazil (${brazilDateStr}) = ${utcDate.toISOString()} UTC`);
+  
+  return utcDate;
 }
 
 serve(async (req) => {
