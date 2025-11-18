@@ -111,22 +111,23 @@ export function IntegrationsGrid() {
   const loadStatus = async () => {
     if (!companyId) return
 
-    const [asaas, mercadopago, gerencianet, inter, whatsapp] = await Promise.all([
+    const [asaas, mercadopago, gerencianet, inter, whatsapp, companies] = await Promise.all([
       supabase.from("asaas_settings").select("is_active").eq("company_id", companyId).maybeSingle(),
       supabase.from("mercadopago_settings").select("is_active").eq("company_id", companyId).maybeSingle(),
       supabase.from("gerencianet_settings").select("is_active").eq("company_id", companyId).maybeSingle(),
       supabase.from("inter_settings").select("is_active").eq("company_id", companyId).maybeSingle(),
+      supabase.from("whatsapp_settings").select("is_active").eq("company_id", companyId).maybeSingle(),
       supabase.from("companies").select("settings").eq("id", companyId).single()
     ])
 
-    const settings = whatsapp.data?.settings as { whatsapp_configured?: boolean; assinafy_configured?: boolean } | null
+    const settings = companies.data?.settings as { assinafy_configured?: boolean } | null
     
     setStatus({
       asaas: asaas.data?.is_active || false,
       mercadopago: mercadopago.data?.is_active || false,
       gerencianet: gerencianet.data?.is_active || false,
       inter: inter.data?.is_active || false,
-      whatsapp: settings?.whatsapp_configured || false,
+      whatsapp: whatsapp.data?.is_active || false,
       assinafy: settings?.assinafy_configured || false
     })
   }
