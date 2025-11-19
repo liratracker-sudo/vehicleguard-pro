@@ -29,24 +29,20 @@ function toBrazilTime(date: Date): Date {
 
 // Helper function to set time in Brazil timezone
 function setBrazilTime(date: Date, hour: number, minute: number): Date {
-  // Create a date string in Brazil timezone format
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hourStr = String(hour).padStart(2, '0');
-  const minuteStr = String(minute).padStart(2, '0');
+  // Get date components in UTC
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
   
-  // Create a date string representing the time in Brazil
-  const brazilDateStr = `${year}-${month}-${day}T${hourStr}:${minuteStr}:00`;
+  // Create a date at midnight UTC for the given date
+  const utcDate = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
   
-  // Parse this as a local time in America/Sao_Paulo timezone
-  // Then convert to UTC for storage
-  const localDate = new Date(brazilDateStr);
+  // Brazil is UTC-3, so to set 9h Brazil time, we need 12h UTC (9 + 3)
+  // Add the desired Brazil time + 3 hours to get UTC time
+  const utcHour = hour + 3;
+  utcDate.setUTCHours(utcHour, minute, 0, 0);
   
-  // Brazil is UTC-3, so we need to add 3 hours to get UTC
-  const utcDate = new Date(localDate.getTime() + (3 * 60 * 60 * 1000));
-  
-  console.log(`🕐 Setting time: ${hour}:${minuteStr} Brazil (${brazilDateStr}) = ${utcDate.toISOString()} UTC`);
+  console.log(`🕐 Setting time: ${hour}:${String(minute).padStart(2, '0')} Brazil = ${utcDate.toISOString()} UTC (${utcHour}:${String(minute).padStart(2, '0')} UTC)`);
   
   return utcDate;
 }
@@ -992,12 +988,12 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     }
     
     // Check if we already have notifications for this payment
-    // Check ALL statuses to avoid duplicate key errors
+    // Only check 'pending' status - sent notifications should not block new ones
     const { data: existingNotifications } = await supabase
       .from('payment_notifications')
       .select('event_type, offset_days, scheduled_for, status')
       .eq('payment_id', payment.id)
-      .in('status', ['pending', 'sent']); // Check pending and sent to avoid duplicates
+      .eq('status', 'pending'); // Only check pending to avoid duplicates
 
     // Criar mapa das notificações existentes
     const existingKeys = new Set();
