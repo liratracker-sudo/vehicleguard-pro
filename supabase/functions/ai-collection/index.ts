@@ -104,8 +104,9 @@ serve(async (req) => {
         toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
       }
 
-      // Gerar link de pagamento
-      const paymentLink = payment.payment_url || `https://vehicleguard-pro.lovable.app/checkout/${payment.id}`;
+      // Gerar link de pagamento - sempre usar checkout para evitar truncamento
+      const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+      const paymentLink = `${appUrl}/checkout/${payment.id}`;
 
       // Preparar prompt estruturado para a IA
       const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
@@ -310,8 +311,9 @@ ${toneInstruction}
           toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
         }
 
-        // Gerar link de pagamento
-        const paymentLink = payment.payment_url || `https://vehicleguard-pro.lovable.app/checkout/${payment.id}`;
+        // Gerar link de pagamento - sempre usar checkout para evitar truncamento
+        const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+        const paymentLink = `${appUrl}/checkout/${payment.id}`;
 
         try {
           // Preparar prompt estruturado para a IA
