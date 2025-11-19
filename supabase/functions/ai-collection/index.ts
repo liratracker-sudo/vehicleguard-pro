@@ -59,10 +59,14 @@ serve(async (req) => {
 
       console.log('Usando configurações de IA:', aiSettings ? 'personalizadas' : 'padrão');
 
-      // Calcular dias de atraso
-      const daysOverdue = Math.floor(
-        (new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24)
-      );
+      // Calcular dias até/desde o vencimento
+      const now = new Date();
+      const dueDate = new Date(payment.due_date);
+      const diffDays = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      const isOverdue = diffDays > 0;
+      const daysOverdue = isOverdue ? diffDays : 0;
+      const daysUntilDue = isOverdue ? 0 : Math.abs(diffDays);
 
       // Buscar informações da empresa
       const { data: companyInfo } = await supabase
@@ -83,7 +87,7 @@ serve(async (req) => {
         .order('due_date', { ascending: false })
         .limit(5);
 
-      let paymentHistory = 'Primeiro Atraso';
+      let paymentHistory = 'Primeiro Pagamento';
       if (pastPayments && pastPayments.length > 0) {
         const latePayments = pastPayments.filter(p => {
           if (p.paid_at && p.due_date) {
@@ -94,13 +98,22 @@ serve(async (req) => {
         paymentHistory = latePayments.length > 1 ? 'Atrasos Recorrentes' : 'Histórico Regular';
       }
 
-      // Determinar tom baseado em dias de atraso
+      // Determinar tom e contexto baseado no status
       let toneInstruction = '';
-      if (daysOverdue <= 7) {
+      let contextDescription = '';
+      
+      if (!isOverdue) {
+        // Notificação PRÉ-VENCIMENTO
+        contextDescription = `IMPORTANTE: Este é um LEMBRETE de cobrança que ainda NÃO está vencida. O vencimento é em ${daysUntilDue} dia(s).`;
+        toneInstruction = 'Use um TOM AMIGÁVEL E PREVENTIVO. Foque em lembrar sobre o vencimento próximo para evitar esquecimento. Não mencione atraso ou consequências.';
+      } else if (daysOverdue <= 7) {
+        contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dia(s).`;
         toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento. O foco é apenas o lembrete.';
       } else if (daysOverdue <= 30) {
+        contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dias.`;
         toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço e ofereça opções de renegociação se aplicável.';
       } else {
+        contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dias.`;
         toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
       }
 
@@ -111,10 +124,13 @@ serve(async (req) => {
       // Preparar prompt estruturado para a IA
       const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
 
+**CONTEXTO CRÍTICO DA COBRANÇA:**
+${contextDescription}
+
 **DADOS DO CLIENTE E CONTEXTO:**
 1. Nome do Cliente: ${client.name}
-2. Valor Pendente: R$${payment.amount.toFixed(2)}
-3. Dias de Atraso: ${daysOverdue} dias
+2. Valor: R$${payment.amount.toFixed(2)}
+3. ${isOverdue ? `Dias de Atraso: ${daysOverdue} dias` : `Dias até o Vencimento: ${daysUntilDue} dia(s)`}
 4. Histórico de Pagamento: ${paymentHistory}
 5. Link de Pagamento Direto: ${paymentLink}
 
@@ -124,7 +140,8 @@ ${toneInstruction}
 **RESTRIÇÕES E REGRAS:**
 * A mensagem deve ser iniciada com a saudação personalizada e a menção direta ao SaaS (${companyName}).
 * **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
-* Inclua o valor (R$${payment.amount.toFixed(2)}) e os dias de atraso (${daysOverdue} dias) no corpo da mensagem de forma clara.
+* Inclua o valor (R$${payment.amount.toFixed(2)}) no corpo da mensagem de forma clara.
+* ${isOverdue ? `Mencione claramente que está VENCIDA há ${daysOverdue} dia(s).` : `Mencione que VENCE em ${daysUntilDue} dia(s) e que é um lembrete preventivo.`}
 * O call-to-action (CTA) principal deve ser o link de pagamento.
 * Termine a mensagem com "Atenciosamente, ${companyName}".
 
@@ -160,37 +177,9 @@ ${toneInstruction}
       const generatedMessage = aiData.choices[0].message.content;
       const usage = aiData.usage;
 
-      // Buscar configurações do WhatsApp para enviar
-      const { data: whatsappSettings } = await supabase
-        .from('whatsapp_settings')
-        .select('*')
-        .eq('company_id', payment.company_id)
-        .eq('is_active', true)
-        .single();
+      console.log('✅ Mensagem gerada com sucesso pela IA');
 
-      let messageSent = false;
-      if (whatsappSettings) {
-        console.log('Enviando mensagem via WhatsApp para:', client.phone);
-        const whatsappResult = await supabase.functions.invoke('whatsapp-evolution', {
-          body: {
-            action: 'sendText',
-            instance_url: whatsappSettings.instance_url,
-            api_token: whatsappSettings.api_token,
-            instance_name: whatsappSettings.instance_name,
-            number: client.phone,
-            message: generatedMessage,
-            company_id: payment.company_id,
-            client_id: client.id
-          }
-        });
-
-        messageSent = whatsappResult.data?.success || false;
-        console.log('Resultado do envio WhatsApp:', { messageSent, error: whatsappResult.error });
-      } else {
-        console.error('Configurações do WhatsApp não encontradas ou inativas');
-      }
-
-      // Salvar log da IA após enviar (se configurações existirem)
+      // Salvar log da IA após gerar (se configurações existirem)
       if (aiSettings) {
         await supabase.from('ai_collection_logs').insert({
           company_id: payment.company_id,
@@ -201,19 +190,20 @@ ${toneInstruction}
           total_tokens: usage.total_tokens,
           model_used: settings.openai_model || 'gpt-4o-mini',
           generated_message: generatedMessage,
-          sent_successfully: messageSent
+          sent_successfully: null // Não envia aqui, apenas gera
         });
       } else {
         console.log('Logs de IA não salvos - configurações não encontradas na tabela');
       }
 
+      // Retornar apenas a mensagem gerada - o billing-notifications enviará
       return new Response(
         JSON.stringify({ 
-          success: messageSent,
-          message: messageSent ? 'Cobrança enviada com sucesso' : 'Erro ao enviar mensagem',
+          success: true,
           generated_message: generatedMessage,
           client_phone: client.phone,
-          client_name: client.name
+          client_name: client.name,
+          usage
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

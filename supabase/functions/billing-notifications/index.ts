@@ -165,20 +165,145 @@ async function processNotifications(force = false) {
     sent: 0,
     failed: 0,
     created: 0,
-    skipped: 0
+    skipped: 0,
+    recreated: 0
   };
   
-  // 1. Send pending notifications that are due (or all if force=true)
+  // 1. Limpar e recriar notificações de cobranças já vencidas com horário incorreto
+  const recreatedResults = await recreateOverdueNotifications();
+  results.recreated = recreatedResults.recreated;
+  
+  // 2. Send pending notifications that are due (or all if force=true)
   const sentResults = await sendPendingNotifications(force);
   results.sent = sentResults.sent;
   results.failed = sentResults.failed;
   
-  // 2. Create new notifications for payments without them
+  // 3. Create new notifications for payments without them
   const createdResults = await createMissingNotifications();
   results.created = createdResults.created;
   results.skipped = createdResults.skipped;
   
   console.log('Notification processing completed', results);
+  return results;
+}
+
+// Função para recriar notificações de cobranças já vencidas com horário incorreto
+async function recreateOverdueNotifications() {
+  console.log('🔄 Verificando cobranças já vencidas com notificações incorretas...');
+  
+  const results = { recreated: 0 };
+  const now = new Date();
+  const sendHour = 9; // Hora correta para envio (9h Brasil)
+  
+  // Buscar todos os pagamentos já vencidos
+  const { data: overduePayments, error: paymentsError } = await supabase
+    .from('payment_transactions')
+    .select('id, company_id, due_date, status')
+    .lt('due_date', now.toISOString())
+    .in('status', ['pending', 'overdue']);
+  
+  if (paymentsError) {
+    console.error('Erro ao buscar pagamentos vencidos:', paymentsError);
+    return results;
+  }
+  
+  if (!overduePayments || overduePayments.length === 0) {
+    console.log('✅ Nenhum pagamento vencido encontrado');
+    return results;
+  }
+  
+  console.log(`📋 Encontrados ${overduePayments.length} pagamentos vencidos para verificar`);
+  
+  for (const payment of overduePayments) {
+    // Buscar notificações pendentes deste pagamento
+    const { data: pendingNotifications } = await supabase
+      .from('payment_notifications')
+      .select('id, scheduled_for, event_type, offset_days')
+      .eq('payment_id', payment.id)
+      .eq('status', 'pending');
+    
+    if (!pendingNotifications || pendingNotifications.length === 0) {
+      // Sem notificações pendentes - criar notificação post_due
+      console.log(`📝 Criando notificação post_due para pagamento vencido ${payment.id}`);
+      
+      const dueDate = new Date(payment.due_date);
+      const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Criar notificação para hoje às 9h
+      const scheduledFor = setBrazilTime(now, sendHour, 0);
+      
+      const { error: insertError } = await supabase
+        .from('payment_notifications')
+        .insert({
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          company_id: payment.company_id,
+          event_type: 'post_due',
+          offset_days: daysOverdue,
+          scheduled_for: scheduledFor.toISOString(),
+          status: 'pending'
+        });
+      
+      if (!insertError) {
+        results.recreated++;
+        console.log(`✅ Notificação post_due criada para ${payment.id} - agendada para ${scheduledFor.toISOString()}`);
+      } else {
+        console.error(`❌ Erro ao criar notificação para ${payment.id}:`, insertError);
+      }
+      continue;
+    }
+    
+    // Verificar se alguma notificação está com horário incorreto (22h UTC = 19h Brasil)
+    const incorrectNotifications = pendingNotifications.filter(n => {
+      const schedDate = new Date(n.scheduled_for);
+      const schedHour = schedDate.getUTCHours();
+      // 22h UTC é o antigo horário incorreto (19h Brasil em vez de 9h)
+      return schedHour === 22;
+    });
+    
+    if (incorrectNotifications.length > 0) {
+      console.log(`🔧 Encontradas ${incorrectNotifications.length} notificações com horário incorreto para ${payment.id}`);
+      
+      // Marcar notificações antigas como skipped
+      for (const oldNotif of incorrectNotifications) {
+        await supabase
+          .from('payment_notifications')
+          .update({ 
+            status: 'skipped',
+            last_error: 'Horário incorreto - recriada com horário correto (9h Brasil)'
+          })
+          .eq('id', oldNotif.id);
+        
+        console.log(`🗑️ Notificação ${oldNotif.id} marcada como skipped`);
+      }
+      
+      // Criar nova notificação com horário correto
+      const dueDate = new Date(payment.due_date);
+      const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      const scheduledFor = setBrazilTime(now, sendHour, 0);
+      
+      const { error: insertError } = await supabase
+        .from('payment_notifications')
+        .insert({
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          company_id: payment.company_id,
+          event_type: 'post_due',
+          offset_days: daysOverdue,
+          scheduled_for: scheduledFor.toISOString(),
+          status: 'pending'
+        });
+      
+      if (!insertError) {
+        results.recreated++;
+        console.log(`✅ Nova notificação criada para ${payment.id} - agendada para ${scheduledFor.toISOString()}`);
+      } else {
+        console.error(`❌ Erro ao criar nova notificação para ${payment.id}:`, insertError);
+      }
+    }
+  }
+  
+  console.log(`✅ Processo de recriação concluído: ${results.recreated} notificações recriadas`);
   return results;
 }
 
