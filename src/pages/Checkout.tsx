@@ -290,19 +290,26 @@ export default function Checkout() {
     } catch (error) {
       console.error('Error processing payment:', error);
       
+      // SEMPRE resetar o estado de processamento
+      setProcessing(false);
+      
       const errorMessage = error instanceof Error 
         ? error.message 
-        : typeof error === 'object' && error !== null
-          ? JSON.stringify(error)
+        : typeof error === 'object' && error !== null && 'message' in error
+          ? String(error.message)
           : "Erro ao processar pagamento";
+      
+      // Mostrar erro visual na tela também
+      setPaymentResult({
+        success: false,
+        error: errorMessage
+      });
       
       toast({
         title: "Erro ao processar pagamento",
         description: errorMessage,
         variant: "destructive"
       });
-      
-      setProcessing(false);
     }
   };
 

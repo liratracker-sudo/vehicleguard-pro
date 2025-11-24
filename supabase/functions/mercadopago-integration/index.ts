@@ -319,7 +319,20 @@ serve(async (req) => {
               } : undefined
             },
             external_reference: data.externalReference,
-            date_of_expiration: data.dueDate ? new Date(new Date(data.dueDate).getTime() + 24 * 60 * 60 * 1000).toISOString() : undefined
+            // PIX expira em 24h a partir de AGORA (não da data de vencimento)
+            date_of_expiration: (() => {
+              const now = new Date();
+              const expiration = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
+              
+              // Validar que está no futuro
+              if (expiration <= now) {
+                console.error('Invalid expiration date calculated:', expiration.toISOString());
+                throw new Error('Data de expiração deve estar no futuro');
+              }
+              
+              console.log(`PIX expiration set to: ${expiration.toISOString()} (24h from now)`);
+              return expiration.toISOString();
+            })()
           }
 
           console.log('Creating PIX payment:', JSON.stringify(paymentData, null, 2))

@@ -189,15 +189,21 @@ serve(async (req) => {
     );
 
     console.log('Gateway response:', JSON.stringify(gatewayResponse, null, 2));
-    console.log('Gateway error:', gatewayError);
-
+    
     if (gatewayError) {
-      console.error('Gateway error:', gatewayError);
+      console.error('=== GATEWAY ERROR DETAILS ===');
+      console.error('Error object:', JSON.stringify(gatewayError, null, 2));
+      console.error('Error message:', gatewayError.message);
+      console.error('Error context:', gatewayError.context);
+      console.error('=============================');
       throw new Error(`Erro ao processar pagamento: ${gatewayError.message}`);
     }
 
     if (!gatewayResponse?.success) {
-      console.error('Gateway response error:', gatewayResponse);
+      console.error('=== GATEWAY RESPONSE ERROR ===');
+      console.error('Response:', JSON.stringify(gatewayResponse, null, 2));
+      console.error('Error field:', gatewayResponse?.error);
+      console.error('==============================');
       throw new Error(gatewayResponse?.error || 'Erro ao gerar cobrança no gateway');
     }
 
