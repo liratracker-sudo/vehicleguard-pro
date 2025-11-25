@@ -1,5 +1,8 @@
 project_id = "mcdidffxwtnqhawqilln"
 
+[functions.process-client-registration]
+verify_jwt = false
+
 [functions.update-payment-urls]
 verify_jwt = false
 
