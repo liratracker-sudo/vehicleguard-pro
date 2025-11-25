@@ -70,9 +70,10 @@ export default function PublicClientRegistration() {
   }
 
   const handleCepBlur = async () => {
-    if (formData.cep.length === 8) {
+    const cepNumeros = formData.cep.replace(/\D/g, '')
+    if (cepNumeros.length === 8) {
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${formData.cep}/json/`)
+        const response = await fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`)
         const data = await response.json()
         
         if (!data.erro) {
@@ -248,8 +249,17 @@ export default function PublicClientRegistration() {
                   <Label>CPF *</Label>
                   <Input
                     value={formData.document}
-                    onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '')
+                      if (value.length <= 11) {
+                        value = value.replace(/(\d{3})(\d)/, '$1.$2')
+                        value = value.replace(/(\d{3})(\d)/, '$1.$2')
+                        value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+                      }
+                      setFormData({ ...formData, document: value })
+                    }}
                     placeholder="000.000.000-00"
+                    maxLength={14}
                     required
                   />
                 </div>
@@ -267,8 +277,16 @@ export default function PublicClientRegistration() {
                   <Label>Telefone *</Label>
                   <Input
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '')
+                      if (value.length <= 11) {
+                        value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
+                        value = value.replace(/(\d)(\d{4})$/, '$1-$2')
+                      }
+                      setFormData({ ...formData, phone: value })
+                    }}
                     placeholder="(00) 00000-0000"
+                    maxLength={15}
                     required
                   />
                 </div>
@@ -287,9 +305,16 @@ export default function PublicClientRegistration() {
                   <Label>CEP *</Label>
                   <Input
                     value={formData.cep}
-                    onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '')
+                      if (value.length <= 8) {
+                        value = value.replace(/^(\d{5})(\d)/, '$1-$2')
+                      }
+                      setFormData({ ...formData, cep: value })
+                    }}
                     onBlur={handleCepBlur}
                     placeholder="00000-000"
+                    maxLength={9}
                     required
                   />
                 </div>
@@ -389,8 +414,16 @@ export default function PublicClientRegistration() {
                 <Label>Telefone do Contato *</Label>
                 <Input
                   value={formData.emergency_contact_phone}
-                  onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, '')
+                    if (value.length <= 11) {
+                      value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
+                      value = value.replace(/(\d)(\d{4})$/, '$1-$2')
+                    }
+                    setFormData({ ...formData, emergency_contact_phone: value })
+                  }}
                   placeholder="(00) 00000-0000"
+                  maxLength={15}
                   required
                 />
               </div>
