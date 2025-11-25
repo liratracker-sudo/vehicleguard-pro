@@ -128,6 +128,88 @@
     --sidebar-border: 217 33% 17%;
     --sidebar-ring: 217 91% 60%;
   }
+
+  .light {
+    /* Light Theme - White with Orange Accents */
+    --background: 30 40% 98%;
+    --foreground: 24 20% 15%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 24 20% 15%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 20% 15%;
+    
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 24 95% 63%;
+    --primary-dark: 24 95% 43%;
+    
+    --secondary: 30 30% 92%;
+    --secondary-foreground: 24 20% 15%;
+    --secondary-hover: 30 30% 88%;
+    
+    --muted: 30 20% 90%;
+    --muted-foreground: 24 10% 40%;
+    --muted-dark: 24 10% 30%;
+    
+    --accent: 33 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --accent-success: 142 76% 36%;
+    --accent-warning: 38 92% 50%;
+    --accent-danger: 0 72% 51%;
+    
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 160 84% 49%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 60%;
+    
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 72% 61%;
+    
+    --border: 30 20% 82%;
+    --input: 30 20% 82%;
+    --input-focus: 24 95% 53%;
+    --ring: 24 95% 53%;
+    
+    --hover: 30 30% 88%;
+    --hover-accent: 24 95% 63%;
+    --active: 24 95% 43%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(24 95% 53%), hsl(33 100% 50%));
+    --gradient-secondary: linear-gradient(135deg, hsl(30 30% 92%), hsl(30 30% 88%));
+    --gradient-success: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 84% 49%));
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -1px rgb(0 0 0 / 0.06);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+    --shadow-primary: 0 4px 14px 0 hsl(24 95% 53% / 0.2);
+    
+    /* Animations */
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Border Radius */
+    --radius-sm: 0.5rem;
+    --radius-lg: 1rem;
+    
+    /* Sidebar System */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 24 20% 15%;
+    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 30% 92%;
+    --sidebar-accent-foreground: 24 20% 15%;
+    --sidebar-border: 30 20% 82%;
+    --sidebar-ring: 24 95% 53%;
+  }
 }
 
 @layer base {

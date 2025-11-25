@@ -18,7 +18,9 @@ import {
   CreditCard,
   Building2,
   Key,
-  X
+  X,
+  Moon,
+  Sun
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -30,9 +32,11 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { useTheme } from "@/contexts/ThemeContext"
 
 const WhiteLabelPage = () => {
   const { toast } = useToast()
+  const { theme, setTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [currentCompanyId, setCurrentCompanyId] = useState<string>("")
   const [loading, setLoading] = useState(true)
@@ -454,11 +458,67 @@ const WhiteLabelPage = () => {
                         />
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                   </div>
+                 </CardContent>
+               </Card>
 
-              <Card>
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="flex items-center gap-2">
+                     {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                     Tema do Sistema
+                   </CardTitle>
+                   <CardDescription>
+                     Escolha entre tema escuro ou claro
+                   </CardDescription>
+                 </CardHeader>
+                 <CardContent className="space-y-4">
+                   <div className="grid grid-cols-2 gap-4">
+                     <div 
+                       onClick={() => setTheme('dark')}
+                       className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                         theme === 'dark' 
+                           ? 'border-primary ring-2 ring-primary/20' 
+                           : 'border-border hover:border-primary/50'
+                       }`}
+                     >
+                       <div className="flex items-center gap-2 mb-3">
+                         <Moon className="w-5 h-5" />
+                         <span className="font-semibold">Escuro</span>
+                       </div>
+                       <div className="bg-[hsl(222_47%_11%)] rounded p-3 space-y-2">
+                         <div className="h-2 bg-[hsl(217_91%_60%)] rounded w-3/4"></div>
+                         <div className="h-2 bg-[hsl(210_40%_98%)] rounded w-1/2"></div>
+                         <div className="h-2 bg-[hsl(215_20%_65%)] rounded w-2/3"></div>
+                       </div>
+                     </div>
+
+                     <div 
+                       onClick={() => setTheme('light')}
+                       className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                         theme === 'light' 
+                           ? 'border-primary ring-2 ring-primary/20' 
+                           : 'border-border hover:border-primary/50'
+                       }`}
+                     >
+                       <div className="flex items-center gap-2 mb-3">
+                         <Sun className="w-5 h-5" />
+                         <span className="font-semibold">Claro</span>
+                       </div>
+                       <div className="bg-[hsl(30_40%_98%)] rounded p-3 space-y-2 border">
+                         <div className="h-2 bg-[hsl(24_95%_53%)] rounded w-3/4"></div>
+                         <div className="h-2 bg-[hsl(24_20%_15%)] rounded w-1/2"></div>
+                         <div className="h-2 bg-[hsl(24_10%_40%)] rounded w-2/3"></div>
+                       </div>
+                     </div>
+                   </div>
+                   <p className="text-sm text-muted-foreground">
+                     O tema será aplicado em todo o sistema automaticamente
+                   </p>
+                 </CardContent>
+               </Card>
+
+               <Card>
                 <CardHeader>
                   <CardTitle>Pré-visualização</CardTitle>
                   <CardDescription>
