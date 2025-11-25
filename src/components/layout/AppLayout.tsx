@@ -14,12 +14,12 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   useEnsureAsaasWebhook();
   return (
-    <div className="min-h-screen relative bg-slate-950">
+    <div className="min-h-screen relative bg-background">
       <FlickeringGrid
-        className="z-0 absolute inset-0 size-full"
+        className="z-0 absolute inset-0 size-full dark:opacity-100 light:opacity-20"
         squareSize={4}
         gridGap={6}
-        color="rgb(30, 41, 59)"
+        color="hsl(var(--muted))"
         maxOpacity={0.5}
         flickerChance={0.2}
       />
@@ -29,12 +29,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           
           <div className="flex-1 flex flex-col min-w-0">
             {/* Header */}
-            <header className="h-14 sm:h-16 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-2 sm:px-6 shadow-lg flex-shrink-0">
+            <header className="h-14 sm:h-16 bg-card/50 backdrop-blur-sm border-b border-border flex items-center justify-between px-2 sm:px-6 shadow-lg flex-shrink-0">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink-0">
-                <SidebarTrigger className="text-slate-400 hover:text-slate-100 transition-colors flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10" />
+                <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10" />
                 <div className="hidden sm:block min-w-0">
-                  <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent truncate">VehicleGuard Pro</h1>
-                  <p className="text-xs sm:text-sm text-slate-400 truncate">Sistema de Gestão de Rastreamento</p>
+                  <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent truncate">VehicleGuard Pro</h1>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Sistema de Gestão de Rastreamento</p>
                 </div>
               </div>
               

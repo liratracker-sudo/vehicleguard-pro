@@ -223,69 +223,86 @@
     text-rendering: optimizeLegibility;
   }
   
-  /* Custom Scrollbar - Modern Dark Theme */
+  /* Custom Scrollbar - Theme-aware */
   ::-webkit-scrollbar {
     width: 14px;
     height: 14px;
   }
   
   ::-webkit-scrollbar-track {
-    background: rgba(30, 41, 59, 0.5) !important;
+    background: hsl(var(--muted) / 0.3);
     border-radius: 8px;
   }
   
   ::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.6) !important;
+    background: hsl(var(--muted-foreground) / 0.4);
     border-radius: 8px;
-    border: 2px solid rgba(30, 41, 59, 0.5);
+    border: 2px solid hsl(var(--muted) / 0.3);
     transition: all 0.2s ease;
     min-height: 40px;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.8) !important;
+    background: hsl(var(--muted-foreground) / 0.6);
   }
   
   ::-webkit-scrollbar-corner {
-    background: rgba(30, 41, 59, 0.5);
+    background: hsl(var(--muted) / 0.3);
   }
   
   /* Firefox scrollbar styling */
   html, body, * {
-    scrollbar-width: auto !important;
-    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(30, 41, 59, 0.5) !important;
+    scrollbar-width: auto;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) hsl(var(--muted) / 0.3);
   }
   
   /* Force scrollbar visibility */
   html {
-    overflow-y: scroll !important;
+    overflow-y: scroll;
   }
   
-  /* Dark mode scrollbar - same as main theme */
+  /* Dark mode scrollbar */
   .dark ::-webkit-scrollbar-track {
-    background: rgba(30, 41, 59, 0.5) !important;
+    background: hsl(var(--muted) / 0.5);
   }
   
   .dark ::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.6) !important;
-    border: 2px solid rgba(30, 41, 59, 0.5);
+    background: hsl(var(--muted-foreground) / 0.5);
+    border: 2px solid hsl(var(--muted) / 0.5);
   }
   
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.8) !important;
+    background: hsl(var(--muted-foreground) / 0.7);
   }
   
   .dark ::-webkit-scrollbar-corner {
-    background: rgba(30, 41, 59, 0.5);
+    background: hsl(var(--muted) / 0.5);
   }
   
   .dark html, .dark body, .dark * {
-    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(30, 41, 59, 0.5) !important;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.5) hsl(var(--muted) / 0.5);
   }
   
-  /* Ensure scrollbar is always visible */
-  html {
-    overflow-y: scroll;
+  /* Light mode scrollbar */
+  .light ::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.2);
+  }
+  
+  .light ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.3);
+    border: 2px solid hsl(var(--muted) / 0.2);
+  }
+  
+  .light ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
+  }
+  
+  .light ::-webkit-scrollbar-corner {
+    background: hsl(var(--muted) / 0.2);
+  }
+  
+  .light html, .light body, .light * {
+    scrollbar-color: hsl(var(--primary) / 0.3) hsl(var(--muted) / 0.2);
   }
   
   /* Force text contrast on dark backgrounds */
@@ -300,9 +317,13 @@
     color: inherit;
   }
   
-  /* Dark mode text corrections */
-  .dark * {
-    color: hsl(var(--foreground));
+  /* Theme-aware text colors */
+  .dark {
+    color-scheme: dark;
+  }
+
+  .light {
+    color-scheme: light;
   }
 }
 
@@ -364,17 +385,14 @@
   /* Modern Card Animations */
   .card-futuristic {
     @apply transition-all duration-300 ease-out;
-    background: rgba(15, 23, 42, 0.5);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    backdrop-filter: blur(12px);
+    @apply rounded-xl border border-border bg-gradient-to-br from-card to-card/80 backdrop-blur-sm shadow-2xl;
     transform: translateZ(0);
   }
   
   .card-futuristic:hover {
-    @apply shadow-lg;
+    @apply shadow-lg border-primary/50;
     transform: translateY(-2px) translateZ(0);
-    border-color: rgba(59, 130, 246, 0.3);
-    box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15);
+    box-shadow: 0 8px 32px hsl(var(--primary) / 0.2);
   }
 
   /* Responsive Design Utilities */
