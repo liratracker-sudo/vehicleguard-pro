@@ -613,6 +613,7 @@ export type Database = {
           smtp_user: string | null
           subdomain: string | null
           terms_of_service: string | null
+          theme_mode: string | null
           updated_at: string
         }
         Insert: {
@@ -632,6 +633,7 @@ export type Database = {
           smtp_user?: string | null
           subdomain?: string | null
           terms_of_service?: string | null
+          theme_mode?: string | null
           updated_at?: string
         }
         Update: {
@@ -651,6 +653,7 @@ export type Database = {
           smtp_user?: string | null
           subdomain?: string | null
           terms_of_service?: string | null
+          theme_mode?: string | null
           updated_at?: string
         }
         Relationships: [

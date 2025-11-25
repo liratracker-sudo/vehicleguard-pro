@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WhatsAppProvider } from "@/contexts/WhatsAppContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import Index from "./pages/Index";
 import AuthPage from "./pages/Auth";
 import AdminPage from "./pages/Admin";
@@ -40,11 +41,12 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WhatsAppProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
+        <ThemeProvider>
+          <WhatsAppProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/checkout/:payment_id" element={<CheckoutPage />} />
               <Route path="/payment/:payment_id" element={<CheckoutPage />} />
@@ -67,7 +69,8 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
-        </WhatsAppProvider>
+          </WhatsAppProvider>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
