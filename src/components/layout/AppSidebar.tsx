@@ -128,7 +128,9 @@ export function AppSidebar() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [companyName, setCompanyName] = useState("VehicleGuard")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const { pendingCount } = useClientRegistrations()
+  // Temporarily disabled to debug 502 error
+  // const { pendingCount } = useClientRegistrations()
+  const pendingCount = 0
   
   useEffect(() => {
     let isMounted = true
