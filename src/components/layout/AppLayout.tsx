@@ -6,6 +6,7 @@ import { WhatsAppStatus } from "./WhatsAppStatus"
 import { WhatsAppAlert } from "@/components/alerts/WhatsAppAlert"
 import { useEnsureAsaasWebhook } from "@/hooks/useEnsureAsaasWebhook"
 import { FlickeringGrid } from "@/components/ui/flickering-grid"
+import { useTheme } from "@/contexts/ThemeContext"
 
 interface AppLayoutProps {
   children: ReactNode
@@ -13,16 +14,20 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   useEnsureAsaasWebhook();
+  const { theme } = useTheme();
+  
   return (
     <div className="min-h-screen relative bg-background">
-      <FlickeringGrid
-        className="z-0 absolute inset-0 size-full dark:opacity-100 light:opacity-20"
-        squareSize={4}
-        gridGap={6}
-        color="hsl(var(--muted))"
-        maxOpacity={0.5}
-        flickerChance={0.2}
-      />
+      {theme === 'dark' && (
+        <FlickeringGrid
+          className="z-0 absolute inset-0 size-full"
+          squareSize={4}
+          gridGap={6}
+          color="hsl(var(--muted))"
+          maxOpacity={0.5}
+          flickerChance={0.2}
+        />
+      )}
       <SidebarProvider>
         <div className="min-h-screen flex w-full relative z-10 bg-transparent">
           <AppSidebar />
