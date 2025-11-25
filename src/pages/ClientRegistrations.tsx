@@ -137,6 +137,26 @@ export default function ClientRegistrations() {
 
       if (updateError) throw updateError
 
+      // Enviar notificação WhatsApp ao cliente
+      const approvalMessage = `✅ *Cadastro Aprovado!*\n\n` +
+        `Olá ${registration.name}!\n\n` +
+        `Seu cadastro foi aprovado com sucesso! ` +
+        `Bem-vindo(a) ao nosso sistema.\n\n` +
+        `Dados aprovados:\n` +
+        `• Veículo: ${registration.vehicle_brand} ${registration.vehicle_model}\n` +
+        `• Placa: ${registration.vehicle_plate}\n\n` +
+        `Em breve entraremos em contato para os próximos passos.`
+
+      // Enviar notificação (não aguardar para não travar a UI)
+      supabase.functions.invoke('notify-whatsapp', {
+        body: {
+          client_id: client.id,
+          message: approvalMessage
+        }
+      }).catch(err => {
+        console.error('Failed to send WhatsApp notification:', err)
+      })
+
       toast({
         title: "Cadastro aprovado!",
         description: "Cliente e veículo criados com sucesso."
@@ -171,6 +191,14 @@ export default function ClientRegistrations() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile) return
+
       const { error } = await supabase
         .from('client_registrations')
         .update({
@@ -182,6 +210,57 @@ export default function ClientRegistrations() {
         .eq('id', selectedRegistration.id)
 
       if (error) throw error
+
+      // Buscar o cliente pelo telefone para enviar notificação
+      const { data: existingClient } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('phone', selectedRegistration.phone)
+        .eq('company_id', profile.company_id)
+        .maybeSingle()
+
+      // Enviar notificação WhatsApp ao cliente
+      const rejectionMessage = `❌ *Cadastro Não Aprovado*\n\n` +
+        `Olá ${selectedRegistration.name},\n\n` +
+        `Infelizmente seu cadastro não foi aprovado.\n\n` +
+        `Motivo: ${rejectReason}\n\n` +
+        `Entre em contato conosco para mais informações.`
+
+      // Se o cliente já existe no sistema, enviar notificação
+      if (existingClient) {
+        supabase.functions.invoke('notify-whatsapp', {
+          body: {
+            client_id: existingClient.id,
+            message: rejectionMessage
+          }
+        }).catch(err => {
+          console.error('Failed to send WhatsApp notification:', err)
+        })
+      } else {
+        // Se não existe, criar temporariamente para enviar a notificação
+        const { data: tempClient } = await supabase
+          .from('clients')
+          .insert({
+            company_id: profile.company_id,
+            name: selectedRegistration.name,
+            phone: selectedRegistration.phone,
+            document: selectedRegistration.document,
+            status: 'inactive'
+          })
+          .select('id')
+          .single()
+
+        if (tempClient) {
+          supabase.functions.invoke('notify-whatsapp', {
+            body: {
+              client_id: tempClient.id,
+              message: rejectionMessage
+            }
+          }).catch(err => {
+            console.error('Failed to send WhatsApp notification:', err)
+          })
+        }
+      }
 
       toast({
         title: "Cadastro rejeitado",

@@ -114,6 +114,18 @@ serve(async (req) => {
 
     console.log('Registration created successfully:', registration.id)
 
+    // Notificar admins sobre novo cadastro (não aguardar resposta)
+    supabase.functions.invoke('notify-registration-admin', {
+      body: {
+        company_id: registrationData.company_id,
+        registration_id: registration.id,
+        registration_name: registrationData.name
+      }
+    }).catch(err => {
+      console.error('Failed to notify admins:', err)
+      // Não falhar o cadastro se a notificação falhar
+    })
+
     return new Response(
       JSON.stringify({
         success: true,
