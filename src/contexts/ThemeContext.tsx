@@ -45,14 +45,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           .from('company_branding')
           .select('theme_mode')
           .eq('company_id', profile.company_id)
-          .single();
+          .maybeSingle();
 
         if (branding?.theme_mode) {
           setThemeState(branding.theme_mode as ThemeMode);
           applyTheme(branding.theme_mode as ThemeMode);
+        } else {
+          applyTheme('dark');
         }
       } catch (error) {
         console.error('Error loading theme:', error);
+        applyTheme('dark');
       } finally {
         setIsLoading(false);
       }
@@ -67,17 +70,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.classList.add(newTheme);
   };
 
-  const setTheme = async (newTheme: ThemeMode) => {
-    if (!companyId) {
-      toast({
-        title: "Erro",
-        description: "Empresa não identificada",
-        variant: "destructive",
-      });
-      return;
+  const ensureCompanyId = async (): Promise<string> => {
+    if (companyId) return companyId;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuário não autenticado');
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile?.company_id) {
+      throw new Error('Empresa não identificada');
+    }
+
+    setCompanyId(profile.company_id);
+    return profile.company_id;
+  };
+
+  const setTheme = async (newTheme: ThemeMode) => {
     try {
+      const effectiveCompanyId = await ensureCompanyId();
+
       setThemeState(newTheme);
       applyTheme(newTheme);
 
@@ -85,15 +103,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const { data: existing } = await supabase
         .from('company_branding')
         .select('id')
-        .eq('company_id', companyId)
-        .single();
+        .eq('company_id', effectiveCompanyId)
+        .maybeSingle();
 
       if (existing) {
         // Update existing record
         const { error } = await supabase
           .from('company_branding')
           .update({ theme_mode: newTheme })
-          .eq('company_id', companyId);
+          .eq('company_id', effectiveCompanyId);
 
         if (error) throw error;
       } else {
@@ -101,7 +119,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase
           .from('company_branding')
           .insert({
-            company_id: companyId,
+            company_id: effectiveCompanyId,
             theme_mode: newTheme,
           });
 
@@ -112,11 +130,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         title: "Tema atualizado",
         description: `Tema ${newTheme === 'dark' ? 'escuro' : 'claro'} aplicado com sucesso`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving theme:', error);
       toast({
         title: "Erro ao salvar tema",
-        description: "Não foi possível salvar o tema",
+        description: error.message || "Não foi possível salvar o tema",
         variant: "destructive",
       });
     }
