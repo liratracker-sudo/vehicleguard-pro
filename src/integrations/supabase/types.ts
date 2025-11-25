@@ -317,6 +317,139 @@ export type Database = {
           },
         ]
       }
+      client_registrations: {
+        Row: {
+          birth_date: string
+          cep: string
+          city: string
+          client_id: string | null
+          company_id: string
+          complement: string | null
+          created_at: string
+          document: string
+          document_back_url: string | null
+          document_front_url: string | null
+          email: string | null
+          emergency_contact_name: string
+          emergency_contact_phone: string
+          emergency_contact_relationship: string
+          has_gnv: boolean | null
+          id: string
+          is_armored: boolean | null
+          name: string
+          neighborhood: string
+          number: string
+          phone: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          state: string
+          status: string | null
+          street: string
+          updated_at: string
+          vehicle_brand: string
+          vehicle_color: string
+          vehicle_id: string | null
+          vehicle_model: string
+          vehicle_plate: string
+          vehicle_year: number
+        }
+        Insert: {
+          birth_date: string
+          cep: string
+          city: string
+          client_id?: string | null
+          company_id: string
+          complement?: string | null
+          created_at?: string
+          document: string
+          document_back_url?: string | null
+          document_front_url?: string | null
+          email?: string | null
+          emergency_contact_name: string
+          emergency_contact_phone: string
+          emergency_contact_relationship: string
+          has_gnv?: boolean | null
+          id?: string
+          is_armored?: boolean | null
+          name: string
+          neighborhood: string
+          number: string
+          phone: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          state: string
+          status?: string | null
+          street: string
+          updated_at?: string
+          vehicle_brand: string
+          vehicle_color: string
+          vehicle_id?: string | null
+          vehicle_model: string
+          vehicle_plate: string
+          vehicle_year: number
+        }
+        Update: {
+          birth_date?: string
+          cep?: string
+          city?: string
+          client_id?: string | null
+          company_id?: string
+          complement?: string | null
+          created_at?: string
+          document?: string
+          document_back_url?: string | null
+          document_front_url?: string | null
+          email?: string | null
+          emergency_contact_name?: string
+          emergency_contact_phone?: string
+          emergency_contact_relationship?: string
+          has_gnv?: boolean | null
+          id?: string
+          is_armored?: boolean | null
+          name?: string
+          neighborhood?: string
+          number?: string
+          phone?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          state?: string
+          status?: string | null
+          street?: string
+          updated_at?: string
+          vehicle_brand?: string
+          vehicle_color?: string
+          vehicle_id?: string | null
+          vehicle_model?: string
+          vehicle_plate?: string
+          vehicle_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_registrations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_registrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_registrations_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null

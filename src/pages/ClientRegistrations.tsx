@@ -1,0 +1,408 @@
+import { useState, useEffect } from "react"
+import { supabase } from "@/integrations/supabase/client"
+import { AppLayout } from "@/components/layout/AppLayout"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CheckCircle2, XCircle, Clock, Eye } from "lucide-react"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
+
+interface Registration {
+  id: string
+  name: string
+  email: string
+  phone: string
+  document: string
+  birth_date: string
+  status: string
+  created_at: string
+  vehicle_plate: string
+  vehicle_brand: string
+  vehicle_model: string
+  rejection_reason?: string
+}
+
+export default function ClientRegistrations() {
+  const { toast } = useToast()
+  const [registrations, setRegistrations] = useState<Registration[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [processing, setProcessing] = useState(false)
+
+  useEffect(() => {
+    loadRegistrations()
+  }, [])
+
+  const loadRegistrations = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile) return
+
+      const { data, error } = await supabase
+        .from('client_registrations')
+        .select('*')
+        .eq('company_id', profile.company_id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setRegistrations(data || [])
+    } catch (error) {
+      console.error('Error loading registrations:', error)
+      toast({
+        title: "Erro ao carregar cadastros",
+        description: "Tente novamente",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApprove = async (registration: Registration) => {
+    setProcessing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!profile) return
+
+      // Criar cliente
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .insert({
+          company_id: profile.company_id,
+          name: registration.name,
+          email: registration.email,
+          phone: registration.phone,
+          document: registration.document,
+          status: 'active'
+        })
+        .select()
+        .single()
+
+      if (clientError) throw clientError
+
+      // Criar veículo
+      const { data: vehicle, error: vehicleError } = await supabase
+        .from('vehicles')
+        .insert({
+          company_id: profile.company_id,
+          client_id: client.id,
+          license_plate: registration.vehicle_plate,
+          brand: registration.vehicle_brand,
+          model: registration.vehicle_model,
+          year: 2024, // Pegar do registration se disponível
+          color: 'Não especificada',
+          tracker_status: 'pending',
+          is_active: true
+        })
+        .select()
+        .single()
+
+      if (vehicleError) throw vehicleError
+
+      // Atualizar status do registro
+      const { error: updateError } = await supabase
+        .from('client_registrations')
+        .update({
+          status: 'approved',
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          client_id: client.id,
+          vehicle_id: vehicle.id
+        })
+        .eq('id', registration.id)
+
+      if (updateError) throw updateError
+
+      toast({
+        title: "Cadastro aprovado!",
+        description: "Cliente e veículo criados com sucesso."
+      })
+
+      setDetailsOpen(false)
+      loadRegistrations()
+    } catch (error) {
+      console.error('Error approving registration:', error)
+      toast({
+        title: "Erro ao aprovar cadastro",
+        description: error instanceof Error ? error.message : "Tente novamente",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!selectedRegistration || !rejectReason.trim()) {
+      toast({
+        title: "Motivo obrigatório",
+        description: "Informe o motivo da rejeição",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setProcessing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { error } = await supabase
+        .from('client_registrations')
+        .update({
+          status: 'rejected',
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: rejectReason
+        })
+        .eq('id', selectedRegistration.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Cadastro rejeitado",
+        description: "O cliente será notificado."
+      })
+
+      setDetailsOpen(false)
+      setRejectReason("")
+      loadRegistrations()
+    } catch (error) {
+      console.error('Error rejecting registration:', error)
+      toast({
+        title: "Erro ao rejeitar cadastro",
+        description: "Tente novamente",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>
+      case 'approved':
+        return <Badge className="bg-green-500"><CheckCircle2 className="h-3 w-3 mr-1" /> Aprovado</Badge>
+      case 'rejected':
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Rejeitado</Badge>
+      default:
+        return null
+    }
+  }
+
+  const filteredRegistrations = (status: string) => {
+    return registrations.filter(r => r.status === status)
+  }
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Cadastros de Clientes</h1>
+          <p className="text-muted-foreground">
+            Gerencie os cadastros enviados pelos clientes
+          </p>
+        </div>
+
+        <Tabs defaultValue="pending" className="w-full">
+          <TabsList>
+            <TabsTrigger value="pending">
+              Pendentes ({filteredRegistrations('pending').length})
+            </TabsTrigger>
+            <TabsTrigger value="approved">
+              Aprovados ({filteredRegistrations('approved').length})
+            </TabsTrigger>
+            <TabsTrigger value="rejected">
+              Rejeitados ({filteredRegistrations('rejected').length})
+            </TabsTrigger>
+          </TabsList>
+
+          {['pending', 'approved', 'rejected'].map((status) => (
+            <TabsContent key={status} value={status} className="space-y-4">
+              {filteredRegistrations(status).length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    Nenhum cadastro {status === 'pending' ? 'pendente' : status === 'approved' ? 'aprovado' : 'rejeitado'}
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredRegistrations(status).map((registration) => (
+                  <Card key={registration.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle>{registration.name}</CardTitle>
+                          <CardDescription>
+                            {registration.vehicle_brand} {registration.vehicle_model} - {registration.vehicle_plate}
+                          </CardDescription>
+                        </div>
+                        {getStatusBadge(registration.status)}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <p><span className="font-medium">Telefone:</span> {registration.phone}</p>
+                        <p><span className="font-medium">CPF:</span> {registration.document}</p>
+                        <p><span className="font-medium">Data de cadastro:</span> {format(new Date(registration.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+                        {registration.rejection_reason && (
+                          <p className="text-destructive">
+                            <span className="font-medium">Motivo da rejeição:</span> {registration.rejection_reason}
+                          </p>
+                        )}
+                      </div>
+                      <div className="mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedRegistration(registration)
+                            setDetailsOpen(true)
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver Detalhes
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      {/* Modal de Detalhes */}
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Cadastro</DialogTitle>
+            <DialogDescription>
+              Revise todas as informações antes de aprovar ou rejeitar
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRegistration && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="font-semibold mb-2">Dados Pessoais</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Nome</p>
+                    <p className="font-medium">{selectedRegistration.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Data de Nascimento</p>
+                    <p className="font-medium">{format(new Date(selectedRegistration.birth_date), "dd/MM/yyyy")}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">CPF</p>
+                    <p className="font-medium">{selectedRegistration.document}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Telefone</p>
+                    <p className="font-medium">{selectedRegistration.phone}</p>
+                  </div>
+                  {selectedRegistration.email && (
+                    <div>
+                      <p className="text-muted-foreground">E-mail</p>
+                      <p className="font-medium">{selectedRegistration.email}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Dados do Veículo</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Placa</p>
+                    <p className="font-medium">{selectedRegistration.vehicle_plate}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Marca/Modelo</p>
+                    <p className="font-medium">{selectedRegistration.vehicle_brand} {selectedRegistration.vehicle_model}</p>
+                  </div>
+                </div>
+              </div>
+
+              {selectedRegistration.status === 'pending' && (
+                <div className="space-y-4">
+                  <div>
+                    <Label>Motivo da Rejeição (opcional)</Label>
+                    <Textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Informe o motivo caso vá rejeitar..."
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {selectedRegistration?.status === 'pending' && (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={handleReject}
+                  disabled={processing}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Rejeitar
+                </Button>
+                <Button
+                  onClick={() => selectedRegistration && handleApprove(selectedRegistration)}
+                  disabled={processing}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Aprovar
+                </Button>
+              </>
+            )}
+            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  )
+}

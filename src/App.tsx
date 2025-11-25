@@ -20,6 +20,8 @@ import SettingsPage from "./pages/Settings";
 import BillingDiagnosticsPage from "./pages/BillingDiagnostics";
 import NotFound from "./pages/NotFound";
 import CheckoutPage from "./pages/Checkout";
+import PublicClientRegistration from "./pages/PublicClientRegistration";
+import ClientRegistrations from "./pages/ClientRegistrations";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -45,9 +47,11 @@ const App = () => {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/checkout/:payment_id" element={<CheckoutPage />} />
               <Route path="/payment/:payment_id" element={<CheckoutPage />} />
+              <Route path="/cadastro/:company_slug" element={<PublicClientRegistration />} />
               <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
               <Route path="/admin" element={<AuthGuard><RoleGuard allowed={['super_admin']}><AdminPage /></RoleGuard></AuthGuard>} />
               <Route path="/clients" element={<AuthGuard><ClientsPage /></AuthGuard>} />
+              <Route path="/registrations" element={<AuthGuard><ClientRegistrations /></AuthGuard>} />
               <Route path="/plans" element={<AuthGuard><PlansPage /></AuthGuard>} />
               <Route path="/contracts" element={<AuthGuard><ContractsPage /></AuthGuard>} />
               <Route path="/vehicles" element={<AuthGuard><VehiclesPage /></AuthGuard>} />

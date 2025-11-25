@@ -10,7 +10,8 @@ import {
   Settings,
   Car,
   Building2,
-  Shield
+  Shield,
+  UserPlus
 } from "lucide-react"
 
 import {
@@ -25,7 +26,9 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/integrations/supabase/client"
+import { useClientRegistrations } from "@/hooks/useClientRegistrations"
 
 const navigation = [
   {
@@ -38,6 +41,12 @@ const navigation = [
     title: "Clientes",
     url: "/clients",
     icon: Users,
+    group: "gestao"
+  },
+  {
+    title: "Cadastros Pendentes",
+    url: "/registrations",
+    icon: UserPlus,
     group: "gestao"
   },
   {
@@ -119,6 +128,7 @@ export function AppSidebar() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [companyName, setCompanyName] = useState("VehicleGuard")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const { pendingCount } = useClientRegistrations()
   
   useEffect(() => {
     let isMounted = true
@@ -220,6 +230,11 @@ export function AppSidebar() {
                     <NavLink to={item.url} className={getNavCls}>
                       <item.icon className="w-4 h-4" />
                       <span>{item.title}</span>
+                      {item.url === '/registrations' && pendingCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto">
+                          {pendingCount}
+                        </Badge>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
