@@ -95,16 +95,6 @@ export default function PublicClientRegistration() {
     setLoading(true)
 
     try {
-      if (!documentFront || !documentBack) {
-        toast({
-          title: "Documentos obrigatórios",
-          description: "Por favor, envie a foto da CNH/RG (frente e verso)",
-          variant: "destructive"
-        })
-        setLoading(false)
-        return
-      }
-
       const formDataToSend = new FormData()
       
       // Adicionar todos os campos
@@ -113,8 +103,8 @@ export default function PublicClientRegistration() {
       })
       
       formDataToSend.append('company_id', companyInfo.id)
-      formDataToSend.append('document_front', documentFront)
-      formDataToSend.append('document_back', documentBack)
+      if (documentFront) formDataToSend.append('document_front', documentFront)
+      if (documentBack) formDataToSend.append('document_back', documentBack)
 
       const response = await supabase.functions.invoke('process-client-registration', {
         body: formDataToSend
@@ -197,25 +187,23 @@ export default function PublicClientRegistration() {
           <Card>
             <CardHeader>
               <CardTitle>Documentos</CardTitle>
-              <CardDescription>Envie fotos da CNH ou RG (frente e verso)</CardDescription>
+              <CardDescription>Envie fotos da CNH ou RG (frente e verso) - Opcional</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>CNH/RG - Frente *</Label>
+                <Label>CNH/RG - Frente</Label>
                 <Input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setDocumentFront(e.target.files?.[0] || null)}
-                  required
                 />
               </div>
               <div>
-                <Label>CNH/RG - Verso *</Label>
+                <Label>CNH/RG - Verso</Label>
                 <Input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setDocumentBack(e.target.files?.[0] || null)}
-                  required
                 />
               </div>
             </CardContent>
@@ -239,9 +227,20 @@ export default function PublicClientRegistration() {
                 <div>
                   <Label>Data de Nascimento *</Label>
                   <Input
-                    type="date"
+                    type="text"
                     value={formData.birth_date}
-                    onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '')
+                      if (value.length >= 2) {
+                        value = value.slice(0, 2) + '/' + value.slice(2)
+                      }
+                      if (value.length >= 5) {
+                        value = value.slice(0, 5) + '/' + value.slice(5, 9)
+                      }
+                      setFormData({ ...formData, birth_date: value })
+                    }}
+                    placeholder="DD/MM/AAAA"
+                    maxLength={10}
                     required
                   />
                 </div>
