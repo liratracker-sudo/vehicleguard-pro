@@ -312,15 +312,17 @@ serve(async (req) => {
           if (data.dueDate) {
             const dueDate = new Date(data.dueDate)
             // Se a data de vencimento é futura, usar ela + 1 dia
-            // Se for passada, usar data atual + 1 dia
             if (dueDate > now) {
               expirationDate = new Date(dueDate.getTime() + 24 * 60 * 60 * 1000)
             } else {
-              expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+              // Para cobranças vencidas, usar apenas 2 horas de expiração
+              // Isso evita problemas com PIX de cobranças muito antigas
+              expirationDate = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+              console.log(`Cobrança vencida (${data.dueDate}), PIX expira em 2 horas: ${expirationDate.toISOString()}`)
             }
           } else {
-            // Se não tem dueDate, usar data atual + 1 dia
-            expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+            // Se não tem dueDate, usar 2 horas
+            expirationDate = new Date(now.getTime() + 2 * 60 * 60 * 1000)
           }
 
           // Formatar para o padrão ISO 8601 com timezone de Brasília
