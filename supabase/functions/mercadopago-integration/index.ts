@@ -309,21 +309,10 @@ serve(async (req) => {
           const now = new Date()
           let expirationDate: Date
           
-          if (data.dueDate) {
-            const dueDate = new Date(data.dueDate)
-            // Se a data de vencimento é futura, usar ela + 1 dia
-            if (dueDate > now) {
-              expirationDate = new Date(dueDate.getTime() + 24 * 60 * 60 * 1000)
-            } else {
-              // Para cobranças vencidas, usar apenas 2 horas de expiração
-              // Isso evita problemas com PIX de cobranças muito antigas
-              expirationDate = new Date(now.getTime() + 2 * 60 * 60 * 1000)
-              console.log(`Cobrança vencida (${data.dueDate}), PIX expira em 2 horas: ${expirationDate.toISOString()}`)
-            }
-          } else {
-            // Se não tem dueDate, usar 2 horas
-            expirationDate = new Date(now.getTime() + 2 * 60 * 60 * 1000)
-          }
+          // PIX não tem multa/juros, então sempre gerar com data atual + 24h
+          // Ignora completamente a data de vencimento original da cobrança
+          expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+          console.log(`PIX gerado com validade de 24 horas: ${expirationDate.toISOString()}`)
 
           // Formatar para o padrão ISO 8601 com timezone de Brasília
           // MercadoPago requer formato: yyyy-MM-dd'T'HH:mm:ss.SSS-03:00
