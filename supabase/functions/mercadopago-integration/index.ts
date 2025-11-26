@@ -323,8 +323,19 @@ serve(async (req) => {
             expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
           }
 
-          // Formatar para o padrão esperado pelo MercadoPago (ISO 8601 com timezone)
-          const expirationISO = expirationDate.toISOString().replace('.000Z', '-03:00')
+          // Formatar para o padrão ISO 8601 com timezone de Brasília
+          // MercadoPago requer formato: yyyy-MM-dd'T'HH:mm:ss.SSS-03:00
+          const brasiliaOffset = -3 * 60 // -3 horas em minutos
+          const localDate = new Date(expirationDate.getTime() + brasiliaOffset * 60 * 1000)
+          
+          const year = localDate.getUTCFullYear()
+          const month = String(localDate.getUTCMonth() + 1).padStart(2, '0')
+          const day = String(localDate.getUTCDate()).padStart(2, '0')
+          const hours = String(localDate.getUTCHours()).padStart(2, '0')
+          const minutes = String(localDate.getUTCMinutes()).padStart(2, '0')
+          const seconds = String(localDate.getUTCSeconds()).padStart(2, '0')
+          
+          const expirationISO = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000-03:00`
 
           const paymentData = {
             transaction_amount: Number(data.value),

@@ -296,6 +296,12 @@ export default function Checkout() {
           ? JSON.stringify(error)
           : "Erro ao processar pagamento";
       
+      // Mostrar erro na tela
+      setPaymentResult({
+        success: false,
+        error: errorMessage
+      });
+      
       toast({
         title: "Erro ao processar pagamento",
         description: errorMessage,
