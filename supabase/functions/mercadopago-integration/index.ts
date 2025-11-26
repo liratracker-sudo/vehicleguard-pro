@@ -305,6 +305,27 @@ serve(async (req) => {
 
         // Se for PIX, criar pagamento direto via API
         if (data.billingType === 'PIX') {
+          // Calcular data de expiração válida (PIX não pode ter data no passado)
+          const now = new Date()
+          let expirationDate: Date
+          
+          if (data.dueDate) {
+            const dueDate = new Date(data.dueDate)
+            // Se a data de vencimento é futura, usar ela + 1 dia
+            // Se for passada, usar data atual + 1 dia
+            if (dueDate > now) {
+              expirationDate = new Date(dueDate.getTime() + 24 * 60 * 60 * 1000)
+            } else {
+              expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+            }
+          } else {
+            // Se não tem dueDate, usar data atual + 1 dia
+            expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+          }
+
+          // Formatar para o padrão esperado pelo MercadoPago (ISO 8601 com timezone)
+          const expirationISO = expirationDate.toISOString().replace('.000Z', '-03:00')
+
           const paymentData = {
             transaction_amount: Number(data.value),
             description: data.description || 'Pagamento',
@@ -319,7 +340,7 @@ serve(async (req) => {
               } : undefined
             },
             external_reference: data.externalReference,
-            date_of_expiration: data.dueDate ? new Date(new Date(data.dueDate).getTime() + 24 * 60 * 60 * 1000).toISOString() : undefined
+            date_of_expiration: expirationISO
           }
 
           console.log('Creating PIX payment:', JSON.stringify(paymentData, null, 2))
