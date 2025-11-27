@@ -11,8 +11,7 @@ import {
   Car,
   Building2,
   Shield,
-  UserPlus,
-  Link
+  UserPlus
 } from "lucide-react"
 
 import {
@@ -48,12 +47,6 @@ const navigation = [
     title: "Cadastros Pendentes",
     url: "/registrations",
     icon: UserPlus,
-    group: "gestao"
-  },
-  {
-    title: "Link de Cadastro",
-    url: "/link-cadastro",
-    icon: Link,
     group: "gestao"
   },
   {
