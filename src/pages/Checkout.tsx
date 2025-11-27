@@ -66,6 +66,26 @@ export default function Checkout() {
     try {
       setLoading(true);
 
+      // Validar formato do UUID antes de buscar no banco
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      
+      if (!payment_id || !uuidRegex.test(payment_id)) {
+        console.error('UUID inválido ou truncado:', {
+          payment_id,
+          length: payment_id?.length,
+          expected: 36
+        });
+        
+        setPaymentResult({
+          success: false,
+          error: payment_id && payment_id.length < 36 
+            ? 'Link de pagamento incompleto. Por favor, solicite um novo link de pagamento ou copie o link completo da mensagem.'
+            : 'Link de pagamento inválido. Por favor, verifique o link recebido.'
+        });
+        setLoading(false);
+        return;
+      }
+
       // Buscar dados do pagamento (acesso público via RPC ou política RLS relaxada)
       const { data: paymentData, error: paymentError } = await supabase
         .from('payment_transactions')
