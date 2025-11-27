@@ -20,7 +20,10 @@ import {
   Key,
   X,
   Moon,
-  Sun
+  Sun,
+  Copy,
+  Check,
+  QrCode as QrCodeIcon
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -33,6 +36,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { useTheme } from "@/contexts/ThemeContext"
+import QRCode from "qrcode"
 
 const WhiteLabelPage = () => {
   const { toast } = useToast()
@@ -42,6 +46,9 @@ const WhiteLabelPage = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
+  const [copied, setCopied] = useState(false)
+  const [companySlug, setCompanySlug] = useState<string>("")
 
   const [branding, setBranding] = useState({
     companyName: "",
@@ -76,6 +83,48 @@ const WhiteLabelPage = () => {
     loadCompanyData()
   }, [])
 
+  const generateQRCode = async (url: string) => {
+    try {
+      const qrCode = await QRCode.toDataURL(url, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      })
+      setQrCodeUrl(qrCode)
+    } catch (error) {
+      console.error('Erro ao gerar QR Code:', error)
+    }
+  }
+
+  const copyToClipboard = async () => {
+    const registrationUrl = `${window.location.origin}/cadastro/${companySlug}`
+    try {
+      await navigator.clipboard.writeText(registrationUrl)
+      setCopied(true)
+      toast({
+        title: "Sucesso",
+        description: "Link copiado para a área de transferência!"
+      })
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao copiar link",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const downloadQRCode = () => {
+    const link = document.createElement('a')
+    link.href = qrCodeUrl
+    link.download = `qrcode-cadastro-${companySlug}.png`
+    link.click()
+  }
+
   const loadCompanyData = async () => {
     try {
       // Get current user profile to get company_id
@@ -97,11 +146,18 @@ const WhiteLabelPage = () => {
       // Load company data
       const { data: company, error: companyError } = await supabase
         .from('companies')
-        .select('name, domain')
+        .select('name, domain, slug')
         .eq('id', profile.company_id)
         .single()
 
       if (companyError) throw companyError
+
+      // Gerar QR Code se tiver slug
+      if (company?.slug) {
+        setCompanySlug(company.slug)
+        const registrationUrl = `${window.location.origin}/cadastro/${company.slug}`
+        generateQRCode(registrationUrl)
+      }
 
       // Load branding data
       const { data: brandingData, error: brandingError } = await supabase
@@ -608,6 +664,60 @@ const WhiteLabelPage = () => {
                 <div className="flex gap-2">
                   <Button>Verificar Domínio</Button>
                   <Button variant="outline">Testar Configuração</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Link de Cadastro Público</CardTitle>
+                <CardDescription>
+                  Compartilhe este link com seus clientes para que possam se cadastrar diretamente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input 
+                    value={companySlug ? `${window.location.origin}/cadastro/${companySlug}` : ''} 
+                    readOnly 
+                    className="font-mono text-sm"
+                  />
+                  <Button 
+                    onClick={copyToClipboard}
+                    variant="outline"
+                    size="icon"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <div className="flex items-center gap-2 mb-4">
+                    <QrCodeIcon className="h-5 w-5" />
+                    <h4 className="font-medium">QR Code</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Compartilhe o QR Code para facilitar o acesso ao formulário de cadastro
+                  </p>
+                  
+                  {qrCodeUrl && (
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <img 
+                          src={qrCodeUrl} 
+                          alt="QR Code para cadastro" 
+                          className="w-[200px] h-[200px]"
+                        />
+                      </div>
+                      <Button onClick={downloadQRCode} variant="outline" size="sm">
+                        Baixar QR Code
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
