@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 type ThemeMode = 'dark' | 'light';
 
@@ -16,7 +16,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>('dark');
   const [isLoading, setIsLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const { toast } = useToast();
 
   // Load theme from database
   useEffect(() => {
