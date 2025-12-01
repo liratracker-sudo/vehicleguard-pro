@@ -216,12 +216,13 @@ const WhiteLabelPage = () => {
 
       if (error) throw error
 
-      // Update company name if changed
+      // Update company name and logo if changed
       const { error: companyError } = await supabase
         .from('companies')
         .update({ 
           name: branding.companyName,
-          domain: branding.domain 
+          domain: branding.domain,
+          logo_url: branding.logo
         })
         .eq('id', currentCompanyId)
 
@@ -292,6 +293,20 @@ const WhiteLabelPage = () => {
       // Update branding state
       setBranding(prev => ({ ...prev, logo: publicUrl }))
 
+      // Also update companies table
+      await supabase
+        .from('companies')
+        .update({ logo_url: publicUrl })
+        .eq('id', currentCompanyId)
+
+      // Update company_branding table immediately
+      await supabase
+        .from('company_branding')
+        .upsert({
+          company_id: currentCompanyId,
+          logo_url: publicUrl
+        }, { onConflict: 'company_id' })
+
       toast({
         title: "Sucesso",
         description: "Logo enviado com sucesso!"
@@ -330,6 +345,21 @@ const WhiteLabelPage = () => {
     }
     
     setBranding(prev => ({ ...prev, logo: '' }))
+    
+    // Also remove from companies table
+    await supabase
+      .from('companies')
+      .update({ logo_url: null })
+      .eq('id', currentCompanyId)
+
+    // Update company_branding table
+    await supabase
+      .from('company_branding')
+      .upsert({
+        company_id: currentCompanyId,
+        logo_url: null
+      }, { onConflict: 'company_id' })
+
     toast({
       title: "Sucesso",
       description: "Logo removido!"
