@@ -507,7 +507,7 @@ export default function Checkout() {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Vencimento:</span>
                 <span className="font-medium">
-                  {format(new Date(payment.due_date), 'dd/MM/yyyy')}
+                  {payment.due_date ? payment.due_date.split('-').reverse().join('/') : '-'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -576,7 +576,7 @@ export default function Checkout() {
                     Processando...
                   </>
                 ) : (
-                  'Continuar para pagamento'
+                  'Pagar'
                 )}
               </Button>
             )}
