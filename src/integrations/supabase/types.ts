@@ -317,6 +317,50 @@ export type Database = {
           },
         ]
       }
+      assinafy_settings: {
+        Row: {
+          api_token_encrypted: string
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_test_at: string | null
+          test_result: Json | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          api_token_encrypted: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          api_token_encrypted?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_test_at?: string | null
+          test_result?: Json | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assinafy_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_registrations: {
         Row: {
           birth_date: string
@@ -2108,6 +2152,10 @@ export type Database = {
         Args: { p_encrypted_token: string }
         Returns: string
       }
+      decrypt_assinafy_token: {
+        Args: { p_encrypted_token: string }
+        Returns: string
+      }
       decrypt_gerencianet_credential: {
         Args: { p_encrypted_credential: string }
         Returns: string
@@ -2127,6 +2175,7 @@ export type Database = {
         Returns: string
       }
       encrypt_asaas_token: { Args: { p_token: string }; Returns: string }
+      encrypt_assinafy_token: { Args: { p_token: string }; Returns: string }
       encrypt_gerencianet_credential: {
         Args: { p_credential: string }
         Returns: string

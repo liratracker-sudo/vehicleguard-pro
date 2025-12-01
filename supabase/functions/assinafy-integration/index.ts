@@ -100,27 +100,39 @@ serve(async (req) => {
           console.log("Profile found, company_id:", profile?.company_id);
             
           if (profile?.company_id) {
-            console.log("Fetching company credentials...");
-            const { data: company, error: companyError } = await supabase
-              .from('companies')
-              .select('assinafy_api_key, assinafy_workspace_id')
-              .eq('id', profile.company_id)
-              .single();
+            console.log("Fetching Assinafy settings...");
+            const { data: settings, error: settingsError } = await supabase
+              .from('assinafy_settings')
+              .select('api_token_encrypted, workspace_id, is_active')
+              .eq('company_id', profile.company_id)
+              .eq('is_active', true)
+              .maybeSingle();
               
-            if (companyError) {
-              console.error("❌ Company error:", companyError);
+            if (settingsError) {
+              console.error("❌ Settings error:", settingsError);
               return new Response(
-                JSON.stringify({ error: "Erro ao buscar dados da empresa", details: companyError.message }),
+                JSON.stringify({ error: "Erro ao buscar configurações do Assinafy", details: settingsError.message }),
                 { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
               );
             }
             
-            console.log("Company data found:");
-            console.log("- API Key:", company?.assinafy_api_key ? "✓ Present" : "✗ Missing");
-            console.log("- Workspace ID:", company?.assinafy_workspace_id ? "✓ Present" : "✗ Missing");
+            if (settings) {
+              console.log("Assinafy settings found, decrypting...");
               
-            assinafyApiKey = assinafyApiKey || company?.assinafy_api_key;
-            assinafyWorkspaceId = assinafyWorkspaceId || company?.assinafy_workspace_id;
+              // Decrypt API token
+              const { data: decryptedToken } = await supabase.rpc('decrypt_assinafy_token', {
+                p_encrypted_token: settings.api_token_encrypted
+              });
+              
+              console.log("Settings data found:");
+              console.log("- API Key:", decryptedToken ? "✓ Present (decrypted)" : "✗ Missing");
+              console.log("- Workspace ID:", settings.workspace_id ? "✓ Present" : "✗ Missing");
+                
+              assinafyApiKey = assinafyApiKey || decryptedToken;
+              assinafyWorkspaceId = assinafyWorkspaceId || settings.workspace_id;
+            } else {
+              console.log("⚠️ No Assinafy settings found for company");
+            }
           }
         }
       }
@@ -225,17 +237,54 @@ async function saveSettings(supabaseClient: any, companyId: string, apiKey: stri
       throw new Error("Company ID, API Key e Workspace ID são obrigatórios");
     }
     
-    const { error } = await supabaseClient
-      .from('companies')
-      .update({
-        assinafy_api_key: apiKey,
-        assinafy_workspace_id: workspaceId
-      })
-      .eq('id', companyId);
+    // Encrypt API key
+    const { data: encryptedToken, error: encryptError } = await supabaseClient.rpc('encrypt_assinafy_token', {
+      p_token: apiKey
+    });
     
-    if (error) {
-      console.error("Error saving Assinafy settings:", error);
-      throw error;
+    if (encryptError || !encryptedToken) {
+      console.error("Error encrypting API key:", encryptError);
+      throw new Error("Erro ao criptografar API key");
+    }
+    
+    // Check if settings already exist
+    const { data: existingSettings } = await supabaseClient
+      .from('assinafy_settings')
+      .select('id')
+      .eq('company_id', companyId)
+      .maybeSingle();
+    
+    if (existingSettings) {
+      // Update existing settings
+      const { error } = await supabaseClient
+        .from('assinafy_settings')
+        .update({
+          api_token_encrypted: encryptedToken,
+          workspace_id: workspaceId,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('company_id', companyId);
+      
+      if (error) {
+        console.error("Error updating Assinafy settings:", error);
+        throw error;
+      }
+    } else {
+      // Insert new settings
+      const { error } = await supabaseClient
+        .from('assinafy_settings')
+        .insert({
+          company_id: companyId,
+          api_token_encrypted: encryptedToken,
+          workspace_id: workspaceId,
+          is_active: true
+        });
+      
+      if (error) {
+        console.error("Error inserting Assinafy settings:", error);
+        throw error;
+      }
     }
     
     console.log("✅ Assinafy settings saved successfully");
