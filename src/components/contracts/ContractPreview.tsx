@@ -1,8 +1,11 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Eye, X } from "lucide-react"
+import { Eye, X, Download } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { useRef } from "react"
+import html2pdf from "html2pdf.js"
+import { toast } from "sonner"
 
 interface ContractPreviewProps {
   open: boolean
@@ -22,6 +25,8 @@ interface ContractPreviewProps {
 }
 
 export function ContractPreview({ open, onOpenChange, contractData }: ContractPreviewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   const replaceVariables = (content: string): string => {
     const { 
       clientName, 
@@ -60,6 +65,28 @@ export function ContractPreview({ open, onOpenChange, contractData }: ContractPr
 
   const previewContent = replaceVariables(contractData.templateContent)
 
+  const handleExportPDF = async () => {
+    if (!contentRef.current) return
+
+    try {
+      toast("Gerando PDF...")
+      
+      const opt = {
+        margin: 1,
+        filename: `contrato_${contractData.clientName.replace(/\s+/g, '_')}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' as const }
+      }
+
+      await html2pdf().set(opt).from(contentRef.current).save()
+      toast.success("PDF gerado com sucesso!")
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error)
+      toast.error("Erro ao gerar PDF. Tente novamente.")
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -80,7 +107,7 @@ export function ContractPreview({ open, onOpenChange, contractData }: ContractPr
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto border rounded-lg bg-background p-8">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-3xl mx-auto" ref={contentRef}>
             <div 
               className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap font-serif"
               style={{ lineHeight: '1.8' }}
@@ -90,7 +117,15 @@ export function ContractPreview({ open, onOpenChange, contractData }: ContractPr
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-between items-center pt-4 border-t">
+          <Button 
+            variant="default" 
+            onClick={handleExportPDF}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Exportar PDF
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => onOpenChange(false)}
