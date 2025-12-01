@@ -144,17 +144,6 @@ export function usePayments() {
         throw updateError;
       }
 
-      // Criar notificações automaticamente para o pagamento criado
-      try {
-        await supabase.functions.invoke('billing-notifications', {
-          body: { trigger: 'payment_created', payment_id: transaction.id }
-        });
-        console.log('Notificações criadas automaticamente para o pagamento:', transaction.id);
-      } catch (notificationError) {
-        console.warn('Erro ao criar notificações automaticamente:', notificationError);
-        // Não falha o processo de criação do pagamento por causa das notificações
-      }
-
       toast({
         title: "Sucesso",
         description: "Cobrança gerada com sucesso!"
