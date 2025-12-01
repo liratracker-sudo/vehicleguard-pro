@@ -601,7 +601,7 @@ Assinatura do Contratante
                           }
                         }}
                         initialFocus
-                        className="p-3"
+                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
@@ -634,12 +634,12 @@ Assinatura do Contratante
                         mode="single"
                         selected={formData.end_date}
                         onSelect={(date) => {
-                          setFormData({...formData, end_date: date})
+                          setFormData({...formData, end_date: date || null})
                           setErrors({...errors, end_date: ""})
                         }}
                         disabled={(date) => date <= formData.start_date}
                         initialFocus
-                        className="p-3"
+                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
