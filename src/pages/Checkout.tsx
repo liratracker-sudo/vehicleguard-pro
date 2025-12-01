@@ -179,10 +179,17 @@ export default function Checkout() {
         'debit_card': { key: 'debit_card', label: 'Cartão de Débito', icon: <CreditCard className="h-5 w-5" />, gateway: '' },
       };
 
-      const available = methods?.map(m => ({
-        ...methodsMap[m.payment_method],
-        gateway: m.gateway_type
-      })).filter(m => m.key) || [];
+      // Deduplicar por tipo de método de pagamento (mantém apenas o primeiro de cada tipo)
+      const uniqueMethods = new Map<string, PaymentMethod>();
+      methods?.forEach(m => {
+        if (methodsMap[m.payment_method] && !uniqueMethods.has(m.payment_method)) {
+          uniqueMethods.set(m.payment_method, {
+            ...methodsMap[m.payment_method],
+            gateway: m.gateway_type
+          });
+        }
+      });
+      const available = Array.from(uniqueMethods.values());
 
       setAvailableMethods(available);
 
@@ -490,7 +497,7 @@ export default function Checkout() {
                 <img 
                   src={payment.company.logo_url} 
                   alt={payment.company.name}
-                  className="h-10 mx-auto object-contain"
+                  className="h-16 mx-auto object-contain"
                 />
               ) : (
                 <div className="h-8" />
