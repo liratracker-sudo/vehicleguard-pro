@@ -7,14 +7,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, FileText, Send, AlertCircle } from "lucide-react"
+import { CalendarIcon, FileText, Send, AlertCircle, Eye } from "lucide-react"
 import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useContractTemplates } from "@/hooks/useContractTemplates"
+import { ContractPreview } from "./ContractPreview"
 
 interface ContractFormProps {
   onSuccess?: () => void
@@ -41,6 +43,7 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
   const [loading, setLoading] = useState(false)
   const [dataLoading, setDataLoading] = useState(true)
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+  const [showPreview, setShowPreview] = useState(false)
   const { toast } = useToast()
   const { templates } = useContractTemplates()
 
@@ -291,6 +294,90 @@ Este contrato estabelece os termos e condições para a prestação dos serviço
 _________________________________
 Assinatura do Contratante
     `
+  }
+
+  const getPreviewData = () => {
+    const selectedClient = clients.find(c => c.id === formData.client_id)
+    const selectedPlan = plans.find(p => p.id === formData.plan_id)
+    const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id)
+    const selectedTemplate = templates.find(t => t.id === formData.template_id)
+
+    const defaultTemplate = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+CONTRATANTE: {{cliente_nome}}
+E-mail: {{cliente_email}}
+Telefone: {{cliente_telefone}}
+Documento: {{cliente_documento}}
+
+CONTRATADA: [Nome da sua empresa]
+
+OBJETO DO CONTRATO:
+A contratada se compromete a prestar os seguintes serviços:
+
+PLANO: {{plano_nome}}
+VALOR MENSAL: {{valor_mensal}}
+VEÍCULO: {{veiculo_info}}
+
+VIGÊNCIA: {{data_inicio}} {{data_fim}}
+
+CLÁUSULAS:
+
+1. DO PAGAMENTO
+O pagamento será efetuado mensalmente, no valor de {{valor_mensal}}, até o dia 10 de cada mês.
+
+2. DA VIGÊNCIA
+Este contrato terá vigência de {{data_inicio}} {{data_fim}}.
+
+3. DAS RESPONSABILIDADES
+A contratada se responsabiliza pela prestação dos serviços conforme especificado.
+
+4. DA RESCISÃO
+Este contrato poderá ser rescindido por qualquer das partes mediante aviso prévio de 30 dias.
+
+LOCAL E DATA: ________________, ____ de ____________ de ______
+
+_________________________________
+{{cliente_nome}}
+Contratante
+
+_________________________________
+[Nome do Responsável]
+Contratada`
+
+    return {
+      clientName: selectedClient?.name || '',
+      clientEmail: selectedClient?.email || '',
+      clientPhone: selectedClient?.phone || '',
+      clientDocument: selectedClient?.document || '',
+      planName: selectedPlan?.name || '',
+      monthlyValue: formData.monthly_value,
+      vehicleInfo: selectedVehicle 
+        ? `${selectedVehicle.license_plate} - ${selectedVehicle.brand} ${selectedVehicle.model}` 
+        : 'Não aplicável',
+      startDate: formData.start_date,
+      endDate: formData.end_date,
+      templateContent: selectedTemplate?.content || defaultTemplate
+    }
+  }
+
+  const handlePreview = () => {
+    if (!formData.client_id) {
+      toast({
+        title: "Cliente não selecionado",
+        description: "Selecione um cliente para visualizar o contrato",
+        variant: "destructive"
+      })
+      return
+    }
+    if (!formData.plan_id) {
+      toast({
+        title: "Plano não selecionado",
+        description: "Selecione um plano para visualizar o contrato",
+        variant: "destructive"
+      })
+      return
+    }
+    setShowPreview(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -667,6 +754,16 @@ Assinatura do Contratante
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                <Button 
+                  type="button"
+                  variant="outline"
+                  onClick={handlePreview}
+                  disabled={loading}
+                  className="gap-2 flex-1 sm:flex-none"
+                >
+                  <Eye className="h-4 w-4" />
+                  Pré-visualizar
+                </Button>
                 <Button type="submit" disabled={loading} className="flex-1 sm:flex-none">
                   {loading ? "Salvando..." : contractId ? "Atualizar Contrato" : "Criar Contrato"}
                 </Button>
@@ -696,6 +793,12 @@ Assinatura do Contratante
           </>
         )}
       </CardContent>
+
+      <ContractPreview
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        contractData={getPreviewData()}
+      />
     </Card>
   )
 }
