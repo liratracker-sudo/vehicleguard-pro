@@ -19,6 +19,7 @@ import ReportsPage from "./pages/Reports";
 import WhiteLabelPage from "./pages/WhiteLabel";
 import SettingsPage from "./pages/Settings";
 import BillingDiagnosticsPage from "./pages/BillingDiagnostics";
+import ExpensesPage from "./pages/Expenses";
 import NotFound from "./pages/NotFound";
 import CheckoutPage from "./pages/Checkout";
 import PublicClientRegistration from "./pages/PublicClientRegistration";
@@ -59,6 +60,7 @@ const App = () => {
               <Route path="/vehicles" element={<AuthGuard><VehiclesPage /></AuthGuard>} />
               <Route path="/billing" element={<AuthGuard><BillingPage /></AuthGuard>} />
               <Route path="/financial" element={<AuthGuard><FinancialPage /></AuthGuard>} />
+              <Route path="/expenses" element={<AuthGuard><ExpensesPage /></AuthGuard>} />
               <Route path="/reports" element={<AuthGuard><ReportsPage /></AuthGuard>} />
               <Route path="/white-label" element={<AuthGuard><WhiteLabelPage /></AuthGuard>} />
               <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />

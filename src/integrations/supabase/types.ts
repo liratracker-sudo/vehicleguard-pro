@@ -361,6 +361,50 @@ export type Database = {
           },
         ]
       }
+      bank_accounts: {
+        Row: {
+          account_type: string | null
+          balance: number | null
+          bank_name: string
+          company_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_type?: string | null
+          balance?: number | null
+          bank_name: string
+          company_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_type?: string | null
+          balance?: number | null
+          bank_name?: string
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_registrations: {
         Row: {
           birth_date: string
@@ -989,6 +1033,136 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      expense_categories: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string | null
+          icon: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expenses: {
+        Row: {
+          amount: number
+          attachment_url: string | null
+          bank_account_id: string | null
+          category_id: string | null
+          company_id: string
+          created_at: string | null
+          description: string
+          due_date: string
+          id: string
+          notes: string | null
+          paid_at: string | null
+          payment_method: string | null
+          recurrence_parent_id: string | null
+          recurrence_type: string | null
+          status: string | null
+          supplier_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          attachment_url?: string | null
+          bank_account_id?: string | null
+          category_id?: string | null
+          company_id: string
+          created_at?: string | null
+          description: string
+          due_date: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          recurrence_parent_id?: string | null
+          recurrence_type?: string | null
+          status?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          attachment_url?: string | null
+          bank_account_id?: string | null
+          category_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          description?: string
+          due_date?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          recurrence_parent_id?: string | null
+          recurrence_type?: string | null
+          status?: string | null
+          supplier_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       gerencianet_logs: {
         Row: {

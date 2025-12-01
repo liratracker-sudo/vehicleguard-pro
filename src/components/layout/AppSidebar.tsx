@@ -11,7 +11,8 @@ import {
   Car,
   Building2,
   Shield,
-  UserPlus
+  UserPlus,
+  Receipt
 } from "lucide-react"
 
 import {
@@ -77,6 +78,12 @@ const navigation = [
     title: "Financeiro",
     url: "/financial",
     icon: BarChart3,
+    group: "financeiro"
+  },
+  {
+    title: "Contas a Pagar",
+    url: "/expenses",
+    icon: Receipt,
     group: "financeiro"
   },
   {
