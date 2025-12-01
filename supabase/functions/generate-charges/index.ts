@@ -128,24 +128,6 @@ serve(async (req) => {
 
         console.log(`Created charge ${charge.id} for company ${subscription.companies.name}`);
 
-        // Trigger notification creation for this specific charge
-        try {
-          const notificationResponse = await supabase.functions.invoke('billing-notifications', {
-            body: {
-              trigger: 'payment_created',
-              payment_id: charge.id
-            }
-          });
-          
-          if (notificationResponse.error) {
-            console.error(`Failed to trigger notifications for charge ${charge.id}:`, notificationResponse.error);
-          } else {
-            console.log(`Triggered notifications for charge ${charge.id}`);
-          }
-        } catch (notifError) {
-          console.error(`Error triggering notifications for charge ${charge.id}:`, notifError);
-        }
-
         // Set payment URL to checkout page (universal link) - gateway integration happens when client chooses payment method
         const checkoutUrl = `${appUrl}/checkout/${charge.id}`;
         

@@ -239,9 +239,6 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
       console.log('✅ Payment generation completed successfully');
 
-      // Auto-send WhatsApp notification
-      await sendWhatsAppNotification(transaction.client_id, transaction.id, transaction.amount);
-
       onSuccess?.();
     } catch (error) {
       console.error('💥 DETAILED ERROR:', error);
