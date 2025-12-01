@@ -54,7 +54,18 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
       if (error) throw error
 
-      const addressData = data.address ? JSON.parse(data.address) : {}
+      let addressData: any = {}
+      
+      // Tentar parsear como JSON (formato do sistema)
+      if (data.address) {
+        try {
+          addressData = JSON.parse(data.address)
+        } catch {
+          // Se não for JSON, é uma string simples (importado do Asaas)
+          // Deixa os campos vazios para o usuário preencher
+          console.log('Endereço em formato texto:', data.address)
+        }
+      }
       
       setFormData({
         name: data.name || "",
