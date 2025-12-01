@@ -26,6 +26,8 @@ interface Registration {
   vehicle_plate: string
   vehicle_brand: string
   vehicle_model: string
+  vehicle_year: number
+  vehicle_color: string
   rejection_reason?: string
 }
 
@@ -81,7 +83,10 @@ export default function ClientRegistrations() {
     setProcessing(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setProcessing(false)
+        return
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -89,56 +94,131 @@ export default function ClientRegistrations() {
         .eq('user_id', user.id)
         .single()
 
-      if (!profile) return
+      if (!profile) {
+        setProcessing(false)
+        return
+      }
 
-      // Criar cliente
-      const { data: client, error: clientError } = await supabase
+      // 1. Verificar se já existe cliente com o mesmo documento
+      const { data: existingClient } = await supabase
         .from('clients')
-        .insert({
-          company_id: profile.company_id,
-          name: registration.name,
-          email: registration.email,
-          phone: registration.phone,
-          document: registration.document,
-          status: 'active'
-        })
-        .select()
-        .single()
+        .select('id, name')
+        .eq('company_id', profile.company_id)
+        .eq('document', registration.document)
+        .maybeSingle()
 
-      if (clientError) throw clientError
+      let clientId: string
 
-      // Criar veículo
-      const { data: vehicle, error: vehicleError } = await supabase
+      if (existingClient) {
+        // Atualizar cliente existente
+        const { error: updateClientError } = await supabase
+          .from('clients')
+          .update({
+            name: registration.name,
+            email: registration.email,
+            phone: registration.phone,
+            status: 'active'
+          })
+          .eq('id', existingClient.id)
+
+        if (updateClientError) {
+          console.error('Error updating client:', updateClientError)
+          throw new Error('Erro ao atualizar dados do cliente')
+        }
+        clientId = existingClient.id
+        console.log('Cliente existente atualizado:', existingClient.name)
+      } else {
+        // Criar novo cliente
+        const { data: newClient, error: clientError } = await supabase
+          .from('clients')
+          .insert({
+            company_id: profile.company_id,
+            name: registration.name,
+            email: registration.email,
+            phone: registration.phone,
+            document: registration.document,
+            status: 'active'
+          })
+          .select()
+          .single()
+
+        if (clientError) {
+          console.error('Error creating client:', clientError)
+          throw new Error('Erro ao criar cliente')
+        }
+        clientId = newClient.id
+        console.log('Novo cliente criado:', newClient.name)
+      }
+
+      // 2. Verificar se já existe veículo com a mesma placa
+      const { data: existingVehicle } = await supabase
         .from('vehicles')
-        .insert({
-          company_id: profile.company_id,
-          client_id: client.id,
-          license_plate: registration.vehicle_plate,
-          brand: registration.vehicle_brand,
-          model: registration.vehicle_model,
-          year: 2024, // Pegar do registration se disponível
-          color: 'Não especificada',
-          tracker_status: 'pending',
-          is_active: true
-        })
-        .select()
-        .single()
+        .select('id, client_id, license_plate')
+        .eq('company_id', profile.company_id)
+        .eq('license_plate', registration.vehicle_plate)
+        .maybeSingle()
 
-      if (vehicleError) throw vehicleError
+      let vehicleId: string
 
-      // Atualizar status do registro
+      if (existingVehicle) {
+        // Se o veículo pertence a outro cliente, mostrar erro
+        if (existingVehicle.client_id !== clientId) {
+          const { data: otherClient } = await supabase
+            .from('clients')
+            .select('name')
+            .eq('id', existingVehicle.client_id)
+            .maybeSingle()
+
+          throw new Error(
+            `O veículo com placa ${registration.vehicle_plate} já está cadastrado para outro cliente${otherClient ? ` (${otherClient.name})` : ''}. ` +
+            `Verifique se a placa está correta ou transfira o veículo primeiro.`
+          )
+        }
+        // Usar veículo existente do mesmo cliente
+        vehicleId = existingVehicle.id
+        console.log('Veículo existente reutilizado:', existingVehicle.license_plate)
+      } else {
+        // Criar novo veículo
+        const { data: newVehicle, error: vehicleError } = await supabase
+          .from('vehicles')
+          .insert({
+            company_id: profile.company_id,
+            client_id: clientId,
+            license_plate: registration.vehicle_plate,
+            brand: registration.vehicle_brand,
+            model: registration.vehicle_model,
+            year: registration.vehicle_year || new Date().getFullYear(),
+            color: registration.vehicle_color || 'Não especificada',
+            tracker_status: 'pending',
+            is_active: true
+          })
+          .select()
+          .single()
+
+        if (vehicleError) {
+          console.error('Error creating vehicle:', vehicleError)
+          throw new Error('Erro ao criar veículo')
+        }
+        vehicleId = newVehicle.id
+        console.log('Novo veículo criado:', newVehicle.license_plate)
+      }
+
+      // 3. Atualizar status do registro
       const { error: updateError } = await supabase
         .from('client_registrations')
         .update({
           status: 'approved',
           reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
-          client_id: client.id,
-          vehicle_id: vehicle.id
+          client_id: clientId,
+          vehicle_id: vehicleId
         })
         .eq('id', registration.id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('Error updating registration:', updateError)
+        throw new Error('Erro ao atualizar registro')
+      }
 
       // Enviar notificação WhatsApp ao cliente
       const approvalMessage = `✅ *Cadastro Aprovado!*\n\n` +
@@ -153,7 +233,7 @@ export default function ClientRegistrations() {
       // Enviar notificação (não aguardar para não travar a UI)
       supabase.functions.invoke('notify-whatsapp', {
         body: {
-          client_id: client.id,
+          client_id: clientId,
           message: approvalMessage
         }
       }).catch(err => {
@@ -162,16 +242,18 @@ export default function ClientRegistrations() {
 
       toast({
         title: "Cadastro aprovado!",
-        description: "Cliente e veículo criados com sucesso."
+        description: existingClient 
+          ? "Cliente atualizado e veículo vinculado com sucesso." 
+          : "Cliente e veículo criados com sucesso."
       })
 
       setDetailsOpen(false)
       loadRegistrations()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving registration:', error)
       toast({
         title: "Erro ao aprovar cadastro",
-        description: error instanceof Error ? error.message : "Tente novamente",
+        description: error.message || "Tente novamente",
         variant: "destructive"
       })
     } finally {
