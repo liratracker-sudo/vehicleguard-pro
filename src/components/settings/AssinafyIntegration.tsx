@@ -39,11 +39,27 @@ export function AssinafyIntegration() {
       if (!profile?.company_id) return
       setCompanyId(profile.company_id)
 
-      // Assinafy não está mais armazenado em companies após restauração
-      // Manter configurações zeradas para permitir nova configuração
-      setApiKey("")
-      setWorkspaceId("")
-      setIsConfigured(false)
+      // Load Assinafy settings from new table
+      const { data: settings, error: settingsError } = await supabase
+        .from('assinafy_settings')
+        .select('workspace_id, is_active')
+        .eq('company_id', profile.company_id)
+        .maybeSingle()
+      
+      if (settingsError) {
+        console.error('Error loading Assinafy settings:', settingsError)
+      }
+
+      if (settings) {
+        setWorkspaceId(settings.workspace_id || "")
+        setIsConfigured(settings.is_active || false)
+        // API key is encrypted, so we don't load it for display
+        setApiKey("")
+      } else {
+        setWorkspaceId("")
+        setIsConfigured(false)
+        setApiKey("")
+      }
     } catch (error: any) {
       console.error('Error loading Assinafy settings:', error)
       toast({
