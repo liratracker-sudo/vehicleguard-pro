@@ -13,8 +13,7 @@ import { BillingActions } from "@/components/billing/BillingActions"
 import { BillingFilters, BillingFiltersState } from "@/components/billing/BillingFilters"
 import { usePayments } from "@/hooks/usePayments"
 import { useBillingManagement } from "@/hooks/useBillingManagement"
-import { AsaasCpfLookup } from "@/components/billing/AsaasCpfLookup"
-import { AsaasStatusIndicator } from "@/components/billing/AsaasStatusIndicator"
+import { CpfLookup } from "@/components/billing/CpfLookup"
 import {
   Table,
   TableBody,
@@ -292,18 +291,11 @@ const BillingPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex gap-4 items-start">
-                  <div className="flex-1">
-                    <BillingFilters 
-                      filters={filters}
-                      onFiltersChange={setFilters}
-                      onClearFilters={clearFilters}
-                    />
-                  </div>
-                  <div className="w-80">
-                    <AsaasStatusIndicator />
-                  </div>
-                </div>
+                <BillingFilters 
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  onClearFilters={clearFilters}
+                />
                 
                 <div className="text-sm text-muted-foreground">
                   Exibindo {filteredPayments.length} de {payments.length} cobranças
@@ -475,7 +467,7 @@ const BillingPage = () => {
           </TabsContent>
 
           <TabsContent value="cpf-lookup">
-            <AsaasCpfLookup />
+            <CpfLookup />
           </TabsContent>
 
           <TabsContent value="history">
