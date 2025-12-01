@@ -24,90 +24,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
-
-const revenueData = [
-  { month: "Jan", receita: 187000, despesas: 75000, lucro: 112000 },
-  { month: "Fev", receita: 195000, despesas: 78000, lucro: 117000 },
-  { month: "Mar", receita: 203000, despesas: 82000, lucro: 121000 },
-  { month: "Abr", receita: 198000, despesas: 79000, lucro: 119000 },
-  { month: "Mai", receita: 216000, despesas: 85000, lucro: 131000 },
-  { month: "Jun", receita: 234000, despesas: 92000, lucro: 142000 },
-]
-
-const cashFlowData = [
-  { day: "1", entrada: 12000, saida: 8000, saldo: 4000 },
-  { day: "2", entrada: 15000, saida: 6000, saldo: 9000 },
-  { day: "3", entrada: 8000, saida: 12000, saldo: -4000 },
-  { day: "4", entrada: 22000, saida: 9000, saldo: 13000 },
-  { day: "5", entrada: 18000, saida: 7000, saldo: 11000 },
-  { day: "6", entrada: 9000, saida: 15000, saldo: -6000 },
-  { day: "7", entrada: 25000, saida: 8000, saldo: 17000 },
-]
-
-const transactions = [
-  {
-    id: 1,
-    type: "receita",
-    description: "Pagamento - Maria Santos Silva",
-    amount: 149.90,
-    date: "2024-02-15",
-    category: "Mensalidades",
-    status: "confirmed"
-  },
-  {
-    id: 2,
-    type: "despesa",
-    description: "Servidor - Amazon AWS",
-    amount: -450.00,
-    date: "2024-02-14",
-    category: "Infraestrutura",
-    status: "confirmed"
-  },
-  {
-    id: 3,
-    type: "receita",
-    description: "Pagamento - Carlos Silva Mendes",
-    amount: 1200.00,
-    date: "2024-02-14",
-    category: "Mensalidades",
-    status: "confirmed"
-  },
-  {
-    id: 4,
-    type: "despesa",
-    description: "Taxa - Mercado Pago",
-    amount: -45.20,
-    date: "2024-02-13",
-    category: "Taxas Bancárias",
-    status: "confirmed"
-  }
-]
-
-const accounts = [
-  {
-    id: 1,
-    name: "Conta Corrente Principal",
-    bank: "Banco Cora",
-    balance: 45780.50,
-    type: "corrente"
-  },
-  {
-    id: 2,
-    name: "Conta Poupança",
-    bank: "Banco Asaas",
-    balance: 23450.00,
-    type: "poupanca"
-  },
-  {
-    id: 3,
-    name: "Carteira Digital",
-    bank: "Mercado Pago",
-    balance: 8920.30,
-    type: "digital"
-  }
-]
+import { useFinancialData } from "@/hooks/useFinancialData"
 
 const FinancialPage = () => {
+  const { 
+    summary, 
+    accountsByGateway, 
+    transactions, 
+    monthlyData, 
+    cashFlowData, 
+    isLoading 
+  } = useFinancialData()
+
   const getTransactionBadge = (type: string) => {
     return type === 'receita' ? (
       <Badge className="bg-success/20 text-success border-success/30">Receita</Badge>
@@ -116,10 +44,15 @@ const FinancialPage = () => {
     )
   }
 
-  const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
-  const currentMonthRevenue = 234000
-  const currentMonthExpenses = 92000
-  const currentMonthProfit = currentMonthRevenue - currentMonthExpenses
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-muted-foreground">Carregando dados financeiros...</div>
+        </div>
+      </AppLayout>
+    )
+  }
 
   return (
     <AppLayout>
@@ -153,10 +86,10 @@ const FinancialPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {summary.totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Em todas as contas
+                Total recebido
               </p>
             </CardContent>
           </Card>
@@ -167,10 +100,10 @@ const FinancialPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-success">
-                R$ {currentMonthRevenue.toLocaleString('pt-BR')}
+                R$ {summary.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                +8.5% vs mês anterior
+                Mês atual
               </p>
             </CardContent>
           </Card>
@@ -181,10 +114,10 @@ const FinancialPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">
-                R$ {currentMonthExpenses.toLocaleString('pt-BR')}
+                R$ {summary.monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                +3.2% vs mês anterior
+                Mês atual
               </p>
             </CardContent>
           </Card>
@@ -195,10 +128,13 @@ const FinancialPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                R$ {currentMonthProfit.toLocaleString('pt-BR')}
+                R$ {summary.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Margem de {((currentMonthProfit / currentMonthRevenue) * 100).toFixed(1)}%
+                {summary.monthlyRevenue > 0 
+                  ? `Margem de ${((summary.netProfit / summary.monthlyRevenue) * 100).toFixed(1)}%`
+                  : 'Sem receitas este mês'
+                }
               </p>
             </CardContent>
           </Card>
@@ -221,15 +157,15 @@ const FinancialPage = () => {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={revenueData}>
+                    <BarChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="month" className="text-xs fill-muted-foreground" />
                       <YAxis 
                         className="text-xs fill-muted-foreground"
-                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`}
                       />
                       <Tooltip 
-                        formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, '']}
+                        formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
                         labelStyle={{ color: 'hsl(var(--foreground))' }}
                         contentStyle={{ 
                           backgroundColor: 'hsl(var(--card))', 
@@ -238,7 +174,7 @@ const FinancialPage = () => {
                         }}
                       />
                       <Bar dataKey="receita" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="despesas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="despesa" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -250,15 +186,15 @@ const FinancialPage = () => {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={revenueData}>
+                    <LineChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="month" className="text-xs fill-muted-foreground" />
                       <YAxis 
                         className="text-xs fill-muted-foreground"
-                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`}
                       />
                       <Tooltip 
-                        formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Lucro']}
+                        formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Lucro']}
                         labelStyle={{ color: 'hsl(var(--foreground))' }}
                         contentStyle={{ 
                           backgroundColor: 'hsl(var(--card))', 
@@ -292,13 +228,13 @@ const FinancialPage = () => {
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={cashFlowData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="day" className="text-xs fill-muted-foreground" />
+                    <XAxis dataKey="date" className="text-xs fill-muted-foreground" />
                     <YAxis 
                       className="text-xs fill-muted-foreground"
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`}
                     />
                     <Tooltip 
-                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, '']}
+                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
                       labelStyle={{ color: 'hsl(var(--foreground))' }}
                       contentStyle={{ 
                         backgroundColor: 'hsl(var(--card))', 
@@ -306,8 +242,8 @@ const FinancialPage = () => {
                         borderRadius: '6px'
                       }}
                     />
-                    <Bar dataKey="entrada" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="saida" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="entradas" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="saidas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -315,34 +251,35 @@ const FinancialPage = () => {
           </TabsContent>
 
           <TabsContent value="accounts" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {accounts.map((account) => (
-                <Card key={account.id}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{account.name}</CardTitle>
-                    <CardDescription>{account.bank}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold mb-2">
-                      R$ {account.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </div>
-                    <Badge variant="outline" className="mb-4">
-                      {account.type === 'corrente' && 'Conta Corrente'}
-                      {account.type === 'poupanca' && 'Conta Poupança'}
-                      {account.type === 'digital' && 'Carteira Digital'}
-                    </Badge>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Ver Extrato
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <CreditCard className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {accountsByGateway.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <PiggyBank className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    Nenhum pagamento recebido ainda. As contas por gateway aparecerão aqui quando houver transações.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {accountsByGateway.map((account) => (
+                  <Card key={account.id}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{account.name}</CardTitle>
+                      <CardDescription>{account.bank}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold mb-2">
+                        R$ {account.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                      <Badge variant="outline" className="mb-4">
+                        {account.type}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="transactions" className="space-y-6">
@@ -365,39 +302,47 @@ const FinancialPage = () => {
                   </Button>
                 </div>
 
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Categoria</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {transactions.map((transaction) => (
-                        <TableRow key={transaction.id}>
-                          <TableCell>{getTransactionBadge(transaction.type)}</TableCell>
-                          <TableCell>{transaction.description}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{transaction.category}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(transaction.date).toLocaleDateString('pt-BR')}
-                          </TableCell>
-                          <TableCell className={`text-right font-medium ${
-                            transaction.amount > 0 ? 'text-success' : 'text-destructive'
-                          }`}>
-                            {transaction.amount > 0 ? '+' : ''}
-                            R$ {Math.abs(transaction.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </TableCell>
+                {transactions.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <p className="text-muted-foreground">
+                      Nenhuma transação encontrada. As transações aparecerão aqui quando houver receitas ou despesas.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Data</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions.map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell>{getTransactionBadge(transaction.type)}</TableCell>
+                            <TableCell>{transaction.description}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{transaction.category}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell className={`text-right font-medium ${
+                              transaction.type === 'receita' ? 'text-success' : 'text-destructive'
+                            }`}>
+                              {transaction.type === 'receita' ? '+' : '-'}
+                              R$ {transaction.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
