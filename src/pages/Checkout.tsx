@@ -485,17 +485,17 @@ export default function Checkout() {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted py-8 px-4">
       <div className="max-w-lg mx-auto">
         <Card>
-          <CardHeader className="text-center pb-4">
-            {payment.company.logo_url && (
-              <img 
-                src={payment.company.logo_url} 
-                alt={payment.company.name}
-                className="h-12 mx-auto mb-3 object-contain"
-              />
-            )}
-            <CardTitle className="text-xl">{payment.company.name}</CardTitle>
-            <CardDescription className="text-sm">Pagamento seguro e rápido</CardDescription>
-          </CardHeader>
+            <CardHeader className="text-center pb-4">
+              {payment.company.logo_url ? (
+                <img 
+                  src={payment.company.logo_url} 
+                  alt={payment.company.name}
+                  className="h-10 mx-auto object-contain"
+                />
+              ) : (
+                <div className="h-8" />
+              )}
+            </CardHeader>
 
           <CardContent className="space-y-4">
             {/* Detalhes do pagamento */}
