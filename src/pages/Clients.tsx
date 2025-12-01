@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2 } from "lucide-react"
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, Download } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -24,13 +24,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { ClientForm } from "@/components/clients/ClientForm"
 import { useClients } from "@/hooks/useClients"
+import { useAsaasImport } from "@/hooks/useAsaasImport"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const ClientsPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const { clients, loading, deleteClient } = useClients()
+  const { clients, loading, deleteClient, loadClients } = useClients()
+  const { importing, importCustomers } = useAsaasImport()
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,6 +60,16 @@ const ClientsPage = () => {
     setSelectedClient(null)
   }
 
+  const handleImportFromAsaas = async () => {
+    if (confirm('Deseja importar todos os clientes cadastrados no Asaas? Esta é uma operação única.')) {
+      const result = await importCustomers()
+      if (result.success) {
+        // Recarregar lista de clientes
+        await loadClients()
+      }
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -82,21 +94,31 @@ const ClientsPage = () => {
               Gerencie seus clientes e contratos de rastreamento
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="shrink-0" onClick={() => setIsDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Cliente
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <ClientForm
-                clientId={selectedClient || undefined}
-                onSuccess={handleDialogClose}
-                onCancel={handleDialogClose}
-              />
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleImportFromAsaas}
+              disabled={importing || loading}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {importing ? 'Importando...' : 'Importar do Asaas'}
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="shrink-0" onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Cliente
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <ClientForm
+                  clientId={selectedClient || undefined}
+                  onSuccess={handleDialogClose}
+                  onCancel={handleDialogClose}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Stats Cards */}
