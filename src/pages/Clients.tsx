@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { ClientForm } from "@/components/clients/ClientForm"
 import { useClients } from "@/hooks/useClients"
 import { useAsaasImport } from "@/hooks/useAsaasImport"
+import { useFixAddresses } from "@/hooks/useFixAddresses"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const ClientsPage = () => {
@@ -33,6 +34,7 @@ const ClientsPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { clients, loading, deleteClient, loadClients } = useClients()
   const { importing, importCustomers } = useAsaasImport()
+  const { fixing, fixAddresses } = useFixAddresses()
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -70,6 +72,16 @@ const ClientsPage = () => {
     }
   }
 
+  const handleFixAddresses = async () => {
+    if (confirm('Deseja corrigir os endereços dos clientes importados do Asaas? Esta operação converterá os endereços em texto para o formato estruturado do sistema.')) {
+      const result = await fixAddresses()
+      if (result.success) {
+        // Recarregar lista de clientes
+        await loadClients()
+      }
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -98,10 +110,17 @@ const ClientsPage = () => {
             <Button 
               variant="outline" 
               onClick={handleImportFromAsaas}
-              disabled={importing || loading}
+              disabled={importing || loading || fixing}
             >
               <Download className="w-4 h-4 mr-2" />
               {importing ? 'Importando...' : 'Importar do Asaas'}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handleFixAddresses}
+              disabled={fixing || loading || importing}
+            >
+              {fixing ? 'Corrigindo...' : 'Corrigir Endereços'}
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
