@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { QrCode, Receipt, CreditCard, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { QrCode, Receipt, CreditCard, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import QRCode from 'qrcode';
@@ -48,6 +49,8 @@ export default function Checkout() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [cpfInput, setCpfInput] = useState('');
+  const [cpfError, setCpfError] = useState('');
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
     payment_url?: string;
@@ -175,16 +178,20 @@ export default function Checkout() {
       const methodsMap: Record<string, PaymentMethod> = {
         'pix': { key: 'pix', label: 'PIX', icon: <QrCode className="h-5 w-5" />, gateway: '' },
         'boleto': { key: 'boleto', label: 'Boleto', icon: <Receipt className="h-5 w-5" />, gateway: '' },
-        'credit_card': { key: 'credit_card', label: 'Cartão de Crédito', icon: <CreditCard className="h-5 w-5" />, gateway: '' },
-        'debit_card': { key: 'debit_card', label: 'Cartão de Débito', icon: <CreditCard className="h-5 w-5" />, gateway: '' },
+        'credit_card': { key: 'credit_card', label: 'Cartão', icon: <CreditCard className="h-5 w-5" />, gateway: '' },
       };
 
       // Deduplicar por tipo de método de pagamento (mantém apenas o primeiro de cada tipo)
+      // Tratar debit_card como credit_card para unificar em "Cartão"
       const uniqueMethods = new Map<string, PaymentMethod>();
       methods?.forEach(m => {
-        if (methodsMap[m.payment_method] && !uniqueMethods.has(m.payment_method)) {
-          uniqueMethods.set(m.payment_method, {
-            ...methodsMap[m.payment_method],
+        let methodKey = m.payment_method;
+        // Unificar débito e crédito em apenas "Cartão"
+        if (methodKey === 'debit_card') methodKey = 'credit_card';
+        
+        if (methodsMap[methodKey] && !uniqueMethods.has(methodKey)) {
+          uniqueMethods.set(methodKey, {
+            ...methodsMap[methodKey],
             gateway: m.gateway_type
           });
         }
@@ -205,10 +212,63 @@ export default function Checkout() {
     }
   };
 
+  const formatCpf = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return numbers.slice(0, 11).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  };
+
+  const validateCpf = (cpf: string) => {
+    const numbers = cpf.replace(/\D/g, '');
+    return numbers.length === 11;
+  };
+
+  const handleMethodChange = (method: string) => {
+    setSelectedMethod(method);
+    setCpfError('');
+    // Limpar CPF ao mudar de método
+    if (method !== 'boleto') {
+      setCpfInput('');
+    }
+  };
+
+  const handleCpfChange = (value: string) => {
+    const formatted = formatCpf(value);
+    setCpfInput(formatted);
+    if (value.replace(/\D/g, '').length > 0) {
+      setCpfError('');
+    }
+  };
+
   const processPayment = async () => {
     if (!selectedMethod || !payment) {
       console.log('Missing data:', { selectedMethod, payment });
       return;
+    }
+
+    // Validar CPF para boleto se cliente não tiver documento
+    if (selectedMethod === 'boleto' && !payment.client.document) {
+      if (!cpfInput) {
+        setCpfError('CPF é obrigatório para gerar boleto');
+        toast({
+          title: "CPF obrigatório",
+          description: "Por favor, informe seu CPF para gerar o boleto",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!validateCpf(cpfInput)) {
+        setCpfError('CPF inválido');
+        toast({
+          title: "CPF inválido",
+          description: "Por favor, informe um CPF válido",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     console.log('Starting payment process:', {
@@ -223,11 +283,19 @@ export default function Checkout() {
       // Chamar edge function para processar pagamento
       console.log('Invoking process-checkout function...');
       
+      const clientData = {
+        ...payment.client,
+        // Se boleto e não tem documento, usar o CPF digitado
+        ...(selectedMethod === 'boleto' && !payment.client.document && cpfInput ? {
+          document: cpfInput.replace(/\D/g, '')
+        } : {})
+      };
+      
       const { data, error } = await supabase.functions.invoke('process-checkout', {
         body: {
           payment_id: payment.id,
           payment_method: selectedMethod,
-          client_data: payment.client
+          client_data: clientData
         }
       });
 
@@ -544,7 +612,7 @@ export default function Checkout() {
                   <p className="text-xs mt-1">Entre em contato com {payment.company.name}</p>
                 </div>
               ) : (
-                <RadioGroup value={selectedMethod || ''} onValueChange={setSelectedMethod}>
+                <RadioGroup value={selectedMethod || ''} onValueChange={handleMethodChange}>
                   <div className="grid grid-cols-2 gap-2">
                     {availableMethods.map((method) => (
                       <div key={method.key}>
@@ -568,6 +636,37 @@ export default function Checkout() {
                 </RadioGroup>
               )}
             </div>
+
+            {/* Input de CPF para Boleto quando cliente não tem documento */}
+            {selectedMethod === 'boleto' && !payment.client.document && (
+              <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Para gerar o boleto, precisamos do seu CPF
+                    </p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="cpf-input" className="text-xs font-medium">
+                        CPF
+                      </Label>
+                      <Input
+                        id="cpf-input"
+                        type="text"
+                        placeholder="000.000.000-00"
+                        value={cpfInput}
+                        onChange={(e) => handleCpfChange(e.target.value)}
+                        maxLength={14}
+                        className={cpfError ? 'border-destructive' : ''}
+                      />
+                      {cpfError && (
+                        <p className="text-xs text-destructive">{cpfError}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Botão de pagamento */}
             {availableMethods.length > 0 && (
