@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, Clock, Eye } from "lucide-react"
+import { CheckCircle2, XCircle, Clock, Eye, Trash2, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -36,6 +37,8 @@ export default function ClientRegistrations() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [processing, setProcessing] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null)
 
   useEffect(() => {
     loadRegistrations()
@@ -282,6 +285,73 @@ export default function ClientRegistrations() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!registrationToDelete) return
+
+    setProcessing(true)
+    try {
+      const { error } = await supabase
+        .from('client_registrations')
+        .delete()
+        .eq('id', registrationToDelete.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Cadastro excluído",
+        description: "O cadastro foi removido permanentemente."
+      })
+
+      setDeleteDialogOpen(false)
+      setRegistrationToDelete(null)
+      if (detailsOpen) setDetailsOpen(false)
+      loadRegistrations()
+    } catch (error) {
+      console.error('Error deleting registration:', error)
+      toast({
+        title: "Erro ao excluir cadastro",
+        description: "Tente novamente",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleReevaluate = async (registration: Registration) => {
+    setProcessing(true)
+    try {
+      const { error } = await supabase
+        .from('client_registrations')
+        .update({
+          status: 'pending',
+          reviewed_by: null,
+          reviewed_at: null,
+          rejection_reason: null
+        })
+        .eq('id', registration.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Cadastro reenviado para avaliação",
+        description: "O status foi alterado para pendente."
+      })
+
+      if (detailsOpen) setDetailsOpen(false)
+      loadRegistrations()
+    } catch (error) {
+      console.error('Error re-evaluating registration:', error)
+      toast({
+        title: "Erro ao reavaliar cadastro",
+        description: "Tente novamente",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -365,7 +435,7 @@ export default function ClientRegistrations() {
                           </p>
                         )}
                       </div>
-                      <div className="mt-4">
+                      <div className="mt-4 flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -376,6 +446,28 @@ export default function ClientRegistrations() {
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           Ver Detalhes
+                        </Button>
+                        {registration.status === 'rejected' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReevaluate(registration)}
+                            disabled={processing}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Reavaliar
+                          </Button>
+                        )}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setRegistrationToDelete(registration)
+                            setDeleteDialogOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
                         </Button>
                       </div>
                     </CardContent>
@@ -456,32 +548,79 @@ export default function ClientRegistrations() {
             </div>
           )}
 
-          <DialogFooter>
-            {selectedRegistration?.status === 'pending' && (
-              <>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setRegistrationToDelete(selectedRegistration)
+                  setDeleteDialogOpen(true)
+                }}
+                disabled={processing}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </Button>
+            </div>
+            <div className="flex gap-2 ml-auto">
+              {selectedRegistration?.status === 'pending' && (
+                <>
+                  <Button
+                    variant="destructive"
+                    onClick={handleReject}
+                    disabled={processing}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Rejeitar
+                  </Button>
+                  <Button
+                    onClick={() => selectedRegistration && handleApprove(selectedRegistration)}
+                    disabled={processing}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Aprovar
+                  </Button>
+                </>
+              )}
+              {selectedRegistration?.status === 'rejected' && (
                 <Button
-                  variant="destructive"
-                  onClick={handleReject}
+                  onClick={() => selectedRegistration && handleReevaluate(selectedRegistration)}
                   disabled={processing}
                 >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Rejeitar
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Voltar para Avaliação
                 </Button>
-                <Button
-                  onClick={() => selectedRegistration && handleApprove(selectedRegistration)}
-                  disabled={processing}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Aprovar
-                </Button>
-              </>
-            )}
-            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
-              Fechar
-            </Button>
+              )}
+              <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+                Fechar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Diálogo de Confirmação de Exclusão */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Cadastro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O cadastro de <strong>{registrationToDelete?.name}</strong> será permanentemente excluído do sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={processing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={processing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }
