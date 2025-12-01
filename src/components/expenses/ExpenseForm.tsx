@@ -37,10 +37,19 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
   });
 
   const onSubmit = async (data: any) => {
+    // Converter strings vazias para null em campos UUID opcionais
+    const sanitizedData = {
+      ...data,
+      category_id: data.category_id || null,
+      bank_account_id: data.bank_account_id || null,
+      payment_method: data.payment_method || null,
+      recurrence_type: data.recurrence_type === "none" ? null : data.recurrence_type || null,
+    };
+    
     if (expense?.id) {
-      await updateExpense.mutateAsync({ id: expense.id, ...data });
+      await updateExpense.mutateAsync({ id: expense.id, ...sanitizedData });
     } else {
-      await createExpense.mutateAsync(data);
+      await createExpense.mutateAsync(sanitizedData);
     }
     onOpenChange(false);
     form.reset();
@@ -123,7 +132,7 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
                             )}
                           >
                             {field.value ? (
-                              format(new Date(field.value), "PPP", { locale: ptBR })
+                              format(new Date(field.value + 'T00:00:00'), "PPP", { locale: ptBR })
                             ) : (
                               <span>Selecione uma data</span>
                             )}
@@ -134,9 +143,10 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
+                          selected={field.value ? new Date(field.value + 'T00:00:00') : undefined}
+                          onSelect={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : undefined)}
                           locale={ptBR}
+                          className="pointer-events-auto"
                         />
                       </PopoverContent>
                     </Popover>
