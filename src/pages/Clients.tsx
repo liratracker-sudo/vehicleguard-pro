@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, Download, FileText, History } from "lucide-react"
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, Download, FileText, History, Eye } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -34,6 +34,7 @@ const ClientsPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
   const { clients, loading, deleteClient, loadClients } = useClients()
   const { importing, importCustomers } = useAsaasImport()
   const { fixing, fixAddresses } = useFixAddresses()
@@ -52,8 +53,15 @@ const ClientsPage = () => {
     (client.document && client.document.includes(searchTerm))
   )
 
+  const handleViewClient = (clientId: string) => {
+    setSelectedClient(clientId)
+    setViewMode('view')
+    setIsDialogOpen(true)
+  }
+
   const handleEditClient = (clientId: string) => {
     setSelectedClient(clientId)
+    setViewMode('edit')
     setIsDialogOpen(true)
   }
 
@@ -70,6 +78,7 @@ const ClientsPage = () => {
   const handleDialogClose = () => {
     setIsDialogOpen(false)
     setSelectedClient(null)
+    setViewMode(null)
   }
 
   const handleImportFromAsaas = async () => {
@@ -144,6 +153,7 @@ const ClientsPage = () => {
                   clientId={selectedClient || undefined}
                   onSuccess={handleDialogClose}
                   onCancel={handleDialogClose}
+                  readOnly={viewMode === 'view'}
                 />
               </DialogContent>
             </Dialog>
@@ -314,6 +324,10 @@ const ClientsPage = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                              <DropdownMenuItem onSelect={() => handleViewClient(client.id)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                Visualizar cliente
+                              </DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => handleEditClient(client.id)}>
                                 <Edit className="w-4 h-4 mr-2" />
                                 Editar cliente

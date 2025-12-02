@@ -11,9 +11,10 @@ interface ClientFormProps {
   onSuccess?: () => void
   onCancel?: () => void
   clientId?: string
+  readOnly?: boolean
 }
 
-export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
+export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: ClientFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -219,28 +220,29 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
   return (
     <Card>
       <CardHeader className="p-4 pb-3">
-        <CardTitle className="text-lg">{clientId ? 'Editar' : 'Cadastrar'} Cliente</CardTitle>
+        <CardTitle className="text-lg">{readOnly ? 'Visualizar' : (clientId ? 'Editar' : 'Cadastrar')} Cliente</CardTitle>
         <CardDescription className="text-xs">
-          Preencha os dados do cliente para o sistema de rastreamento
+          {readOnly ? 'Dados do cliente' : 'Preencha os dados do cliente para o sistema de rastreamento'}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-0">
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <Label htmlFor="name" className="text-sm">Nome Completo *</Label>
+              <Label htmlFor="name" className="text-sm">Nome Completo {!readOnly && '*'}</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 placeholder="João da Silva"
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
             <div>
               <Label htmlFor="status" className="text-sm">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+              <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})} disabled={readOnly}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -263,10 +265,11 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="joao@email.com"
                 className="h-9"
+                disabled={readOnly}
               />
             </div>
             <div>
-              <Label htmlFor="phone" className="text-sm">Telefone *</Label>
+              <Label htmlFor="phone" className="text-sm">Telefone {!readOnly && '*'}</Label>
               <Input
                 id="phone"
                 value={formData.phone}
@@ -274,7 +277,8 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 placeholder="(11) 99999-9999"
                 maxLength={15}
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
             <div>
@@ -284,6 +288,7 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 type="date"
                 value={formData.birth_date}
                 onChange={(e) => setFormData({...formData, birth_date: e.target.value})}
+                disabled={readOnly}
                 className="h-9"
               />
             </div>
@@ -299,19 +304,20 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 placeholder="000.000.000-00"
                 maxLength={18}
                 className="h-9"
+                disabled={readOnly}
               />
             </div>
             <div>
-              <Label htmlFor="cep" className="text-sm">CEP *</Label>
+              <Label htmlFor="cep" className="text-sm">CEP {!readOnly && '*'}</Label>
               <Input
                 id="cep"
                 value={formData.cep}
                 onChange={(e) => handleCepChange(e.target.value)}
                 placeholder="00000-000"
                 maxLength={9}
-                disabled={loadingCep}
+                disabled={readOnly || loadingCep}
                 className="h-9"
-                required
+                required={!readOnly}
               />
               {loadingCep && <p className="text-xs text-muted-foreground mt-1">Buscando CEP...</p>}
             </div>
@@ -319,25 +325,27 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="sm:col-span-3">
-              <Label htmlFor="street" className="text-sm">Rua/Avenida *</Label>
+              <Label htmlFor="street" className="text-sm">Rua/Avenida {!readOnly && '*'}</Label>
               <Input
                 id="street"
                 value={formData.street}
                 onChange={(e) => setFormData({...formData, street: e.target.value})}
                 placeholder="Rua das Flores"
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
             <div>
-              <Label htmlFor="number" className="text-sm">Número *</Label>
+              <Label htmlFor="number" className="text-sm">Número {!readOnly && '*'}</Label>
               <Input
                 id="number"
                 value={formData.number}
                 onChange={(e) => setFormData({...formData, number: e.target.value})}
                 placeholder="123"
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
           </div>
@@ -351,35 +359,38 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 onChange={(e) => setFormData({...formData, complement: e.target.value})}
                 placeholder="Apt 45, Bloco B"
                 className="h-9"
+                disabled={readOnly}
               />
             </div>
             <div>
-              <Label htmlFor="neighborhood" className="text-sm">Bairro *</Label>
+              <Label htmlFor="neighborhood" className="text-sm">Bairro {!readOnly && '*'}</Label>
               <Input
                 id="neighborhood"
                 value={formData.neighborhood}
                 onChange={(e) => setFormData({...formData, neighborhood: e.target.value})}
                 placeholder="Centro"
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
             <div>
-              <Label htmlFor="city" className="text-sm">Cidade *</Label>
+              <Label htmlFor="city" className="text-sm">Cidade {!readOnly && '*'}</Label>
               <Input
                 id="city"
                 value={formData.city}
                 onChange={(e) => setFormData({...formData, city: e.target.value})}
                 placeholder="São Paulo"
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <Label htmlFor="state" className="text-sm">Estado *</Label>
+              <Label htmlFor="state" className="text-sm">Estado {!readOnly && '*'}</Label>
               <Input
                 id="state"
                 value={formData.state}
@@ -387,7 +398,8 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 placeholder="SP"
                 maxLength={2}
                 className="h-9"
-                required
+                disabled={readOnly}
+                required={!readOnly}
               />
             </div>
           </div>
@@ -404,6 +416,7 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                   onChange={(e) => setFormData({...formData, emergency_contact_name: e.target.value})}
                   placeholder="Nome do contato"
                   className="h-9"
+                  disabled={readOnly}
                 />
               </div>
               <div>
@@ -415,6 +428,7 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                   placeholder="(11) 99999-9999"
                   maxLength={15}
                   className="h-9"
+                  disabled={readOnly}
                 />
               </div>
               <div>
@@ -422,6 +436,7 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 <Select 
                   value={formData.emergency_contact_relationship} 
                   onValueChange={(value) => setFormData({...formData, emergency_contact_relationship: value})}
+                  disabled={readOnly}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecione" />
@@ -439,11 +454,13 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={loading} size="sm">
-              {loading ? "Salvando..." : clientId ? "Atualizar" : "Cadastrar"}
-            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={loading} size="sm">
+                {loading ? "Salvando..." : clientId ? "Atualizar" : "Cadastrar"}
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={onCancel} size="sm">
-              Cancelar
+              {readOnly ? 'Fechar' : 'Cancelar'}
             </Button>
           </div>
         </form>
