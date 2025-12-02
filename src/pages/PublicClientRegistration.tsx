@@ -8,7 +8,29 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Upload, CheckCircle2 } from "lucide-react"
+import { Upload, CheckCircle2, Plus, Trash2, Car } from "lucide-react"
+
+interface Vehicle {
+  id: string
+  plate: string
+  brand: string
+  model: string
+  year: string
+  color: string
+  has_gnv: boolean
+  is_armored: boolean
+}
+
+const createEmptyVehicle = (): Vehicle => ({
+  id: crypto.randomUUID(),
+  plate: "",
+  brand: "",
+  model: "",
+  year: "",
+  color: "",
+  has_gnv: false,
+  is_armored: false
+})
 
 export default function PublicClientRegistration() {
   const { company_slug } = useParams()
@@ -34,17 +56,13 @@ export default function PublicClientRegistration() {
     emergency_contact_name: "",
     emergency_contact_relationship: "",
     emergency_contact_phone: "",
-    vehicle_plate: "",
-    vehicle_brand: "",
-    vehicle_model: "",
-    vehicle_year: "",
-    vehicle_color: "",
-    has_gnv: false,
-    is_armored: false,
   })
 
+  const [vehicles, setVehicles] = useState<Vehicle[]>([createEmptyVehicle()])
   const [documentFront, setDocumentFront] = useState<File | null>(null)
   const [documentBack, setDocumentBack] = useState<File | null>(null)
+
+  const MAX_VEHICLES = 5
 
   useEffect(() => {
     loadCompanyInfo()
@@ -91,17 +109,50 @@ export default function PublicClientRegistration() {
     }
   }
 
+  const addVehicle = () => {
+    if (vehicles.length < MAX_VEHICLES) {
+      setVehicles([...vehicles, createEmptyVehicle()])
+    }
+  }
+
+  const removeVehicle = (vehicleId: string) => {
+    if (vehicles.length > 1) {
+      setVehicles(vehicles.filter(v => v.id !== vehicleId))
+    }
+  }
+
+  const updateVehicle = (vehicleId: string, field: keyof Vehicle, value: any) => {
+    setVehicles(vehicles.map(v => 
+      v.id === vehicleId ? { ...v, [field]: value } : v
+    ))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
+      // Validar que pelo menos um veículo está preenchido
+      const validVehicles = vehicles.filter(v => v.plate.trim() && v.brand.trim() && v.model.trim())
+      if (validVehicles.length === 0) {
+        toast({
+          title: "Erro",
+          description: "Preencha os dados de pelo menos um veículo",
+          variant: "destructive"
+        })
+        setLoading(false)
+        return
+      }
+
       const formDataToSend = new FormData()
       
-      // Adicionar todos os campos
+      // Adicionar todos os campos pessoais
       Object.entries(formData).forEach(([key, value]) => {
         formDataToSend.append(key, String(value))
       })
+      
+      // Adicionar veículos como JSON
+      formDataToSend.append('vehicles', JSON.stringify(validVehicles))
       
       formDataToSend.append('company_id', companyInfo.id)
       if (documentFront) formDataToSend.append('document_front', documentFront)
@@ -430,78 +481,118 @@ export default function PublicClientRegistration() {
             </CardContent>
           </Card>
 
-          {/* Dados do Veículo */}
+          {/* Dados dos Veículos */}
           <Card>
             <CardHeader>
-              <CardTitle>Dados do Veículo</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                Dados dos Veículos
+              </CardTitle>
+              <CardDescription>
+                Cadastre até {MAX_VEHICLES} veículos por formulário
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Placa *</Label>
-                  <Input
-                    value={formData.vehicle_plate}
-                    onChange={(e) => setFormData({ ...formData, vehicle_plate: e.target.value.toUpperCase() })}
-                    placeholder="ABC1D23"
-                    required
-                  />
+            <CardContent className="space-y-6">
+              {vehicles.map((vehicle, index) => (
+                <div key={vehicle.id} className="p-4 border rounded-lg space-y-4 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Veículo {index + 1} de {vehicles.length}
+                    </span>
+                    {vehicles.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeVehicle(vehicle.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Placa *</Label>
+                      <Input
+                        value={vehicle.plate}
+                        onChange={(e) => updateVehicle(vehicle.id, 'plate', e.target.value.toUpperCase())}
+                        placeholder="ABC1D23"
+                        required={index === 0}
+                      />
+                    </div>
+                    <div>
+                      <Label>Marca *</Label>
+                      <Input
+                        value={vehicle.brand}
+                        onChange={(e) => updateVehicle(vehicle.id, 'brand', e.target.value)}
+                        required={index === 0}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label>Modelo *</Label>
+                      <Input
+                        value={vehicle.model}
+                        onChange={(e) => updateVehicle(vehicle.id, 'model', e.target.value)}
+                        required={index === 0}
+                      />
+                    </div>
+                    <div>
+                      <Label>Ano *</Label>
+                      <Input
+                        type="number"
+                        value={vehicle.year}
+                        onChange={(e) => updateVehicle(vehicle.id, 'year', e.target.value)}
+                        min="1900"
+                        max="2099"
+                        required={index === 0}
+                      />
+                    </div>
+                    <div>
+                      <Label>Cor *</Label>
+                      <Input
+                        value={vehicle.color}
+                        onChange={(e) => updateVehicle(vehicle.id, 'color', e.target.value)}
+                        required={index === 0}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-6">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`has_gnv_${vehicle.id}`}
+                        checked={vehicle.has_gnv}
+                        onCheckedChange={(checked) => updateVehicle(vehicle.id, 'has_gnv', checked as boolean)}
+                      />
+                      <Label htmlFor={`has_gnv_${vehicle.id}`}>Possui GNV</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`is_armored_${vehicle.id}`}
+                        checked={vehicle.is_armored}
+                        onCheckedChange={(checked) => updateVehicle(vehicle.id, 'is_armored', checked as boolean)}
+                      />
+                      <Label htmlFor={`is_armored_${vehicle.id}`}>Blindado</Label>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label>Marca *</Label>
-                  <Input
-                    value={formData.vehicle_brand}
-                    onChange={(e) => setFormData({ ...formData, vehicle_brand: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label>Modelo *</Label>
-                  <Input
-                    value={formData.vehicle_model}
-                    onChange={(e) => setFormData({ ...formData, vehicle_model: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Ano *</Label>
-                  <Input
-                    type="number"
-                    value={formData.vehicle_year}
-                    onChange={(e) => setFormData({ ...formData, vehicle_year: e.target.value })}
-                    min="1900"
-                    max="2099"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Cor *</Label>
-                  <Input
-                    value={formData.vehicle_color}
-                    onChange={(e) => setFormData({ ...formData, vehicle_color: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex gap-6">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has_gnv"
-                    checked={formData.has_gnv}
-                    onCheckedChange={(checked) => setFormData({ ...formData, has_gnv: checked as boolean })}
-                  />
-                  <Label htmlFor="has_gnv">Possui GNV</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="is_armored"
-                    checked={formData.is_armored}
-                    onCheckedChange={(checked) => setFormData({ ...formData, is_armored: checked as boolean })}
-                  />
-                  <Label htmlFor="is_armored">Blindado</Label>
-                </div>
-              </div>
+              ))}
+
+              {vehicles.length < MAX_VEHICLES && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addVehicle}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar outro veículo
+                </Button>
+              )}
             </CardContent>
           </Card>
 

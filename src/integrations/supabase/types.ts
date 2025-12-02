@@ -405,6 +405,63 @@ export type Database = {
           },
         ]
       }
+      client_registration_vehicles: {
+        Row: {
+          created_at: string | null
+          has_gnv: boolean | null
+          id: string
+          is_armored: boolean | null
+          registration_id: string
+          vehicle_brand: string
+          vehicle_color: string
+          vehicle_id: string | null
+          vehicle_model: string
+          vehicle_plate: string
+          vehicle_year: number
+        }
+        Insert: {
+          created_at?: string | null
+          has_gnv?: boolean | null
+          id?: string
+          is_armored?: boolean | null
+          registration_id: string
+          vehicle_brand: string
+          vehicle_color: string
+          vehicle_id?: string | null
+          vehicle_model: string
+          vehicle_plate: string
+          vehicle_year: number
+        }
+        Update: {
+          created_at?: string | null
+          has_gnv?: boolean | null
+          id?: string
+          is_armored?: boolean | null
+          registration_id?: string
+          vehicle_brand?: string
+          vehicle_color?: string
+          vehicle_id?: string | null
+          vehicle_model?: string
+          vehicle_plate?: string
+          vehicle_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_registration_vehicles_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "client_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_registration_vehicles_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_registrations: {
         Row: {
           birth_date: string
