@@ -6,6 +6,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Converte data do formato BR (DD/MM/YYYY) para ISO (YYYY-MM-DD)
+function convertBrazilDateToISO(dateStr: string): string | null {
+  if (!dateStr) return null;
+  
+  // Se já está no formato ISO, retorna como está
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+  
+  // Formato esperado: DD/MM/YYYY
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return null;
+  
+  const [day, month, year] = parts;
+  
+  // Validar se são números válidos
+  const d = parseInt(day, 10);
+  const m = parseInt(month, 10);
+  const y = parseInt(year, 10);
+  
+  if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
+  if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900) return null;
+  
+  // Retornar formato ISO: YYYY-MM-DD
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -22,7 +49,7 @@ serve(async (req) => {
     const registrationData = {
       company_id: formData.get('company_id') as string,
       name: formData.get('name') as string,
-      birth_date: formData.get('birth_date') as string,
+      birth_date: convertBrazilDateToISO(formData.get('birth_date') as string),
       email: formData.get('email') as string,
       phone: formData.get('phone') as string,
       document: formData.get('document') as string,
