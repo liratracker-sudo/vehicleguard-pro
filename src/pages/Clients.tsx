@@ -231,17 +231,14 @@ const ClientsPage = () => {
               </Button>
             </div>
 
-            <div className="rounded-md border overflow-x-auto">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[150px]">Cliente</TableHead>
-                    <TableHead className="min-w-[150px]">Contato</TableHead>
-                    <TableHead className="min-w-[120px]">Plano</TableHead>
-                    <TableHead className="min-w-[100px]">Veículos</TableHead>
-                    <TableHead className="min-w-[120px]">Valor Mensal</TableHead>
-                    <TableHead className="min-w-[100px]">Status</TableHead>
-                    <TableHead className="w-[70px]">Ações</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead className="hidden md:table-cell">Contato</TableHead>
+                    <TableHead className="w-24">Status</TableHead>
+                    <TableHead className="w-16">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -258,22 +255,19 @@ const ClientsPage = () => {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           <div className="space-y-1">
                             <Skeleton className="h-3 w-40" />
                             <Skeleton className="h-3 w-28" />
                           </div>
                         </TableCell>
                         <TableCell><Skeleton className="h-6 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                        <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                         <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                       </TableRow>
                     ))
                   ) : filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={4} className="text-center py-8">
                         <div className="text-muted-foreground">
                           {searchTerm ? 'Nenhum cliente encontrado para a busca.' : 'Nenhum cliente cadastrado ainda.'}
                         </div>
@@ -284,36 +278,31 @@ const ClientsPage = () => {
                       <TableRow key={client.id}>
                         <TableCell>
                           <div className="flex items-center space-x-3">
-                            <Avatar className="h-10 w-10">
+                            <Avatar className="h-10 w-10 shrink-0">
                               <AvatarFallback className="bg-primary/10 text-primary">
                                 {client.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                               </AvatarFallback>
                             </Avatar>
-                            <div>
-                              <div className="font-medium">{client.name}</div>
-                              <div className="text-sm text-muted-foreground">
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{client.name}</div>
+                              <div className="text-sm text-muted-foreground truncate">
                                 {client.document || 'Sem documento'}
                               </div>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           <div className="space-y-1">
                             <div className="flex items-center text-sm">
-                              <Mail className="w-3 h-3 mr-1 text-muted-foreground" />
-                              {client.email || 'Não informado'}
+                              <Mail className="w-3 h-3 mr-1 text-muted-foreground shrink-0" />
+                              <span className="truncate">{client.email || 'Não informado'}</span>
                             </div>
                             <div className="flex items-center text-sm">
-                              <Phone className="w-3 h-3 mr-1 text-muted-foreground" />
+                              <Phone className="w-3 h-3 mr-1 text-muted-foreground shrink-0" />
                               {client.phone}
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">-</Badge>
-                        </TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
                         <TableCell>{getStatusBadge(client.status)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
