@@ -29,6 +29,21 @@ interface Registration {
   vehicle_year: number
   vehicle_color: string
   rejection_reason?: string
+  // Campos de endereço
+  cep?: string
+  street?: string
+  number?: string
+  complement?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  // Contato de emergência
+  emergency_contact_name?: string
+  emergency_contact_phone?: string
+  emergency_contact_relationship?: string
+  // Veículo
+  has_gnv?: boolean
+  is_armored?: boolean
 }
 
 export default function ClientRegistrations() {
@@ -110,13 +125,25 @@ export default function ClientRegistrations() {
       let clientId: string
 
       if (existingClient) {
-        // Atualizar cliente existente
+        // Atualizar cliente existente com todos os dados
         const { error: updateClientError } = await supabase
           .from('clients')
           .update({
             name: registration.name,
             email: registration.email,
             phone: registration.phone,
+            birth_date: registration.birth_date,
+            cep: registration.cep,
+            street: registration.street,
+            number: registration.number,
+            complement: registration.complement,
+            neighborhood: registration.neighborhood,
+            city: registration.city,
+            state: registration.state,
+            emergency_contact_name: registration.emergency_contact_name,
+            emergency_contact_phone: registration.emergency_contact_phone,
+            emergency_contact_relationship: registration.emergency_contact_relationship,
+            address: `${registration.street}, ${registration.number}${registration.complement ? `, ${registration.complement}` : ''} - ${registration.neighborhood}, ${registration.city}-${registration.state}, CEP: ${registration.cep}`,
             status: 'active'
           })
           .eq('id', existingClient.id)
@@ -128,7 +155,7 @@ export default function ClientRegistrations() {
         clientId = existingClient.id
         console.log('Cliente existente atualizado:', existingClient.name)
       } else {
-        // Criar novo cliente
+        // Criar novo cliente com todos os dados
         const { data: newClient, error: clientError } = await supabase
           .from('clients')
           .insert({
@@ -137,6 +164,18 @@ export default function ClientRegistrations() {
             email: registration.email,
             phone: registration.phone,
             document: registration.document,
+            birth_date: registration.birth_date,
+            cep: registration.cep,
+            street: registration.street,
+            number: registration.number,
+            complement: registration.complement,
+            neighborhood: registration.neighborhood,
+            city: registration.city,
+            state: registration.state,
+            emergency_contact_name: registration.emergency_contact_name,
+            emergency_contact_phone: registration.emergency_contact_phone,
+            emergency_contact_relationship: registration.emergency_contact_relationship,
+            address: `${registration.street}, ${registration.number}${registration.complement ? `, ${registration.complement}` : ''} - ${registration.neighborhood}, ${registration.city}-${registration.state}, CEP: ${registration.cep}`,
             status: 'active'
           })
           .select()
@@ -178,7 +217,7 @@ export default function ClientRegistrations() {
         vehicleId = existingVehicle.id
         console.log('Veículo existente reutilizado:', existingVehicle.license_plate)
       } else {
-        // Criar novo veículo
+        // Criar novo veículo com todos os dados
         const { data: newVehicle, error: vehicleError } = await supabase
           .from('vehicles')
           .insert({
@@ -189,6 +228,8 @@ export default function ClientRegistrations() {
             model: registration.vehicle_model,
             year: registration.vehicle_year || new Date().getFullYear(),
             color: registration.vehicle_color || 'Não especificada',
+            has_gnv: registration.has_gnv || false,
+            is_armored: registration.is_armored || false,
             tracker_status: 'pending',
             is_active: true
           })

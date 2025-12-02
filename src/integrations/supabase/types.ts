@@ -541,38 +541,71 @@ export type Database = {
       clients: {
         Row: {
           address: string | null
+          birth_date: string | null
+          cep: string | null
+          city: string | null
           company_id: string
+          complement: string | null
           created_at: string
           document: string | null
           email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relationship: string | null
           id: string
           name: string
+          neighborhood: string | null
+          number: string | null
           phone: string
+          state: string | null
           status: string | null
+          street: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
+          birth_date?: string | null
+          cep?: string | null
+          city?: string | null
           company_id: string
+          complement?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
           id?: string
           name: string
+          neighborhood?: string | null
+          number?: string | null
           phone: string
+          state?: string | null
           status?: string | null
+          street?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
+          birth_date?: string | null
+          cep?: string | null
+          city?: string | null
           company_id?: string
+          complement?: string | null
           created_at?: string
           document?: string | null
           email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
           id?: string
           name?: string
+          neighborhood?: string | null
+          number?: string | null
           phone?: string
+          state?: string | null
           status?: string | null
+          street?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2126,9 +2159,11 @@ export type Database = {
           color: string
           company_id: string
           created_at: string
+          has_gnv: boolean | null
           id: string
           installation_date: string | null
           is_active: boolean
+          is_armored: boolean | null
           license_plate: string
           model: string
           notes: string | null
@@ -2144,9 +2179,11 @@ export type Database = {
           color: string
           company_id: string
           created_at?: string
+          has_gnv?: boolean | null
           id?: string
           installation_date?: string | null
           is_active?: boolean
+          is_armored?: boolean | null
           license_plate: string
           model: string
           notes?: string | null
@@ -2162,9 +2199,11 @@ export type Database = {
           color?: string
           company_id?: string
           created_at?: string
+          has_gnv?: boolean | null
           id?: string
           installation_date?: string | null
           is_active?: boolean
+          is_armored?: boolean | null
           license_plate?: string
           model?: string
           notes?: string | null
