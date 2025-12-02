@@ -314,21 +314,21 @@ const ClientsPage = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
+                              <DropdownMenuItem onSelect={() => handleEditClient(client.id)}>
                                 <Edit className="w-4 h-4 mr-2" />
                                 Editar cliente
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleViewContracts(client.id)}>
+                              <DropdownMenuItem onSelect={() => handleViewContracts(client.id)}>
                                 <FileText className="w-4 h-4 mr-2" />
                                 Ver contratos
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleViewPaymentHistory(client.id)}>
+                              <DropdownMenuItem onSelect={() => handleViewPaymentHistory(client.id)}>
                                 <History className="w-4 h-4 mr-2" />
                                 Histórico de pagamentos
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => handleDeleteClient(client.id, client.name)}
+                                onSelect={() => handleDeleteClient(client.id, client.name)}
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Excluir cliente
