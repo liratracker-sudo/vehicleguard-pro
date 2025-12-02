@@ -2,7 +2,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -20,6 +19,7 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
     email: "",
     phone: "",
     document: "",
+    birth_date: "",
     cep: "",
     street: "",
     number: "",
@@ -27,7 +27,9 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
     neighborhood: "",
     city: "",
     state: "",
-    address: "",
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
+    emergency_contact_relationship: "",
     status: "active"
   })
   
@@ -54,32 +56,23 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
       if (error) throw error
 
-      let addressData: any = {}
-      
-      // Tentar parsear como JSON (formato do sistema)
-      if (data.address) {
-        try {
-          addressData = JSON.parse(data.address)
-        } catch {
-          // Se não for JSON, é uma string simples (importado do Asaas)
-          // Deixa os campos vazios para o usuário preencher
-          console.log('Endereço em formato texto:', data.address)
-        }
-      }
-      
+      // Carregar dados diretamente dos campos individuais
       setFormData({
         name: data.name || "",
         email: data.email || "",
         phone: data.phone || "",
         document: data.document || "",
-        cep: addressData.cep || "",
-        street: addressData.street || "",
-        number: addressData.number || "",
-        complement: addressData.complement || "",
-        neighborhood: addressData.neighborhood || "",
-        city: addressData.city || "",
-        state: addressData.state || "",
-        address: data.address || "",
+        birth_date: data.birth_date || "",
+        cep: data.cep || "",
+        street: data.street || "",
+        number: data.number || "",
+        complement: data.complement || "",
+        neighborhood: data.neighborhood || "",
+        city: data.city || "",
+        state: data.state || "",
+        emergency_contact_name: data.emergency_contact_name || "",
+        emergency_contact_phone: data.emergency_contact_phone || "",
+        emergency_contact_relationship: data.emergency_contact_relationship || "",
         status: data.status || "active"
       })
     } catch (error: any) {
@@ -95,24 +88,16 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
   }
 
   const formatDocument = (value: string) => {
-    // Remove all non-digits
     const digits = value.replace(/\D/g, '')
-    
-    // Format as CPF (000.000.000-00) or CNPJ (00.000.000/0000-00)
     if (digits.length <= 11) {
-      // CPF
       return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
     } else {
-      // CNPJ
       return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
     }
   }
 
   const formatPhone = (value: string) => {
-    // Remove all non-digits
     const digits = value.replace(/\D/g, '')
-    
-    // Format as (00) 00000-0000
     return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
   }
 
@@ -123,14 +108,12 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
   const searchCep = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '')
-    
     if (cleanCep.length !== 8) return
     
     setLoadingCep(true)
     
     try {
       const response = await fetch(`https://brasilapi.com.br/api/cep/v1/${cleanCep}`)
-      
       if (!response.ok) throw new Error('CEP não encontrado')
       
       const data = await response.json()
@@ -183,22 +166,28 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
 
       if (!profile?.company_id) throw new Error('Perfil da empresa não encontrado')
 
-      const addressData = {
-        cep: formData.cep.trim(),
-        street: formData.street.trim(),
-        number: formData.number.trim(),
-        complement: formData.complement.trim(),
-        neighborhood: formData.neighborhood.trim(),
-        city: formData.city.trim(),
-        state: formData.state.trim()
-      }
+      // Criar endereço formatado para retrocompatibilidade
+      const formattedAddress = formData.street.trim() 
+        ? `${formData.street.trim()}, ${formData.number.trim()}${formData.complement.trim() ? `, ${formData.complement.trim()}` : ''} - ${formData.neighborhood.trim()}, ${formData.city.trim()}-${formData.state.trim()}, CEP: ${formData.cep.trim()}`
+        : null
 
       const clientData = {
         name: formData.name.trim(),
         email: formData.email.trim() || null,
         phone: formData.phone.trim(),
         document: formData.document.trim() || null,
-        address: JSON.stringify(addressData),
+        birth_date: formData.birth_date || null,
+        cep: formData.cep.trim() || null,
+        street: formData.street.trim() || null,
+        number: formData.number.trim() || null,
+        complement: formData.complement.trim() || null,
+        neighborhood: formData.neighborhood.trim() || null,
+        city: formData.city.trim() || null,
+        state: formData.state.trim() || null,
+        emergency_contact_name: formData.emergency_contact_name.trim() || null,
+        emergency_contact_phone: formData.emergency_contact_phone.trim() || null,
+        emergency_contact_relationship: formData.emergency_contact_relationship || null,
+        address: formattedAddress,
         status: formData.status,
         company_id: profile.company_id
       }
@@ -264,7 +253,7 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <Label htmlFor="email" className="text-sm">E-mail</Label>
               <Input
@@ -286,6 +275,16 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 maxLength={15}
                 className="h-9"
                 required
+              />
+            </div>
+            <div>
+              <Label htmlFor="birth_date" className="text-sm">Data de Nascimento</Label>
+              <Input
+                id="birth_date"
+                type="date"
+                value={formData.birth_date}
+                onChange={(e) => setFormData({...formData, birth_date: e.target.value})}
+                className="h-9"
               />
             </div>
           </div>
@@ -390,6 +389,52 @@ export function ClientForm({ onSuccess, onCancel, clientId }: ClientFormProps) {
                 className="h-9"
                 required
               />
+            </div>
+          </div>
+
+          {/* Seção Contato de Emergência */}
+          <div className="pt-3 border-t border-border">
+            <h3 className="text-sm font-medium mb-3 text-muted-foreground">Contato de Emergência</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label htmlFor="emergency_contact_name" className="text-sm">Nome</Label>
+                <Input
+                  id="emergency_contact_name"
+                  value={formData.emergency_contact_name}
+                  onChange={(e) => setFormData({...formData, emergency_contact_name: e.target.value})}
+                  placeholder="Nome do contato"
+                  className="h-9"
+                />
+              </div>
+              <div>
+                <Label htmlFor="emergency_contact_phone" className="text-sm">Telefone</Label>
+                <Input
+                  id="emergency_contact_phone"
+                  value={formData.emergency_contact_phone}
+                  onChange={(e) => setFormData({...formData, emergency_contact_phone: formatPhone(e.target.value)})}
+                  placeholder="(11) 99999-9999"
+                  maxLength={15}
+                  className="h-9"
+                />
+              </div>
+              <div>
+                <Label htmlFor="emergency_contact_relationship" className="text-sm">Parentesco</Label>
+                <Select 
+                  value={formData.emergency_contact_relationship} 
+                  onValueChange={(value) => setFormData({...formData, emergency_contact_relationship: value})}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cônjuge">Cônjuge</SelectItem>
+                    <SelectItem value="Pai/Mãe">Pai/Mãe</SelectItem>
+                    <SelectItem value="Filho(a)">Filho(a)</SelectItem>
+                    <SelectItem value="Irmão(ã)">Irmão(ã)</SelectItem>
+                    <SelectItem value="Outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
