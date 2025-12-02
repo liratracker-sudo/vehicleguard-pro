@@ -12,20 +12,28 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+// Função síncrona para obter tema inicial do localStorage
+const getInitialTheme = (): ThemeMode => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+  }
+  return 'dark';
+};
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>('dark');
-  const [isLoading, setIsLoading] = useState(true);
+  const [theme, setThemeState] = useState<ThemeMode>(getInitialTheme);
+  const [isLoading, setIsLoading] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
-  // Load theme from database
+  // Sincronizar tema do banco em background (sem afetar UX inicial)
   useEffect(() => {
-    const loadTheme = async () => {
+    const syncThemeFromDatabase = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setIsLoading(false);
-          return;
-        }
+        if (!user) return;
 
         const { data: profile } = await supabase
           .from('profiles')
@@ -33,10 +41,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           .eq('user_id', user.id)
           .single();
 
-        if (!profile?.company_id) {
-          setIsLoading(false);
-          return;
-        }
+        if (!profile?.company_id) return;
 
         setCompanyId(profile.company_id);
 
@@ -47,20 +52,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (branding?.theme_mode) {
-          setThemeState(branding.theme_mode as ThemeMode);
-          applyTheme(branding.theme_mode as ThemeMode);
-        } else {
-          applyTheme('dark');
+          const dbTheme = branding.theme_mode as ThemeMode;
+          // Só atualiza se diferente do localStorage (outra sessão mudou)
+          if (dbTheme !== theme) {
+            setThemeState(dbTheme);
+            applyTheme(dbTheme);
+            localStorage.setItem('theme', dbTheme);
+          }
         }
       } catch (error) {
-        console.error('Error loading theme:', error);
-        applyTheme('dark');
-      } finally {
-        setIsLoading(false);
+        console.error('Error syncing theme from database:', error);
       }
     };
 
-    loadTheme();
+    syncThemeFromDatabase();
   }, []);
 
   const applyTheme = (newTheme: ThemeMode) => {
@@ -97,6 +102,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
       setThemeState(newTheme);
       applyTheme(newTheme);
+      localStorage.setItem('theme', newTheme);
 
       // Check if branding exists
       const { data: existing } = await supabase
