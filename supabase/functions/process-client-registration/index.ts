@@ -33,6 +33,17 @@ function convertBrazilDateToISO(dateStr: string): string | null {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
+interface VehicleData {
+  id: string
+  plate: string
+  brand: string
+  model: string
+  year: string
+  color: string
+  has_gnv: boolean
+  is_armored: boolean
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -45,7 +56,33 @@ serve(async (req) => {
 
     const formData = await req.formData()
     
-    // Extrair dados do formulário
+    // Extrair veículos do JSON
+    const vehiclesJson = formData.get('vehicles') as string
+    let vehicles: VehicleData[] = []
+    
+    try {
+      vehicles = JSON.parse(vehiclesJson || '[]')
+    } catch (e) {
+      console.error('Error parsing vehicles JSON:', e)
+      // Fallback para formato antigo (veículo único)
+      const singleVehicle = {
+        id: crypto.randomUUID(),
+        plate: formData.get('vehicle_plate') as string || '',
+        brand: formData.get('vehicle_brand') as string || '',
+        model: formData.get('vehicle_model') as string || '',
+        year: formData.get('vehicle_year') as string || '',
+        color: formData.get('vehicle_color') as string || '',
+        has_gnv: formData.get('has_gnv') === 'true',
+        is_armored: formData.get('is_armored') === 'true'
+      }
+      if (singleVehicle.plate) {
+        vehicles = [singleVehicle]
+      }
+    }
+
+    console.log(`Processing registration with ${vehicles.length} vehicles`)
+
+    // Extrair dados do formulário (sem dados de veículo individual)
     const registrationData = {
       company_id: formData.get('company_id') as string,
       name: formData.get('name') as string,
@@ -63,13 +100,14 @@ serve(async (req) => {
       emergency_contact_name: formData.get('emergency_contact_name') as string,
       emergency_contact_relationship: formData.get('emergency_contact_relationship') as string,
       emergency_contact_phone: formData.get('emergency_contact_phone') as string,
-      vehicle_plate: formData.get('vehicle_plate') as string,
-      vehicle_brand: formData.get('vehicle_brand') as string,
-      vehicle_model: formData.get('vehicle_model') as string,
-      vehicle_year: parseInt(formData.get('vehicle_year') as string),
-      vehicle_color: formData.get('vehicle_color') as string,
-      has_gnv: formData.get('has_gnv') === 'true',
-      is_armored: formData.get('is_armored') === 'true',
+      // Dados do primeiro veículo para retrocompatibilidade
+      vehicle_plate: vehicles[0]?.plate || '',
+      vehicle_brand: vehicles[0]?.brand || '',
+      vehicle_model: vehicles[0]?.model || '',
+      vehicle_year: parseInt(vehicles[0]?.year) || new Date().getFullYear(),
+      vehicle_color: vehicles[0]?.color || '',
+      has_gnv: vehicles[0]?.has_gnv || false,
+      is_armored: vehicles[0]?.is_armored || false,
     }
 
     console.log('Processing registration for:', registrationData.name)
@@ -123,7 +161,7 @@ serve(async (req) => {
       documentBackUrl = publicUrl
     }
 
-    // Inserir registro
+    // Inserir registro principal
     const { data: registration, error: insertError } = await supabase
       .from('client_registrations')
       .insert({
@@ -141,12 +179,39 @@ serve(async (req) => {
 
     console.log('Registration created successfully:', registration.id)
 
+    // Inserir veículos na tabela separada
+    if (vehicles.length > 0) {
+      const vehicleRecords = vehicles.map(v => ({
+        registration_id: registration.id,
+        vehicle_plate: v.plate,
+        vehicle_brand: v.brand,
+        vehicle_model: v.model,
+        vehicle_year: parseInt(v.year) || new Date().getFullYear(),
+        vehicle_color: v.color,
+        has_gnv: v.has_gnv || false,
+        is_armored: v.is_armored || false
+      }))
+
+      const { error: vehiclesError } = await supabase
+        .from('client_registration_vehicles')
+        .insert(vehicleRecords)
+
+      if (vehiclesError) {
+        console.error('Error inserting vehicles:', vehiclesError)
+        // Não falhar o cadastro por causa dos veículos na tabela separada
+        // já que mantemos retrocompatibilidade com os campos na tabela principal
+      } else {
+        console.log(`${vehicles.length} vehicles inserted successfully`)
+      }
+    }
+
     // Notificar admins sobre novo cadastro (não aguardar resposta)
     supabase.functions.invoke('notify-registration-admin', {
       body: {
         company_id: registrationData.company_id,
         registration_id: registration.id,
-        registration_name: registrationData.name
+        registration_name: registrationData.name,
+        vehicles_count: vehicles.length
       }
     }).catch(err => {
       console.error('Failed to notify admins:', err)
@@ -157,6 +222,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         registration_id: registration.id,
+        vehicles_count: vehicles.length,
         message: 'Cadastro enviado com sucesso!'
       }),
       { 

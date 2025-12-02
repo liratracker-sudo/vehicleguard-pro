@@ -10,9 +10,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, Clock, Eye, Trash2, RefreshCw } from "lucide-react"
+import { CheckCircle2, XCircle, Clock, Eye, Trash2, RefreshCw, Car, Fuel, Shield } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+
+interface RegistrationVehicle {
+  id: string
+  vehicle_plate: string
+  vehicle_brand: string
+  vehicle_model: string
+  vehicle_year: number
+  vehicle_color: string
+  has_gnv: boolean
+  is_armored: boolean
+  vehicle_id?: string
+}
 
 interface Registration {
   id: string
@@ -29,7 +41,6 @@ interface Registration {
   vehicle_year: number
   vehicle_color: string
   rejection_reason?: string
-  // Campos de endereço
   cep?: string
   street?: string
   number?: string
@@ -37,13 +48,12 @@ interface Registration {
   neighborhood?: string
   city?: string
   state?: string
-  // Contato de emergência
   emergency_contact_name?: string
   emergency_contact_phone?: string
   emergency_contact_relationship?: string
-  // Veículo
   has_gnv?: boolean
   is_armored?: boolean
+  vehicles?: RegistrationVehicle[]
 }
 
 export default function ClientRegistrations() {
@@ -74,9 +84,13 @@ export default function ClientRegistrations() {
 
       if (!profile) return
 
+      // Carregar registros com veículos relacionados
       const { data, error } = await supabase
         .from('client_registrations')
-        .select('*')
+        .select(`
+          *,
+          vehicles:client_registration_vehicles(*)
+        `)
         .eq('company_id', profile.company_id)
         .order('created_at', { ascending: false })
 
@@ -92,6 +106,27 @@ export default function ClientRegistrations() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Obter todos os veículos do cadastro (da tabela separada ou fallback para campo principal)
+  const getRegistrationVehicles = (registration: Registration): RegistrationVehicle[] => {
+    if (registration.vehicles && registration.vehicles.length > 0) {
+      return registration.vehicles
+    }
+    // Fallback para o veículo do campo principal (retrocompatibilidade)
+    if (registration.vehicle_plate) {
+      return [{
+        id: 'legacy',
+        vehicle_plate: registration.vehicle_plate,
+        vehicle_brand: registration.vehicle_brand,
+        vehicle_model: registration.vehicle_model,
+        vehicle_year: registration.vehicle_year,
+        vehicle_color: registration.vehicle_color,
+        has_gnv: registration.has_gnv || false,
+        is_armored: registration.is_armored || false
+      }]
+    }
+    return []
   }
 
   const handleApprove = async (registration: Registration) => {
@@ -189,59 +224,75 @@ export default function ClientRegistrations() {
         console.log('Novo cliente criado:', newClient.name)
       }
 
-      // 2. Verificar se já existe veículo com a mesma placa
-      const { data: existingVehicle } = await supabase
-        .from('vehicles')
-        .select('id, client_id, license_plate')
-        .eq('company_id', profile.company_id)
-        .eq('license_plate', registration.vehicle_plate)
-        .maybeSingle()
+      // 2. Processar todos os veículos
+      const vehicles = getRegistrationVehicles(registration)
+      const createdVehicles: string[] = []
 
-      let vehicleId: string
-
-      if (existingVehicle) {
-        // Se o veículo pertence a outro cliente, mostrar erro
-        if (existingVehicle.client_id !== clientId) {
-          const { data: otherClient } = await supabase
-            .from('clients')
-            .select('name')
-            .eq('id', existingVehicle.client_id)
-            .maybeSingle()
-
-          throw new Error(
-            `O veículo com placa ${registration.vehicle_plate} já está cadastrado para outro cliente${otherClient ? ` (${otherClient.name})` : ''}. ` +
-            `Verifique se a placa está correta ou transfira o veículo primeiro.`
-          )
-        }
-        // Usar veículo existente do mesmo cliente
-        vehicleId = existingVehicle.id
-        console.log('Veículo existente reutilizado:', existingVehicle.license_plate)
-      } else {
-        // Criar novo veículo com todos os dados
-        const { data: newVehicle, error: vehicleError } = await supabase
+      for (const vehicle of vehicles) {
+        // Verificar se já existe veículo com a mesma placa
+        const { data: existingVehicle } = await supabase
           .from('vehicles')
-          .insert({
-            company_id: profile.company_id,
-            client_id: clientId,
-            license_plate: registration.vehicle_plate,
-            brand: registration.vehicle_brand,
-            model: registration.vehicle_model,
-            year: registration.vehicle_year || new Date().getFullYear(),
-            color: registration.vehicle_color || 'Não especificada',
-            has_gnv: registration.has_gnv || false,
-            is_armored: registration.is_armored || false,
-            tracker_status: 'pending',
-            is_active: true
-          })
-          .select()
-          .single()
+          .select('id, client_id, license_plate')
+          .eq('company_id', profile.company_id)
+          .eq('license_plate', vehicle.vehicle_plate)
+          .maybeSingle()
 
-        if (vehicleError) {
-          console.error('Error creating vehicle:', vehicleError)
-          throw new Error('Erro ao criar veículo')
+        let vehicleId: string
+
+        if (existingVehicle) {
+          // Se o veículo pertence a outro cliente, mostrar erro
+          if (existingVehicle.client_id !== clientId) {
+            const { data: otherClient } = await supabase
+              .from('clients')
+              .select('name')
+              .eq('id', existingVehicle.client_id)
+              .maybeSingle()
+
+            throw new Error(
+              `O veículo com placa ${vehicle.vehicle_plate} já está cadastrado para outro cliente${otherClient ? ` (${otherClient.name})` : ''}. ` +
+              `Verifique se a placa está correta ou transfira o veículo primeiro.`
+            )
+          }
+          // Usar veículo existente do mesmo cliente
+          vehicleId = existingVehicle.id
+          console.log('Veículo existente reutilizado:', existingVehicle.license_plate)
+        } else {
+          // Criar novo veículo
+          const { data: newVehicle, error: vehicleError } = await supabase
+            .from('vehicles')
+            .insert({
+              company_id: profile.company_id,
+              client_id: clientId,
+              license_plate: vehicle.vehicle_plate,
+              brand: vehicle.vehicle_brand,
+              model: vehicle.vehicle_model,
+              year: vehicle.vehicle_year || new Date().getFullYear(),
+              color: vehicle.vehicle_color || 'Não especificada',
+              has_gnv: vehicle.has_gnv || false,
+              is_armored: vehicle.is_armored || false,
+              tracker_status: 'pending',
+              is_active: true
+            })
+            .select()
+            .single()
+
+          if (vehicleError) {
+            console.error('Error creating vehicle:', vehicleError)
+            throw new Error(`Erro ao criar veículo ${vehicle.vehicle_plate}`)
+          }
+          vehicleId = newVehicle.id
+          console.log('Novo veículo criado:', newVehicle.license_plate)
         }
-        vehicleId = newVehicle.id
-        console.log('Novo veículo criado:', newVehicle.license_plate)
+
+        createdVehicles.push(vehicle.vehicle_plate)
+
+        // Atualizar referência na tabela de veículos do registro (se existir)
+        if (vehicle.id !== 'legacy') {
+          await supabase
+            .from('client_registration_vehicles')
+            .update({ vehicle_id: vehicleId })
+            .eq('id', vehicle.id)
+        }
       }
 
       // 3. Atualizar status do registro
@@ -252,7 +303,7 @@ export default function ClientRegistrations() {
           reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
           client_id: clientId,
-          vehicle_id: vehicleId
+          vehicle_id: vehicles[0] ? undefined : undefined // Mantém compatibilidade
         })
         .eq('id', registration.id)
 
@@ -262,13 +313,13 @@ export default function ClientRegistrations() {
       }
 
       // Enviar notificação WhatsApp ao cliente
+      const vehiclesText = createdVehicles.map(plate => `• ${plate}`).join('\n')
       const approvalMessage = `✅ *Cadastro Aprovado!*\n\n` +
         `Olá ${registration.name}!\n\n` +
         `Seu cadastro foi aprovado com sucesso! ` +
         `Bem-vindo(a) ao nosso sistema.\n\n` +
-        `Dados aprovados:\n` +
-        `• Veículo: ${registration.vehicle_brand} ${registration.vehicle_model}\n` +
-        `• Placa: ${registration.vehicle_plate}\n\n` +
+        `${vehicles.length > 1 ? 'Veículos aprovados' : 'Veículo aprovado'}:\n` +
+        vehiclesText + `\n\n` +
         `Em breve entraremos em contato para os próximos passos.`
 
       // Enviar notificação (não aguardar para não travar a UI)
@@ -283,9 +334,7 @@ export default function ClientRegistrations() {
 
       toast({
         title: "Cadastro aprovado!",
-        description: existingClient 
-          ? "Cliente atualizado e veículo vinculado com sucesso." 
-          : "Cliente e veículo criados com sucesso."
+        description: `${vehicles.length} veículo(s) ${existingClient ? 'vinculado(s)' : 'criado(s)'} com sucesso.`
       })
 
       setDetailsOpen(false)
@@ -534,68 +583,72 @@ export default function ClientRegistrations() {
                   </CardContent>
                 </Card>
               ) : (
-                filteredRegistrations(status).map((registration) => (
-                  <Card key={registration.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle>{registration.name}</CardTitle>
-                          <CardDescription>
-                            {registration.vehicle_brand} {registration.vehicle_model} - {registration.vehicle_plate}
-                          </CardDescription>
+                filteredRegistrations(status).map((registration) => {
+                  const vehicles = getRegistrationVehicles(registration)
+                  return (
+                    <Card key={registration.id}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle>{registration.name}</CardTitle>
+                            <CardDescription className="flex items-center gap-2">
+                              <Car className="h-4 w-4" />
+                              {vehicles.length} veículo(s) - {vehicles.map(v => v.vehicle_plate).join(', ')}
+                            </CardDescription>
+                          </div>
+                          {getStatusBadge(registration.status)}
                         </div>
-                        {getStatusBadge(registration.status)}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <p><span className="font-medium">Telefone:</span> {registration.phone}</p>
-                        <p><span className="font-medium">CPF:</span> {registration.document}</p>
-                        <p><span className="font-medium">Data de cadastro:</span> {format(new Date(registration.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
-                        {registration.rejection_reason && (
-                          <p className="text-destructive">
-                            <span className="font-medium">Motivo da rejeição:</span> {registration.rejection_reason}
-                          </p>
-                        )}
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedRegistration(registration)
-                            setDetailsOpen(true)
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Ver Detalhes
-                        </Button>
-                        {registration.status === 'rejected' && (
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm">
+                          <p><span className="font-medium">Telefone:</span> {registration.phone}</p>
+                          <p><span className="font-medium">CPF:</span> {registration.document}</p>
+                          <p><span className="font-medium">Data de cadastro:</span> {format(new Date(registration.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+                          {registration.rejection_reason && (
+                            <p className="text-destructive">
+                              <span className="font-medium">Motivo da rejeição:</span> {registration.rejection_reason}
+                            </p>
+                          )}
+                        </div>
+                        <div className="mt-4 flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleReevaluate(registration)}
-                            disabled={processing}
+                            onClick={() => {
+                              setSelectedRegistration(registration)
+                              setDetailsOpen(true)
+                            }}
                           >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Reavaliar
+                            <Eye className="h-4 w-4 mr-2" />
+                            Ver Detalhes
                           </Button>
-                        )}
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            setRegistrationToDelete(registration)
-                            setDeleteDialogOpen(true)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                          {registration.status === 'rejected' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReevaluate(registration)}
+                              disabled={processing}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Reavaliar
+                            </Button>
+                          )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              setRegistrationToDelete(registration)
+                              setDeleteDialogOpen(true)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })
               )}
             </TabsContent>
           ))}
@@ -642,17 +695,90 @@ export default function ClientRegistrations() {
                 </div>
               </div>
 
+              {/* Endereço */}
+              {selectedRegistration.street && (
+                <div>
+                  <h3 className="font-semibold mb-2">Endereço</h3>
+                  <div className="text-sm">
+                    <p className="font-medium">
+                      {selectedRegistration.street}, {selectedRegistration.number}
+                      {selectedRegistration.complement ? `, ${selectedRegistration.complement}` : ''}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {selectedRegistration.neighborhood}, {selectedRegistration.city}-{selectedRegistration.state}
+                    </p>
+                    <p className="text-muted-foreground">CEP: {selectedRegistration.cep}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Contato de Emergência */}
+              {selectedRegistration.emergency_contact_name && (
+                <div>
+                  <h3 className="font-semibold mb-2">Contato de Emergência</h3>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Nome</p>
+                      <p className="font-medium">{selectedRegistration.emergency_contact_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Parentesco</p>
+                      <p className="font-medium">{selectedRegistration.emergency_contact_relationship}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Telefone</p>
+                      <p className="font-medium">{selectedRegistration.emergency_contact_phone}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Veículos */}
               <div>
-                <h3 className="font-semibold mb-2">Dados do Veículo</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Placa</p>
-                    <p className="font-medium">{selectedRegistration.vehicle_plate}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Marca/Modelo</p>
-                    <p className="font-medium">{selectedRegistration.vehicle_brand} {selectedRegistration.vehicle_model}</p>
-                  </div>
+                <h3 className="font-semibold mb-2 flex items-center gap-2">
+                  <Car className="h-4 w-4" />
+                  Veículos ({getRegistrationVehicles(selectedRegistration).length})
+                </h3>
+                <div className="space-y-3">
+                  {getRegistrationVehicles(selectedRegistration).map((vehicle, index) => (
+                    <div key={vehicle.id} className="p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">Veículo {index + 1}</span>
+                        <div className="flex gap-1">
+                          {vehicle.has_gnv && (
+                            <Badge variant="outline" className="text-xs">
+                              <Fuel className="h-3 w-3 mr-1" />
+                              GNV
+                            </Badge>
+                          )}
+                          {vehicle.is_armored && (
+                            <Badge variant="outline" className="text-xs">
+                              <Shield className="h-3 w-3 mr-1" />
+                              Blindado
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Placa</p>
+                          <p className="font-medium">{vehicle.vehicle_plate}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Marca/Modelo</p>
+                          <p className="font-medium">{vehicle.vehicle_brand} {vehicle.vehicle_model}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Ano</p>
+                          <p className="font-medium">{vehicle.vehicle_year}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Cor</p>
+                          <p className="font-medium">{vehicle.vehicle_color}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
