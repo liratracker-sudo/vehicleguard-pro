@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { ClientForm } from "@/components/clients/ClientForm"
 import { useClients } from "@/hooks/useClients"
 import { useAsaasImport } from "@/hooks/useAsaasImport"
@@ -148,13 +149,15 @@ const ClientsPage = () => {
                   Novo Cliente
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <ClientForm
-                  clientId={selectedClient || undefined}
-                  onSuccess={handleDialogClose}
-                  onCancel={handleDialogClose}
-                  readOnly={viewMode === 'view'}
-                />
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+                <ScrollArea className="flex-1 p-6">
+                  <ClientForm
+                    clientId={selectedClient || undefined}
+                    onSuccess={handleDialogClose}
+                    onCancel={handleDialogClose}
+                    readOnly={viewMode === 'view'}
+                  />
+                </ScrollArea>
               </DialogContent>
             </Dialog>
           </div>
