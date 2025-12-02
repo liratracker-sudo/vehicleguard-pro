@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,9 @@ import { supabase } from "@/integrations/supabase/client"
 import { toast } from "sonner"
 
 const ContractsPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const clientIdFilter = searchParams.get('client_id')
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingContract, setEditingContract] = useState<string | null>(null)
@@ -43,11 +47,22 @@ const ContractsPage = () => {
   
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
-  const filteredContracts = contracts.filter(contract =>
-    contract.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.plans?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.vehicles?.license_plate?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const clearClientFilter = () => {
+    setSearchParams({})
+  }
+
+  const filteredClientName = clientIdFilter 
+    ? contracts.find(c => c.client_id === clientIdFilter)?.clients?.name 
+    : null
+
+  const filteredContracts = contracts.filter(contract => {
+    const matchesClient = !clientIdFilter || contract.client_id === clientIdFilter
+    const matchesSearch = 
+      contract.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contract.plans?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contract.vehicles?.license_plate?.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesClient && matchesSearch
+  })
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -227,6 +242,17 @@ const ContractsPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {clientIdFilter && (
+              <div className="flex items-center gap-2 mb-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <FileText className="w-4 h-4 text-primary" />
+                <span className="text-sm">
+                  Filtrando contratos de: <strong>{filteredClientName || 'Cliente'}</strong>
+                </span>
+                <Button variant="ghost" size="sm" onClick={clearClientFilter} className="ml-auto">
+                  Limpar filtro
+                </Button>
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

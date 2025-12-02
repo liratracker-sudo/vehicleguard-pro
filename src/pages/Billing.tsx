@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +25,9 @@ import {
 
 const BillingPage = () => {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const clientIdFilter = searchParams.get('client_id')
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filters, setFilters] = useState<BillingFiltersState>({
     search: "",
@@ -80,9 +83,22 @@ const BillingPage = () => {
     })
   }
 
+  const clearClientFilter = () => {
+    setSearchParams({})
+  }
+
+  const filteredClientName = clientIdFilter 
+    ? payments.find(p => p.client_id === clientIdFilter)?.clients?.name 
+    : null
+
   const filteredPayments = payments.filter(payment => {
     // Exclude cancelled payments (deleted charges should not be visible)
     if (payment.status === 'cancelled') {
+      return false
+    }
+
+    // Client filter from URL
+    if (clientIdFilter && payment.client_id !== clientIdFilter) {
       return false
     }
 
@@ -291,6 +307,17 @@ const BillingPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {clientIdFilter && (
+                  <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                    <span className="text-sm">
+                      Filtrando cobranças de: <strong>{filteredClientName || 'Cliente'}</strong>
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={clearClientFilter} className="ml-auto">
+                      Limpar filtro
+                    </Button>
+                  </div>
+                )}
                 <BillingFilters 
                   filters={filters}
                   onFiltersChange={setFilters}
