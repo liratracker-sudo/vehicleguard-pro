@@ -1,10 +1,11 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, Download } from "lucide-react"
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, Download, FileText, History } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -29,12 +30,21 @@ import { useFixAddresses } from "@/hooks/useFixAddresses"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const ClientsPage = () => {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { clients, loading, deleteClient, loadClients } = useClients()
   const { importing, importCustomers } = useAsaasImport()
   const { fixing, fixAddresses } = useFixAddresses()
+
+  const handleViewContracts = (clientId: string) => {
+    navigate(`/contracts?client_id=${clientId}`)
+  }
+
+  const handleViewPaymentHistory = (clientId: string) => {
+    navigate(`/billing?client_id=${clientId}`)
+  }
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -308,9 +318,15 @@ const ClientsPage = () => {
                                 <Edit className="w-4 h-4 mr-2" />
                                 Editar cliente
                               </DropdownMenuItem>
-                              <DropdownMenuItem>Ver contratos</DropdownMenuItem>
-                              <DropdownMenuItem>Histórico de pagamentos</DropdownMenuItem>
-                              <DropdownMenuItem 
+                              <DropdownMenuItem onClick={() => handleViewContracts(client.id)}>
+                                <FileText className="w-4 h-4 mr-2" />
+                                Ver contratos
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleViewPaymentHistory(client.id)}>
+                                <History className="w-4 h-4 mr-2" />
+                                Histórico de pagamentos
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => handleDeleteClient(client.id, client.name)}
                               >
