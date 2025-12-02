@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, FileText, Send, AlertCircle, Eye } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { CalendarIcon, FileText, Send, AlertCircle, Eye, Car } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -27,7 +27,7 @@ interface ContractFormProps {
 export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormProps) {
   const [formData, setFormData] = useState({
     client_id: "",
-    vehicle_id: "",
+    vehicle_ids: [] as string[],
     plan_id: "",
     monthly_value: 0,
     start_date: new Date(),
@@ -92,22 +92,38 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
       if (contractId) {
         console.log('✏️ Carregando contrato para edição:', contractId);
         
-        const { data: contract, error } = await supabase
-          .from('contracts')
-          .select('*')
-          .eq('id', contractId)
-          .maybeSingle()
+        const [contractRes, vehiclesContractRes] = await Promise.all([
+          supabase
+            .from('contracts')
+            .select('*')
+            .eq('id', contractId)
+            .maybeSingle(),
+          supabase
+            .from('contract_vehicles')
+            .select('vehicle_id')
+            .eq('contract_id', contractId)
+        ])
 
-        if (error) {
-          console.error('❌ Erro ao carregar contrato:', error);
-          throw error;
+        if (contractRes.error) {
+          console.error('❌ Erro ao carregar contrato:', contractRes.error);
+          throw contractRes.error;
         }
+
+        const contract = contractRes.data;
+        const contractVehicleIds = vehiclesContractRes.data?.map(cv => cv.vehicle_id) || [];
 
         if (contract) {
           console.log('✅ Contrato carregado:', contract);
+          // Se tem vehicle_id antigo e não tem na nova tabela, migrar
+          const vehicleIds = contractVehicleIds.length > 0 
+            ? contractVehicleIds 
+            : contract.vehicle_id 
+              ? [contract.vehicle_id] 
+              : [];
+          
           setFormData({
             client_id: contract.client_id,
-            vehicle_id: contract.vehicle_id || "",
+            vehicle_ids: vehicleIds,
             plan_id: contract.plan_id,
             monthly_value: contract.monthly_value,
             start_date: new Date(contract.start_date),
@@ -135,15 +151,39 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
   }, [contractId])
 
   const handleClientChange = (clientId: string) => {
-    setFormData({...formData, client_id: clientId, vehicle_id: ""})
+    setFormData({...formData, client_id: clientId, vehicle_ids: []})
   }
 
   const handlePlanChange = (planId: string) => {
     const plan = plans.find(p => p.id === planId)
+    // Sugerir valor baseado no plano e quantidade de veículos
+    const vehicleCount = formData.vehicle_ids.length || 1
+    const suggestedValue = plan ? plan.price * vehicleCount : 0
+    
     setFormData({
       ...formData, 
       plan_id: planId,
-      monthly_value: plan ? plan.price : 0
+      monthly_value: suggestedValue
+    })
+  }
+
+  const handleVehicleToggle = (vehicleId: string, checked: boolean) => {
+    let newVehicleIds: string[]
+    if (checked) {
+      newVehicleIds = [...formData.vehicle_ids, vehicleId]
+    } else {
+      newVehicleIds = formData.vehicle_ids.filter(id => id !== vehicleId)
+    }
+    
+    // Atualizar sugestão de valor se tiver plano selecionado
+    const plan = plans.find(p => p.id === formData.plan_id)
+    const vehicleCount = newVehicleIds.length || 1
+    const suggestedValue = plan ? plan.price * vehicleCount : formData.monthly_value
+    
+    setFormData({
+      ...formData, 
+      vehicle_ids: newVehicleIds,
+      monthly_value: suggestedValue
     })
   }
 
@@ -174,13 +214,11 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
     try {
       setLoading(true)
       
-      // Get client and contract details
       const selectedClient = clients.find(c => c.id === formData.client_id)
       if (!selectedClient) {
         throw new Error("Cliente não encontrado")
       }
 
-      // Call Assinafy integration
       const response = await supabase.functions.invoke('assinafy-integration', {
         body: {
           action: 'createDocument',
@@ -206,7 +244,6 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         throw new Error(errorMsg);
       }
 
-      // Update contract with Assinafy document ID and signing URL
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
@@ -246,9 +283,17 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
     }
   }
 
+  const getSelectedVehicles = () => {
+    return vehicles.filter(v => formData.vehicle_ids.includes(v.id))
+  }
+
   const replaceTemplateVariables = (template: string, client: any) => {
     const selectedPlan = plans.find(p => p.id === formData.plan_id)
-    const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id)
+    const selectedVehicles = getSelectedVehicles()
+    
+    const vehiclesInfo = selectedVehicles.length > 0
+      ? selectedVehicles.map(v => `${v.license_plate} - ${v.brand} ${v.model}`).join('\n')
+      : 'Não especificado'
     
     return template
       .replace(/\{\{cliente_nome\}\}/g, client.name || '')
@@ -257,7 +302,7 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
       .replace(/\{\{cliente_documento\}\}/g, client.document || '')
       .replace(/\{\{plano_nome\}\}/g, selectedPlan?.name || 'Não especificado')
       .replace(/\{\{valor_mensal\}\}/g, `R$ ${formData.monthly_value.toFixed(2)}`)
-      .replace(/\{\{veiculo_info\}\}/g, selectedVehicle ? `${selectedVehicle.license_plate} - ${selectedVehicle.brand} ${selectedVehicle.model}` : 'Não especificado')
+      .replace(/\{\{veiculo_info\}\}/g, vehiclesInfo)
       .replace(/\{\{data_inicio\}\}/g, format(formData.start_date, 'dd/MM/yyyy'))
       .replace(/\{\{data_fim\}\}/g, formData.end_date ? `até ${format(formData.end_date, 'dd/MM/yyyy')}` : '(prazo indeterminado)')
   }
@@ -269,9 +314,12 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
       return replaceTemplateVariables(selectedTemplate.content, client)
     }
     
-    // Fallback to default template
     const selectedPlan = plans.find(p => p.id === formData.plan_id)
-    const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id)
+    const selectedVehicles = getSelectedVehicles()
+    
+    const vehiclesSection = selectedVehicles.length > 0
+      ? `VEÍCULOS COBERTOS:\n${selectedVehicles.map((v, i) => `${i + 1}. ${v.license_plate} - ${v.brand} ${v.model}`).join('\n')}`
+      : ''
     
     return `
 CONTRATO DE PRESTAÇÃO DE SERVIÇOS
@@ -283,7 +331,7 @@ Telefone: ${client.phone}
 PLANO: ${selectedPlan?.name || 'Não especificado'}
 VALOR MENSAL: R$ ${formData.monthly_value.toFixed(2)}
 
-${selectedVehicle ? `VEÍCULO: ${selectedVehicle.license_plate} - ${selectedVehicle.brand} ${selectedVehicle.model}` : ''}
+${vehiclesSection}
 
 VIGÊNCIA: ${format(formData.start_date, 'dd/MM/yyyy')} ${formData.end_date ? `até ${format(formData.end_date, 'dd/MM/yyyy')}` : '(prazo indeterminado)'}
 
@@ -299,8 +347,12 @@ Assinatura do Contratante
   const getPreviewData = () => {
     const selectedClient = clients.find(c => c.id === formData.client_id)
     const selectedPlan = plans.find(p => p.id === formData.plan_id)
-    const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id)
+    const selectedVehicles = getSelectedVehicles()
     const selectedTemplate = templates.find(t => t.id === formData.template_id)
+
+    const vehiclesInfo = selectedVehicles.length > 0
+      ? selectedVehicles.map(v => `${v.license_plate} - ${v.brand} ${v.model}`).join(', ')
+      : 'Não aplicável'
 
     const defaultTemplate = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 
@@ -316,7 +368,7 @@ A contratada se compromete a prestar os seguintes serviços:
 
 PLANO: {{plano_nome}}
 VALOR MENSAL: {{valor_mensal}}
-VEÍCULO: {{veiculo_info}}
+VEÍCULO(S): {{veiculo_info}}
 
 VIGÊNCIA: {{data_inicio}} {{data_fim}}
 
@@ -351,9 +403,7 @@ Contratada`
       clientDocument: selectedClient?.document || '',
       planName: selectedPlan?.name || '',
       monthlyValue: formData.monthly_value,
-      vehicleInfo: selectedVehicle 
-        ? `${selectedVehicle.license_plate} - ${selectedVehicle.brand} ${selectedVehicle.model}` 
-        : 'Não aplicável',
+      vehicleInfo: vehiclesInfo,
       startDate: formData.start_date,
       endDate: formData.end_date,
       templateContent: selectedTemplate?.content || defaultTemplate
@@ -416,7 +466,7 @@ Contratada`
       const contractData = {
         client_id: formData.client_id,
         plan_id: formData.plan_id,
-        vehicle_id: formData.vehicle_id || null,
+        vehicle_id: null, // Deprecated - usando contract_vehicles agora
         monthly_value: formData.monthly_value,
         start_date: formData.start_date.toISOString().split('T')[0],
         end_date: formData.end_date ? formData.end_date.toISOString().split('T')[0] : null,
@@ -440,6 +490,23 @@ Contratada`
         
         if (error) throw error;
         result = data;
+
+        // Atualizar veículos: remover antigos e inserir novos
+        await supabase
+          .from('contract_vehicles')
+          .delete()
+          .eq('contract_id', contractId)
+
+        if (formData.vehicle_ids.length > 0) {
+          const { error: vehiclesError } = await supabase
+            .from('contract_vehicles')
+            .insert(formData.vehicle_ids.map(vid => ({
+              contract_id: contractId,
+              vehicle_id: vid
+            })))
+          
+          if (vehiclesError) throw vehiclesError
+        }
       } else {
         // Criar novo contrato
         const { data, error } = await supabase
@@ -450,6 +517,18 @@ Contratada`
         
         if (error) throw error;
         result = data;
+
+        // Inserir veículos relacionados
+        if (formData.vehicle_ids.length > 0) {
+          const { error: vehiclesError } = await supabase
+            .from('contract_vehicles')
+            .insert(formData.vehicle_ids.map(vid => ({
+              contract_id: result.id,
+              vehicle_id: vid
+            })))
+          
+          if (vehiclesError) throw vehiclesError
+        }
       }
 
       console.log('✅ Contrato salvo com sucesso:', result);
@@ -498,6 +577,11 @@ Contratada`
   const filteredVehicles = vehicles.filter(v => 
     !formData.client_id || v.client_id === formData.client_id
   )
+
+  // Calcular valor sugerido
+  const selectedPlan = plans.find(p => p.id === formData.plan_id)
+  const vehicleCount = formData.vehicle_ids.length || 1
+  const suggestedValue = selectedPlan ? selectedPlan.price * vehicleCount : 0
 
   return (
     <Card>
@@ -573,28 +657,6 @@ Contratada`
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="vehicle_id">Veículo (Opcional)</Label>
-                  <Select 
-                    value={formData.vehicle_id || "none"}
-                    onValueChange={(value) => setFormData({...formData, vehicle_id: value === "none" ? "" : value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o veículo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum veículo</SelectItem>
-                      {filteredVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle.id} value={vehicle.id}>
-                          {vehicle.license_plate} - {vehicle.brand} {vehicle.model}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
                   <Label htmlFor="plan_id">Plano *</Label>
                   <Select 
                     value={formData.plan_id}
@@ -616,6 +678,54 @@ Contratada`
                     <p className="text-sm text-destructive mt-1">{errors.plan_id}</p>
                   )}
                 </div>
+              </div>
+
+              {/* Seleção múltipla de veículos */}
+              {formData.client_id && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Car className="h-4 w-4" />
+                    Veículos do Contrato
+                    {formData.vehicle_ids.length > 0 && (
+                      <Badge variant="secondary">{formData.vehicle_ids.length} selecionado(s)</Badge>
+                    )}
+                  </Label>
+                  <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
+                    {filteredVehicles.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Nenhum veículo cadastrado para este cliente
+                      </p>
+                    ) : (
+                      filteredVehicles.map((vehicle) => (
+                        <div 
+                          key={vehicle.id} 
+                          className="flex items-center space-x-3 p-2 rounded hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={`vehicle-${vehicle.id}`}
+                            checked={formData.vehicle_ids.includes(vehicle.id)}
+                            onCheckedChange={(checked) => handleVehicleToggle(vehicle.id, checked as boolean)}
+                          />
+                          <label 
+                            htmlFor={`vehicle-${vehicle.id}`}
+                            className="text-sm font-medium leading-none cursor-pointer flex-1"
+                          >
+                            <span className="font-semibold">{vehicle.license_plate}</span>
+                            <span className="text-muted-foreground ml-2">
+                              {vehicle.brand} {vehicle.model}
+                            </span>
+                          </label>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selecione os veículos que serão cobertos por este contrato
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="template_id">Modelo de Contrato</Label>
                   <Select 
@@ -650,6 +760,11 @@ Contratada`
                     className={errors.monthly_value ? "border-destructive" : ""}
                     required
                   />
+                  {selectedPlan && formData.vehicle_ids.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sugerido: R$ {suggestedValue.toFixed(2)} ({vehicleCount} veículo(s) × R$ {selectedPlan.price.toFixed(2)})
+                    </p>
+                  )}
                   {errors.monthly_value && (
                     <p className="text-sm text-destructive mt-1">{errors.monthly_value}</p>
                   )}
