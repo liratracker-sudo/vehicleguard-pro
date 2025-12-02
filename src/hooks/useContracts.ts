@@ -2,12 +2,19 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+export interface ContractVehicle {
+  id: string;
+  license_plate: string;
+  model: string;
+  brand: string;
+}
+
 export interface Contract {
   id: string;
   company_id: string;
   client_id: string;
   plan_id: string;
-  vehicle_id: string | null;
+  vehicle_id: string | null; // Deprecated
   start_date: string;
   end_date: string | null;
   monthly_value: number;
@@ -15,7 +22,7 @@ export interface Contract {
   contract_type: string;
   signature_status: string;
   document_url: string | null;
-  autentique_document_id: string | null; // Corrigido: esta coluna existe no DB
+  autentique_document_id: string | null;
   signed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -31,11 +38,8 @@ export interface Contract {
     description?: string;
     price: number;
   } | null;
-  vehicles?: {
-    license_plate: string;
-    model: string;
-    brand: string;
-  } | null;
+  vehicles?: ContractVehicle | null; // Retrocompatibilidade
+  contract_vehicles?: ContractVehicle[]; // Nova estrutura
 }
 
 export function useContracts() {
@@ -63,7 +67,7 @@ export function useContracts() {
         throw new Error('Perfil da empresa não encontrado');
       }
 
-      // Buscar contratos básicos primeiro
+      // Buscar contratos básicos
       const { data: contractsData, error: contractsError } = await supabase
         .from('contracts')
         .select('*')
@@ -74,8 +78,8 @@ export function useContracts() {
         throw contractsError;
       }
 
-      // Buscar dados relacionados separadamente
-      const [clientsData, plansData, vehiclesData] = await Promise.all([
+      // Buscar dados relacionados
+      const [clientsData, plansData, vehiclesData, contractVehiclesData] = await Promise.all([
         supabase
           .from('clients')
           .select('id, name, phone, email, document')
@@ -87,14 +91,28 @@ export function useContracts() {
         supabase
           .from('vehicles')
           .select('id, license_plate, model, brand')
-          .eq('company_id', profile.company_id)
+          .eq('company_id', profile.company_id),
+        supabase
+          .from('contract_vehicles')
+          .select('contract_id, vehicle_id')
       ]);
 
       // Mapear dados relacionados aos contratos
       const enrichedContracts = (contractsData || []).map(contract => {
         const client = clientsData.data?.find(c => c.id === contract.client_id);
         const plan = plansData.data?.find(p => p.id === contract.plan_id);
-        const vehicle = contract.vehicle_id 
+        
+        // Buscar veículos da nova tabela
+        const contractVehicleIds = contractVehiclesData.data
+          ?.filter(cv => cv.contract_id === contract.id)
+          .map(cv => cv.vehicle_id) || [];
+        
+        const contractVehicles = vehiclesData.data?.filter(v => 
+          contractVehicleIds.includes(v.id)
+        ) || [];
+
+        // Retrocompatibilidade: se não tem na nova tabela mas tem vehicle_id antigo
+        const legacyVehicle = contract.vehicle_id && contractVehicles.length === 0
           ? vehiclesData.data?.find(v => v.id === contract.vehicle_id)
           : null;
 
@@ -102,7 +120,8 @@ export function useContracts() {
           ...contract,
           clients: client,
           plans: plan,
-          vehicles: vehicle
+          vehicles: contractVehicles[0] || legacyVehicle || null, // Para exibição simples
+          contract_vehicles: contractVehicles.length > 0 ? contractVehicles : (legacyVehicle ? [legacyVehicle] : [])
         };
       });
 
@@ -122,7 +141,7 @@ export function useContracts() {
   const createContract = async (contractData: {
     client_id: string;
     plan_id: string;
-    vehicle_id?: string;
+    vehicle_ids?: string[];
     start_date: string;
     end_date?: string;
     monthly_value: number;
@@ -145,10 +164,12 @@ export function useContracts() {
         throw new Error('Perfil da empresa não encontrado');
       }
 
+      const { vehicle_ids, ...rest } = contractData;
+
       const { data, error } = await supabase
         .from('contracts')
         .insert({
-          ...contractData,
+          ...rest,
           company_id: profile.company_id,
           status: 'active',
           signature_status: 'pending',
@@ -161,12 +182,24 @@ export function useContracts() {
         throw error;
       }
 
+      // Inserir veículos relacionados
+      if (vehicle_ids && vehicle_ids.length > 0) {
+        const { error: vehiclesError } = await supabase
+          .from('contract_vehicles')
+          .insert(vehicle_ids.map(vid => ({
+            contract_id: data.id,
+            vehicle_id: vid
+          })));
+        
+        if (vehiclesError) throw vehiclesError;
+      }
+
       toast({
         title: "Sucesso",
         description: "Contrato criado com sucesso!"
       });
 
-      await loadContracts(); // Recarregar a lista
+      await loadContracts();
       return data;
     } catch (error: any) {
       console.error('Erro ao criar contrato:', error);
@@ -195,7 +228,7 @@ export function useContracts() {
         description: "Contrato atualizado com sucesso!"
       });
 
-      await loadContracts(); // Recarregar a lista
+      await loadContracts();
     } catch (error: any) {
       console.error('Erro ao atualizar contrato:', error);
       toast({
@@ -209,6 +242,7 @@ export function useContracts() {
 
   const deleteContract = async (contractId: string) => {
     try {
+      // contract_vehicles será deletado automaticamente via CASCADE
       const { error } = await supabase
         .from('contracts')
         .delete()
@@ -223,7 +257,7 @@ export function useContracts() {
         description: "Contrato removido com sucesso!"
       });
 
-      await loadContracts(); // Recarregar a lista
+      await loadContracts();
     } catch (error: any) {
       console.error('Erro ao remover contrato:', error);
       toast({
@@ -269,7 +303,6 @@ export function useContracts() {
 
       console.log('Iniciando envio para assinatura - Contrato:', contractId)
 
-      // Get client details
       const { data: client } = await supabase
         .from('clients')
         .select('name, email, phone, document')
@@ -286,14 +319,12 @@ export function useContracts() {
 
       console.log('Cliente encontrado:', { name: client.name, email: client.email })
 
-      // Get plan details  
       const { data: plan } = await supabase
         .from('plans')
         .select('name, description, price')
         .eq('id', contract.plan_id)
         .single()
 
-      // Call Assinafy integration
       console.log('Chamando API Assinafy para criar documento...')
       
       const response = await supabase.functions.invoke('assinafy-integration', {
@@ -325,7 +356,6 @@ export function useContracts() {
       const signingUrl = response.data.signing_url
       console.log('Documento criado com sucesso. ID:', documentId)
 
-      // Update contract with Assinafy document ID and signing URL
       const { error: updateError } = await supabase
         .from('contracts')
         .update({ 
@@ -337,10 +367,8 @@ export function useContracts() {
 
       if (updateError) throw updateError
 
-      // Send WhatsApp notifications to client and company
       console.log('Enviando notificações WhatsApp...')
       
-      // Get current user and company info
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profile } = await supabase
@@ -356,7 +384,6 @@ export function useContracts() {
             .eq('id', profile.company_id)
             .maybeSingle()
 
-          // Send to client
           const clientMessage = `Olá ${client.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\nAcesse o link abaixo para assinar:\n${signingUrl}\n\nEm caso de dúvidas, entre em contato.`
           
           try {
@@ -375,7 +402,6 @@ export function useContracts() {
             console.error('Erro ao enviar WhatsApp para cliente:', whatsappError)
           }
 
-          // Send to company if phone exists
           if (company?.phone) {
             const companyMessage = `📄 Novo contrato enviado para assinatura!\n\nCliente: ${client.name}\nContrato: ${contract.id.substring(0, 8)}\n\nLink de assinatura:\n${signingUrl}`
             
@@ -405,7 +431,6 @@ export function useContracts() {
 
       await loadContracts()
       
-      // Auto-sync after 5 seconds
       setTimeout(async () => {
         console.log('Auto-sincronizando status após envio...')
         const statusChanged = await syncContractStatus(contractId, documentId)
@@ -425,6 +450,13 @@ export function useContracts() {
   }
 
   const generateContractContent = (contract: Contract, client: any, plan: any) => {
+    // Gerar seção de veículos
+    const vehiclesSection = contract.contract_vehicles && contract.contract_vehicles.length > 0
+      ? `VEÍCULOS COBERTOS:\n${contract.contract_vehicles.map((v, i) => `${i + 1}. ${v.license_plate} - ${v.brand} ${v.model}`).join('\n')}`
+      : contract.vehicles
+        ? `VEÍCULO: ${contract.vehicles.license_plate} - ${contract.vehicles.brand} ${contract.vehicles.model}`
+        : ''
+
     return `
 CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 
@@ -437,7 +469,7 @@ PLANO: ${plan?.name || 'Não especificado'}
 ${plan?.description ? `DESCRIÇÃO: ${plan.description}` : ''}
 VALOR MENSAL: R$ ${contract.monthly_value.toFixed(2)}
 
-${contract.vehicles ? `VEÍCULO: ${contract.vehicles.license_plate} - ${contract.vehicles.brand} ${contract.vehicles.model}` : ''}
+${vehiclesSection}
 
 VIGÊNCIA: ${new Date(contract.start_date).toLocaleDateString('pt-BR')} ${contract.end_date ? `até ${new Date(contract.end_date).toLocaleDateString('pt-BR')}` : '(prazo indeterminado)'}
 
@@ -453,9 +485,7 @@ Assinatura do Contratante
   useEffect(() => {
     loadContracts();
 
-    // Auto-sync pending contracts every 30 seconds
     const syncInterval = setInterval(async () => {
-      // Get fresh contracts data
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -487,10 +517,10 @@ Assinatura do Contratante
           await loadContracts()
         }
       }
-    }, 30000) // Every 30 seconds
+    }, 30000)
 
     return () => clearInterval(syncInterval)
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   return {
     contracts,

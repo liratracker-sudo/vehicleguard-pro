@@ -283,7 +283,14 @@ const ContractsPage = () => {
                         <TableCell>
                           <div>
                             <div className="font-medium">{contract.plans?.name}</div>
-                            {contract.vehicles && (
+                            {contract.contract_vehicles && contract.contract_vehicles.length > 0 ? (
+                              <div className="text-sm text-muted-foreground">
+                                {contract.contract_vehicles.length === 1 
+                                  ? contract.contract_vehicles[0].license_plate
+                                  : `${contract.contract_vehicles.length} veículos`
+                                }
+                              </div>
+                            ) : contract.vehicles && (
                               <div className="text-sm text-muted-foreground">
                                 {contract.vehicles.license_plate}
                               </div>

@@ -922,6 +922,42 @@ export type Database = {
           },
         ]
       }
+      contract_vehicles: {
+        Row: {
+          contract_id: string
+          created_at: string
+          id: string
+          vehicle_id: string
+        }
+        Insert: {
+          contract_id: string
+          created_at?: string
+          id?: string
+          vehicle_id: string
+        }
+        Update: {
+          contract_id?: string
+          created_at?: string
+          id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_vehicles_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_vehicles_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contracts: {
         Row: {
           autentique_document_id: string | null
