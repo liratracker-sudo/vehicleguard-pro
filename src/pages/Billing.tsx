@@ -11,6 +11,7 @@ import { BillingHistory } from "@/components/billing/BillingHistory"
 import { PaymentForm } from "@/components/billing/PaymentForm"
 import { BillingActions } from "@/components/billing/BillingActions"
 import { BillingFilters, BillingFiltersState } from "@/components/billing/BillingFilters"
+import { DueDateIndicator } from "@/components/billing/DueDateIndicator"
 import { usePayments } from "@/hooks/usePayments"
 import { useBillingManagement } from "@/hooks/useBillingManagement"
 import { CpfLookup } from "@/components/billing/CpfLookup"
@@ -376,14 +377,10 @@ const BillingPage = () => {
                             </TableCell>
                             <TableCell>
                               {payment.due_date ? (
-                                <div className="space-y-1">
-                                  <div>{payment.due_date.split('T')[0].split('-').reverse().join('/')}</div>
-                                  {payment.status === 'overdue' && (
-                                    <div className="text-xs text-destructive">
-                                      {Math.floor((Date.now() - new Date(payment.due_date + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))} dias
-                                    </div>
-                                  )}
-                                </div>
+                                <DueDateIndicator 
+                                  dueDate={payment.due_date} 
+                                  status={payment.status} 
+                                />
                               ) : '-'}
                             </TableCell>
                             <TableCell>
