@@ -36,7 +36,48 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
   
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(!!vehicleId)
   const { toast } = useToast()
+
+  const loadVehicle = async () => {
+    if (!vehicleId) return
+
+    setInitialLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('id', vehicleId)
+        .maybeSingle()
+
+      if (error) throw error
+
+      if (data) {
+        setFormData({
+          license_plate: data.license_plate || "",
+          model: data.model || "",
+          brand: data.brand || "",
+          year: data.year || new Date().getFullYear(),
+          color: data.color || "",
+          chassis: data.chassis || "",
+          client_id: data.client_id || "",
+          tracker_status: data.tracker_status || "active",
+          tracker_device_id: data.tracker_device_id || "",
+          installation_date: data.installation_date ? new Date(data.installation_date) : new Date(),
+          notes: data.notes || ""
+        })
+      }
+    } catch (error) {
+      console.error('Error loading vehicle:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar dados do veículo",
+        variant: "destructive"
+      })
+    } finally {
+      setInitialLoading(false)
+    }
+  }
 
   const loadClients = async () => {
     try {
@@ -66,6 +107,12 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
   useEffect(() => {
     loadClients()
   }, [])
+
+  useEffect(() => {
+    if (vehicleId) {
+      loadVehicle()
+    }
+  }, [vehicleId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,6 +166,22 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
     } finally {
       setLoading(false)
     }
+  }
+
+  if (initialLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Editar Veículo</CardTitle>
+          <CardDescription>Carregando dados do veículo...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
