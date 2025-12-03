@@ -97,10 +97,10 @@ export default function PublicClientRegistration() {
         if (!data.erro) {
           setFormData(prev => ({
             ...prev,
-            street: data.logradouro,
-            neighborhood: data.bairro,
-            city: data.localidade,
-            state: data.uf
+            street: (data.logradouro || '').toUpperCase(),
+            neighborhood: (data.bairro || '').toUpperCase(),
+            city: (data.localidade || '').toUpperCase(),
+            state: (data.uf || '').toUpperCase()
           }))
         }
       } catch (error) {
@@ -144,15 +144,37 @@ export default function PublicClientRegistration() {
         return
       }
 
+      // Converter dados pessoais para CAIXA ALTA
+      const normalizedFormData = {
+        ...formData,
+        name: formData.name.toUpperCase(),
+        street: formData.street.toUpperCase(),
+        number: formData.number.toUpperCase(),
+        complement: formData.complement.toUpperCase(),
+        neighborhood: formData.neighborhood.toUpperCase(),
+        city: formData.city.toUpperCase(),
+        state: formData.state.toUpperCase(),
+        emergency_contact_name: formData.emergency_contact_name.toUpperCase(),
+      }
+
+      // Converter dados dos veículos para CAIXA ALTA
+      const normalizedVehicles = validVehicles.map(v => ({
+        ...v,
+        plate: v.plate.toUpperCase(),
+        brand: v.brand.toUpperCase(),
+        model: v.model.toUpperCase(),
+        color: v.color.toUpperCase(),
+      }))
+
       const formDataToSend = new FormData()
       
-      // Adicionar todos os campos pessoais
-      Object.entries(formData).forEach(([key, value]) => {
+      // Adicionar todos os campos pessoais normalizados
+      Object.entries(normalizedFormData).forEach(([key, value]) => {
         formDataToSend.append(key, String(value))
       })
       
-      // Adicionar veículos como JSON
-      formDataToSend.append('vehicles', JSON.stringify(validVehicles))
+      // Adicionar veículos normalizados como JSON
+      formDataToSend.append('vehicles', JSON.stringify(normalizedVehicles))
       
       formDataToSend.append('company_id', companyInfo.id)
       if (documentFront) formDataToSend.append('document_front', documentFront)
