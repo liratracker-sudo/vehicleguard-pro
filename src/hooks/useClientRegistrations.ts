@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { supabase } from "@/integrations/supabase/client"
+import { playNotificationSound } from "@/lib/notification-sound"
 
 export const useClientRegistrations = () => {
   const [pendingCount, setPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const previousCountRef = useRef<number>(0)
+  const isFirstLoadRef = useRef<boolean>(true)
 
   useEffect(() => {
     loadPendingCount()
@@ -14,7 +17,33 @@ export const useClientRegistrations = () => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'client_registrations'
+        },
+        (payload) => {
+          // Novo cadastro detectado - tocar som se for pendente
+          if (payload.new && (payload.new as any).status === 'pending') {
+            playNotificationSound()
+          }
+          loadPendingCount()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'client_registrations'
+        },
+        () => {
+          loadPendingCount()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
           schema: 'public',
           table: 'client_registrations'
         },
@@ -56,7 +85,16 @@ export const useClientRegistrations = () => {
 
       if (error) throw error
       
-      setPendingCount(count || 0)
+      const newCount = count || 0
+      
+      // Tocar som se o contador aumentou (backup caso o INSERT não seja capturado)
+      if (!isFirstLoadRef.current && newCount > previousCountRef.current) {
+        playNotificationSound()
+      }
+      
+      previousCountRef.current = newCount
+      isFirstLoadRef.current = false
+      setPendingCount(newCount)
     } catch (error) {
       console.error('Error loading pending registrations count:', error)
     } finally {
