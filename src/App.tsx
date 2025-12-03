@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import CheckoutPage from "./pages/Checkout";
 import PublicClientRegistration from "./pages/PublicClientRegistration";
 import ClientRegistrations from "./pages/ClientRegistrations";
+import ProfilePage from "./pages/Profile";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -64,6 +65,7 @@ const App = () => {
               <Route path="/reports" element={<AuthGuard><ReportsPage /></AuthGuard>} />
               <Route path="/white-label" element={<AuthGuard><WhiteLabelPage /></AuthGuard>} />
               <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
+              <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
               <Route path="/billing-diagnostics" element={<AuthGuard><BillingDiagnosticsPage /></AuthGuard>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
