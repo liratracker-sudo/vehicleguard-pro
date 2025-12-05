@@ -107,26 +107,39 @@ export function toISODateTimeBR(date: Date | string): string {
 /**
  * Calcula quantos dias faltam até uma data (considerando horário de Brasília)
  * Compara apenas as datas (sem considerar hora)
+ * Usa Date.UTC para eliminar problemas de timezone do browser
  */
 export function daysUntil(targetDate: Date | string): number {
-  // Pega a data de hoje no fuso de Brasília (apenas data, sem hora)
-  const nowUtc = new Date();
-  const nowBrasilia = new Date(nowUtc.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  const today = new Date(nowBrasilia.getFullYear(), nowBrasilia.getMonth(), nowBrasilia.getDate());
+  // Calcula o horário atual em Brasília usando offset fixo UTC-3
+  const now = new Date();
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const brasiliaOffset = -3 * 60 * 60000; // UTC-3
+  const brasiliaTime = new Date(utcTime + brasiliaOffset);
   
-  // Parse da data alvo (formato YYYY-MM-DD do banco ou Date object)
-  let target: Date;
+  // Cria a data de "hoje" em UTC (apenas ano/mês/dia de Brasília)
+  const todayUTC = Date.UTC(
+    brasiliaTime.getFullYear(), 
+    brasiliaTime.getMonth(), 
+    brasiliaTime.getDate()
+  );
+  
+  // Parse da data alvo em UTC
+  let targetUTC: number;
   if (typeof targetDate === 'string') {
     // Para strings no formato "YYYY-MM-DD" ou "YYYY-MM-DDTHH:mm:ss"
     const datePart = targetDate.split('T')[0];
     const [year, month, day] = datePart.split('-').map(Number);
-    target = new Date(year, month - 1, day);
+    targetUTC = Date.UTC(year, month - 1, day);
   } else {
-    target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    targetUTC = Date.UTC(
+      targetDate.getFullYear(), 
+      targetDate.getMonth(), 
+      targetDate.getDate()
+    );
   }
   
-  // Calcula diferença em dias (usando Math.round para evitar erros de DST)
-  const diffTime = target.getTime() - today.getTime();
+  // Calcula diferença em dias
+  const diffTime = targetUTC - todayUTC;
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
   return diffDays;
@@ -135,24 +148,38 @@ export function daysUntil(targetDate: Date | string): number {
 /**
  * Calcula quantos dias se passaram desde uma data (considerando horário de Brasília)
  * Compara apenas as datas (sem considerar hora)
+ * Usa Date.UTC para eliminar problemas de timezone do browser
  */
 export function daysSince(pastDate: Date | string): number {
-  // Pega a data de hoje no fuso de Brasília
-  const nowUtc = new Date();
-  const nowBrasilia = new Date(nowUtc.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  const today = new Date(nowBrasilia.getFullYear(), nowBrasilia.getMonth(), nowBrasilia.getDate());
+  // Calcula o horário atual em Brasília usando offset fixo UTC-3
+  const now = new Date();
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const brasiliaOffset = -3 * 60 * 60000; // UTC-3
+  const brasiliaTime = new Date(utcTime + brasiliaOffset);
   
-  // Parse da data passada
-  let past: Date;
+  // Cria a data de "hoje" em UTC (apenas ano/mês/dia de Brasília)
+  const todayUTC = Date.UTC(
+    brasiliaTime.getFullYear(), 
+    brasiliaTime.getMonth(), 
+    brasiliaTime.getDate()
+  );
+  
+  // Parse da data passada em UTC
+  let pastUTC: number;
   if (typeof pastDate === 'string') {
     const datePart = pastDate.split('T')[0];
     const [year, month, day] = datePart.split('-').map(Number);
-    past = new Date(year, month - 1, day);
+    pastUTC = Date.UTC(year, month - 1, day);
   } else {
-    past = new Date(pastDate.getFullYear(), pastDate.getMonth(), pastDate.getDate());
+    pastUTC = Date.UTC(
+      pastDate.getFullYear(), 
+      pastDate.getMonth(), 
+      pastDate.getDate()
+    );
   }
   
-  const diffTime = today.getTime() - past.getTime();
+  // Calcula diferença em dias
+  const diffTime = todayUTC - pastUTC;
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
   return diffDays;
