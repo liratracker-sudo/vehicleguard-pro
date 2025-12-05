@@ -107,21 +107,19 @@ export function toISODateTimeBR(date: Date | string): string {
 /**
  * Calcula quantos dias faltam até uma data (considerando horário de Brasília)
  * Compara apenas as datas (sem considerar hora)
- * Usa Date.UTC para eliminar problemas de timezone do browser
+ * Usa Intl.DateTimeFormat para obter a data de Brasília independente do timezone do browser
  */
 export function daysUntil(targetDate: Date | string): number {
-  // Calcula o horário atual em Brasília usando offset fixo UTC-3
-  const now = new Date();
-  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const brasiliaOffset = -3 * 60 * 60000; // UTC-3
-  const brasiliaTime = new Date(utcTime + brasiliaOffset);
-  
-  // Cria a data de "hoje" em UTC (apenas ano/mês/dia de Brasília)
-  const todayUTC = Date.UTC(
-    brasiliaTime.getFullYear(), 
-    brasiliaTime.getMonth(), 
-    brasiliaTime.getDate()
-  );
+  // Usa Intl.DateTimeFormat para pegar a data atual em Brasília de forma confiável
+  const formatter = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit', 
+    day: '2-digit'
+  });
+  const todayStr = formatter.format(new Date()); // Retorna "YYYY-MM-DD"
+  const [todayYear, todayMonth, todayDay] = todayStr.split('-').map(Number);
+  const todayUTC = Date.UTC(todayYear, todayMonth - 1, todayDay);
   
   // Parse da data alvo em UTC
   let targetUTC: number;
@@ -131,11 +129,10 @@ export function daysUntil(targetDate: Date | string): number {
     const [year, month, day] = datePart.split('-').map(Number);
     targetUTC = Date.UTC(year, month - 1, day);
   } else {
-    targetUTC = Date.UTC(
-      targetDate.getFullYear(), 
-      targetDate.getMonth(), 
-      targetDate.getDate()
-    );
+    // Para objetos Date, também formata em Brasília para consistência
+    const targetStr = formatter.format(targetDate);
+    const [year, month, day] = targetStr.split('-').map(Number);
+    targetUTC = Date.UTC(year, month - 1, day);
   }
   
   // Calcula diferença em dias
@@ -148,21 +145,19 @@ export function daysUntil(targetDate: Date | string): number {
 /**
  * Calcula quantos dias se passaram desde uma data (considerando horário de Brasília)
  * Compara apenas as datas (sem considerar hora)
- * Usa Date.UTC para eliminar problemas de timezone do browser
+ * Usa Intl.DateTimeFormat para obter a data de Brasília independente do timezone do browser
  */
 export function daysSince(pastDate: Date | string): number {
-  // Calcula o horário atual em Brasília usando offset fixo UTC-3
-  const now = new Date();
-  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const brasiliaOffset = -3 * 60 * 60000; // UTC-3
-  const brasiliaTime = new Date(utcTime + brasiliaOffset);
-  
-  // Cria a data de "hoje" em UTC (apenas ano/mês/dia de Brasília)
-  const todayUTC = Date.UTC(
-    brasiliaTime.getFullYear(), 
-    brasiliaTime.getMonth(), 
-    brasiliaTime.getDate()
-  );
+  // Usa Intl.DateTimeFormat para pegar a data atual em Brasília de forma confiável
+  const formatter = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit', 
+    day: '2-digit'
+  });
+  const todayStr = formatter.format(new Date()); // Retorna "YYYY-MM-DD"
+  const [todayYear, todayMonth, todayDay] = todayStr.split('-').map(Number);
+  const todayUTC = Date.UTC(todayYear, todayMonth - 1, todayDay);
   
   // Parse da data passada em UTC
   let pastUTC: number;
@@ -171,11 +166,10 @@ export function daysSince(pastDate: Date | string): number {
     const [year, month, day] = datePart.split('-').map(Number);
     pastUTC = Date.UTC(year, month - 1, day);
   } else {
-    pastUTC = Date.UTC(
-      pastDate.getFullYear(), 
-      pastDate.getMonth(), 
-      pastDate.getDate()
-    );
+    // Para objetos Date, também formata em Brasília para consistência
+    const pastStr = formatter.format(pastDate);
+    const [year, month, day] = pastStr.split('-').map(Number);
+    pastUTC = Date.UTC(year, month - 1, day);
   }
   
   // Calcula diferença em dias
