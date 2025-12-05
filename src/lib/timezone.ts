@@ -106,26 +106,54 @@ export function toISODateTimeBR(date: Date | string): string {
 
 /**
  * Calcula quantos dias faltam até uma data (considerando horário de Brasília)
+ * Compara apenas as datas (sem considerar hora)
  */
 export function daysUntil(targetDate: Date | string): number {
-  const now = nowInBrasilia();
-  const target = typeof targetDate === 'string' ? toBrasiliaTime(new Date(targetDate)) : toBrasiliaTime(targetDate);
+  // Pega a data de hoje no fuso de Brasília (apenas data, sem hora)
+  const nowUtc = new Date();
+  const nowBrasilia = new Date(nowUtc.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const today = new Date(nowBrasilia.getFullYear(), nowBrasilia.getMonth(), nowBrasilia.getDate());
   
-  const diffTime = target.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Parse da data alvo (formato YYYY-MM-DD do banco ou Date object)
+  let target: Date;
+  if (typeof targetDate === 'string') {
+    // Para strings no formato "YYYY-MM-DD" ou "YYYY-MM-DDTHH:mm:ss"
+    const datePart = targetDate.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    target = new Date(year, month - 1, day);
+  } else {
+    target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  }
+  
+  // Calcula diferença em dias (usando Math.round para evitar erros de DST)
+  const diffTime = target.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
   return diffDays;
 }
 
 /**
  * Calcula quantos dias se passaram desde uma data (considerando horário de Brasília)
+ * Compara apenas as datas (sem considerar hora)
  */
 export function daysSince(pastDate: Date | string): number {
-  const now = nowInBrasilia();
-  const past = typeof pastDate === 'string' ? toBrasiliaTime(new Date(pastDate)) : toBrasiliaTime(pastDate);
+  // Pega a data de hoje no fuso de Brasília
+  const nowUtc = new Date();
+  const nowBrasilia = new Date(nowUtc.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const today = new Date(nowBrasilia.getFullYear(), nowBrasilia.getMonth(), nowBrasilia.getDate());
   
-  const diffTime = now.getTime() - past.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // Parse da data passada
+  let past: Date;
+  if (typeof pastDate === 'string') {
+    const datePart = pastDate.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    past = new Date(year, month - 1, day);
+  } else {
+    past = new Date(pastDate.getFullYear(), pastDate.getMonth(), pastDate.getDate());
+  }
+  
+  const diffTime = today.getTime() - past.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
   return diffDays;
 }
@@ -134,10 +162,7 @@ export function daysSince(pastDate: Date | string): number {
  * Verifica se uma data está vencida (considerando horário de Brasília)
  */
 export function isOverdue(dueDate: Date | string): boolean {
-  const now = nowInBrasilia();
-  const due = typeof dueDate === 'string' ? toBrasiliaTime(new Date(dueDate)) : toBrasiliaTime(dueDate);
-  
-  return due < now;
+  return daysUntil(dueDate) < 0;
 }
 
 /**
