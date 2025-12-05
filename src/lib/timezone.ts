@@ -29,34 +29,48 @@ export function nowInBrasilia(): Date {
 
 /**
  * Formata uma data no padrão brasileiro (DD/MM/YYYY)
+ * Para strings "YYYY-MM-DD", extrai diretamente sem conversão de timezone
  */
 export function formatDateBR(date: Date | string | null): string {
   if (!date) return '-';
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const brasiliaDate = toBrasiliaTime(d);
   
-  const day = String(brasiliaDate.getDate()).padStart(2, '0');
-  const month = String(brasiliaDate.getMonth() + 1).padStart(2, '0');
-  const year = brasiliaDate.getFullYear();
+  // Para strings no formato "YYYY-MM-DD", extrair diretamente sem conversão
+  if (typeof date === 'string') {
+    const datePart = date.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  }
   
-  return `${day}/${month}/${year}`;
+  // Para objetos Date, usar Intl.DateTimeFormat para consistência com Brasília
+  const formatter = new Intl.DateTimeFormat('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric'
+  });
+  return formatter.format(date);
 }
 
 /**
  * Formata data e hora no padrão brasileiro (DD/MM/YYYY HH:mm)
+ * Para strings com data e hora, usa Intl.DateTimeFormat
  */
 export function formatDateTimeBR(date: Date | string | null): string {
   if (!date) return '-';
+  
   const d = typeof date === 'string' ? new Date(date) : date;
-  const brasiliaDate = toBrasiliaTime(d);
   
-  const day = String(brasiliaDate.getDate()).padStart(2, '0');
-  const month = String(brasiliaDate.getMonth() + 1).padStart(2, '0');
-  const year = brasiliaDate.getFullYear();
-  const hours = String(brasiliaDate.getHours()).padStart(2, '0');
-  const minutes = String(brasiliaDate.getMinutes()).padStart(2, '0');
-  
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+  // Usar Intl.DateTimeFormat para formatação consistente em Brasília
+  const formatter = new Intl.DateTimeFormat('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return formatter.format(d);
 }
 
 /**
@@ -64,27 +78,37 @@ export function formatDateTimeBR(date: Date | string | null): string {
  */
 export function formatTimeBR(date: Date | string | null): string {
   if (!date) return '-';
+  
   const d = typeof date === 'string' ? new Date(date) : date;
-  const brasiliaDate = toBrasiliaTime(d);
   
-  const hours = String(brasiliaDate.getHours()).padStart(2, '0');
-  const minutes = String(brasiliaDate.getMinutes()).padStart(2, '0');
-  
-  return `${hours}:${minutes}`;
+  // Usar Intl.DateTimeFormat para formatação consistente em Brasília
+  const formatter = new Intl.DateTimeFormat('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return formatter.format(d);
 }
 
 /**
- * Retorna a data no formato ISO mas no horário de Brasília (YYYY-MM-DD)
+ * Retorna a data no formato ISO (YYYY-MM-DD)
+ * Para strings "YYYY-MM-DD", extrai diretamente sem conversão de timezone
  */
 export function toISODateBR(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const brasiliaDate = toBrasiliaTime(d);
+  // Para strings no formato "YYYY-MM-DD", extrair diretamente sem conversão
+  if (typeof date === 'string') {
+    return date.split('T')[0];
+  }
   
-  const year = brasiliaDate.getFullYear();
-  const month = String(brasiliaDate.getMonth() + 1).padStart(2, '0');
-  const day = String(brasiliaDate.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
+  // Para objetos Date, usar Intl.DateTimeFormat para consistência com Brasília
+  const formatter = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit', 
+    day: '2-digit'
+  });
+  return formatter.format(date);
 }
 
 /**
