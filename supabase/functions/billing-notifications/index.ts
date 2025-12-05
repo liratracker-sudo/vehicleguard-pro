@@ -950,6 +950,22 @@ async function logWhatsAppAlert(companyId: string, message: string) {
   }
 }
 
+// Helper function to format date in Brazilian format (DD/MM/YYYY)
+function formatDateBR(date: Date): string {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+// Helper function to format currency in Brazilian format (R$ X.XXX,XX)
+function formatCurrencyBR(value: number): string {
+  const formatted = value.toFixed(2).replace('.', ',');
+  const parts = formatted.split(',');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `R$ ${parts.join(',')}`;
+}
+
 function renderTemplate(notification: any, payment: any, client: any, settings: any): string {
   let template = '';
   
@@ -972,13 +988,9 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
   const today = new Date();
   const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Format values
-  const formattedValue = payment.amount.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  });
-  
-  const formattedDueDate = dueDate.toLocaleDateString('pt-BR');
+  // Format values using manual functions (Deno-compatible)
+  const formattedValue = formatCurrencyBR(payment.amount);
+  const formattedDueDate = formatDateBR(dueDate);
   
   // ALWAYS use checkout link (universal payment link) with public domain
   const paymentLink = `${appUrl}/checkout/${payment.id}`;

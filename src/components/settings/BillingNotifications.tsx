@@ -69,7 +69,7 @@ export function BillingNotifications() {
       if (data) {
         setSettings(data as NotificationSettings);
       } else {
-        // Create default settings
+        // Create default settings with improved templates
         const defaultSettings = {
           company_id: profile.company_id,
           active: true,
@@ -78,9 +78,32 @@ export function BillingNotifications() {
           on_paid: true,
           post_due_days: [2],
           send_hour: '09:00',
-          template_pre_due: 'Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}). Pague aqui: {{link_pagamento}}',
-          template_on_due: 'Olá {{cliente}}, seu pagamento de R$ {{valor}} vence hoje ({{vencimento}}). Pague aqui: {{link_pagamento}}',
-          template_post_due: 'Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} vencido em {{vencimento}}. Regularize: {{link_pagamento}}'
+          template_pre_due: `📋 *Lembrete de Pagamento*
+
+Olá *{{cliente}}*!
+
+Sua fatura de *{{valor}}* vence em *{{dias}} dia(s)* ({{vencimento}}).
+
+💳 Pague agora:
+{{link_pagamento}}`,
+          template_on_due: `⚠️ *Pagamento Vence Hoje*
+
+Olá *{{cliente}}*!
+
+Sua fatura de *{{valor}}* vence *hoje* ({{vencimento}}).
+
+💳 Pague agora:
+{{link_pagamento}}`,
+          template_post_due: `🔴 *Pagamento em Atraso*
+
+Olá *{{cliente}}*!
+
+Identificamos um atraso de *{{dias}} dia(s)* na sua fatura de *{{valor}}* vencida em {{vencimento}}.
+
+💳 Regularize agora:
+{{link_pagamento}}
+
+_Evite juros e multas!_`
         };
         
         const { data: created, error: createError } = await supabase
