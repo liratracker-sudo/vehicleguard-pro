@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge"
-import { daysUntil, formatDateBR } from "@/lib/timezone"
+import { CalendarClock } from "lucide-react"
+import { daysUntil, formatDateBR, calculateNextCycleDate } from "@/lib/timezone"
 
 interface DueDateIndicatorProps {
   dueDate: string
   status: string
+  billingCycle?: string | null
 }
 
 type IndicatorInfo = {
@@ -12,7 +14,7 @@ type IndicatorInfo = {
 } | null
 
 const getDueDateInfo = (dueDate: string, status: string): IndicatorInfo => {
-  // Não mostrar indicador para cobranças pagas
+  // Não mostrar indicador de vencimento para cobranças pagas
   if (status === 'paid') return null
   
   const days = daysUntil(dueDate)
@@ -37,8 +39,25 @@ const getDueDateInfo = (dueDate: string, status: string): IndicatorInfo => {
   return null // Mais de 7 dias - não mostra indicador
 }
 
-export function DueDateIndicator({ dueDate, status }: DueDateIndicatorProps) {
+export function DueDateIndicator({ dueDate, status, billingCycle }: DueDateIndicatorProps) {
   const info = getDueDateInfo(dueDate, status)
+  
+  // Para cobranças pagas com ciclo de faturamento, mostrar próximo ciclo
+  if (status === 'paid' && billingCycle) {
+    const nextCycleDate = calculateNextCycleDate(dueDate, billingCycle)
+    return (
+      <div className="space-y-1">
+        <div>{formatDateBR(dueDate)}</div>
+        <Badge 
+          variant="outline" 
+          className="text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-300 dark:border-blue-700"
+        >
+          <CalendarClock className="w-3 h-3 mr-1" />
+          Próximo: {formatDateBR(nextCycleDate)}
+        </Badge>
+      </div>
+    )
+  }
   
   if (!info) {
     return <div>{formatDateBR(dueDate)}</div>

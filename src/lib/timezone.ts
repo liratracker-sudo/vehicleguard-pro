@@ -217,3 +217,86 @@ export function createBrasiliaDate(year: number, month: number, day: number, hou
   const date = new Date(year, month - 1, day, hour, minute, second);
   return toUTC(date);
 }
+
+/**
+ * Calcula a data do próximo ciclo de cobrança baseado no ciclo de faturamento
+ * @param dueDate Data de vencimento atual (YYYY-MM-DD)
+ * @param billingCycle Ciclo de faturamento: "monthly", "yearly", "weekly", "biweekly", "quarterly", "semiannual"
+ * @returns Data do próximo ciclo no formato YYYY-MM-DD
+ */
+export function calculateNextCycleDate(dueDate: string, billingCycle: string): string {
+  const datePart = dueDate.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  
+  let nextYear = year;
+  let nextMonth = month;
+  let nextDay = day;
+  
+  switch (billingCycle) {
+    case 'weekly':
+      // Adiciona 7 dias
+      const weeklyDate = new Date(Date.UTC(year, month - 1, day + 7));
+      nextYear = weeklyDate.getUTCFullYear();
+      nextMonth = weeklyDate.getUTCMonth() + 1;
+      nextDay = weeklyDate.getUTCDate();
+      break;
+      
+    case 'biweekly':
+      // Adiciona 14 dias
+      const biweeklyDate = new Date(Date.UTC(year, month - 1, day + 14));
+      nextYear = biweeklyDate.getUTCFullYear();
+      nextMonth = biweeklyDate.getUTCMonth() + 1;
+      nextDay = biweeklyDate.getUTCDate();
+      break;
+      
+    case 'monthly':
+    default:
+      // Adiciona 1 mês
+      nextMonth = month + 1;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear = year + 1;
+      }
+      // Ajusta para o último dia do mês se necessário
+      const lastDayOfMonth = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate();
+      nextDay = Math.min(day, lastDayOfMonth);
+      break;
+      
+    case 'quarterly':
+      // Adiciona 3 meses
+      nextMonth = month + 3;
+      if (nextMonth > 12) {
+        nextMonth = nextMonth - 12;
+        nextYear = year + 1;
+      }
+      const lastDayQuarterly = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate();
+      nextDay = Math.min(day, lastDayQuarterly);
+      break;
+      
+    case 'semiannual':
+      // Adiciona 6 meses
+      nextMonth = month + 6;
+      if (nextMonth > 12) {
+        nextMonth = nextMonth - 12;
+        nextYear = year + 1;
+      }
+      const lastDaySemiannual = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate();
+      nextDay = Math.min(day, lastDaySemiannual);
+      break;
+      
+    case 'yearly':
+    case 'annual':
+      // Adiciona 1 ano
+      nextYear = year + 1;
+      // Ajusta para 28 de fevereiro em anos não bissextos
+      if (month === 2 && day === 29) {
+        const isLeapYear = (nextYear % 4 === 0 && nextYear % 100 !== 0) || (nextYear % 400 === 0);
+        if (!isLeapYear) {
+          nextDay = 28;
+        }
+      }
+      break;
+  }
+  
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+}

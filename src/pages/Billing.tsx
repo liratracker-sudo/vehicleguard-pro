@@ -379,7 +379,8 @@ const BillingPage = () => {
                               {payment.due_date ? (
                                 <DueDateIndicator 
                                   dueDate={payment.due_date} 
-                                  status={payment.status} 
+                                  status={payment.status}
+                                  billingCycle={payment.contracts?.plans?.billing_cycle}
                                 />
                               ) : '-'}
                             </TableCell>
