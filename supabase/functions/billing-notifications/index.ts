@@ -819,7 +819,7 @@ async function sendSingleNotification(notification: any) {
       if (aiResponse.error || !aiResponse.data?.generated_message) {
         console.error('AI generation failed, falling back to template:', aiResponse.error);
         // Fallback to template if AI fails
-        message = renderTemplate(notification, payment, client, settings);
+        message = await renderTemplate(notification, payment, client, settings);
       } else {
         message = aiResponse.data.generated_message;
         console.log('AI message generated successfully');
@@ -827,11 +827,11 @@ async function sendSingleNotification(notification: any) {
     } catch (error) {
       console.error('Error calling AI collection:', error);
       // Fallback to template if AI fails
-      message = renderTemplate(notification, payment, client, settings);
+      message = await renderTemplate(notification, payment, client, settings);
     }
   } else {
     // Use traditional template
-    message = renderTemplate(notification, payment, client, settings);
+    message = await renderTemplate(notification, payment, client, settings);
   }
   
   // Send via WhatsApp Evolution API
@@ -966,7 +966,7 @@ function formatCurrencyBR(value: number): string {
   return `R$ ${parts.join(',')}`;
 }
 
-function renderTemplate(notification: any, payment: any, client: any, settings: any): string {
+async function renderTemplate(notification: any, payment: any, client: any, settings: any): Promise<string> {
   let template = '';
   
   switch (notification.event_type) {
@@ -995,13 +995,23 @@ function renderTemplate(notification: any, payment: any, client: any, settings: 
   // ALWAYS use checkout link (universal payment link) with public domain
   const paymentLink = `${appUrl}/checkout/${payment.id}`;
 
+  // Get company name for {{empresa}} variable
+  const { data: company } = await supabase
+    .from('companies')
+    .select('name')
+    .eq('id', notification.company_id)
+    .single();
+
+  const companyName = company?.name || 'Sistema';
+
   // Replace template variables
   return template
     .replace(/\{\{cliente\}\}/g, client.name)
     .replace(/\{\{valor\}\}/g, formattedValue)
     .replace(/\{\{vencimento\}\}/g, formattedDueDate)
     .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
-    .replace(/\{\{link_pagamento\}\}/g, paymentLink);
+    .replace(/\{\{link_pagamento\}\}/g, paymentLink)
+    .replace(/\{\{empresa\}\}/g, companyName);
 }
 
 async function createMissingNotifications(specificPaymentId?: string, specificCompanyId?: string) {

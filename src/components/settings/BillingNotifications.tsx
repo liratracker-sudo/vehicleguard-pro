@@ -85,7 +85,9 @@ Olá *{{cliente}}*!
 Sua fatura de *{{valor}}* vence em *{{dias}} dia(s)* ({{vencimento}}).
 
 💳 Pague agora:
-{{link_pagamento}}`,
+{{link_pagamento}}
+
+_{{empresa}}_`,
           template_on_due: `⚠️ *Pagamento Vence Hoje*
 
 Olá *{{cliente}}*!
@@ -93,7 +95,9 @@ Olá *{{cliente}}*!
 Sua fatura de *{{valor}}* vence *hoje* ({{vencimento}}).
 
 💳 Pague agora:
-{{link_pagamento}}`,
+{{link_pagamento}}
+
+_{{empresa}}_`,
           template_post_due: `🔴 *Pagamento em Atraso*
 
 Olá *{{cliente}}*!
@@ -103,7 +107,7 @@ Identificamos um atraso de *{{dias}} dia(s)* na sua fatura de *{{valor}}* vencid
 💳 Regularize agora:
 {{link_pagamento}}
 
-_Evite juros e multas!_`
+_Evite juros e multas! — {{empresa}}_`
         };
         
         const { data: created, error: createError } = await supabase
