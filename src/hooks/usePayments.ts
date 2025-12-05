@@ -26,6 +26,13 @@ export interface PaymentTransaction {
     email: string | null;
     phone: string;
   } | null;
+  contracts?: {
+    id: string;
+    start_date: string;
+    plans?: {
+      billing_cycle: string | null;
+    } | null;
+  } | null;
 }
 
 export function usePayments() {
@@ -60,6 +67,13 @@ export function usePayments() {
             name,
             email,
             phone
+          ),
+          contracts (
+            id,
+            start_date,
+            plans (
+              billing_cycle
+            )
           )
         `)
         .eq('company_id', profile.company_id)
