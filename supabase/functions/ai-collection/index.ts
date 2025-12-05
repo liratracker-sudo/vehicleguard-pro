@@ -68,14 +68,22 @@ serve(async (req) => {
       const daysOverdue = isOverdue ? diffDays : 0;
       const daysUntilDue = isOverdue ? 0 : Math.abs(diffDays);
 
-      // Buscar informações da empresa
+      // Buscar informações da empresa (incluindo domínio)
       const { data: companyInfo } = await supabase
         .from('companies')
-        .select('name')
+        .select('name, domain')
         .eq('id', payment.company_id)
         .single();
 
       const companyName = companyInfo?.name || 'Lira Tracker';
+
+      // Build payment link using company domain
+      const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+      const baseUrl = companyInfo?.domain 
+        ? `https://${companyInfo.domain.replace(/^https?:\/\//, '')}` 
+        : defaultAppUrl;
+      const paymentLink = `${baseUrl}/checkout/${payment.id}`;
+      console.log(`📎 Payment link for AI: ${paymentLink}`);
 
       // Determinar histórico de pagamento
       const { data: pastPayments } = await supabase
@@ -117,12 +125,10 @@ serve(async (req) => {
         toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
       }
 
-      // Gerar link de pagamento - sempre usar checkout para evitar truncamento
-      const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-      const paymentLink = `${appUrl}/checkout/${payment.id}`;
-
-      // Preparar prompt estruturado para a IA
+      // Preparar prompt estruturado para a IA (SEM incluir link - será enviado separadamente)
       const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
+
+**IMPORTANTE:** NÃO inclua nenhum link na mensagem. O link de pagamento será enviado em uma mensagem separada logo após esta.
 
 **CONTEXTO CRÍTICO DA COBRANÇA:**
 ${contextDescription}
@@ -132,7 +138,6 @@ ${contextDescription}
 2. Valor: R$${payment.amount.toFixed(2)}
 3. ${isOverdue ? `Dias de Atraso: ${daysOverdue} dias` : `Dias até o Vencimento: ${daysUntilDue} dia(s)`}
 4. Histórico de Pagamento: ${paymentHistory}
-5. Link de Pagamento Direto: ${paymentLink}
 
 **DEFINIÇÃO DO TOM DE VOZ:**
 ${toneInstruction}
@@ -142,10 +147,11 @@ ${toneInstruction}
 * **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
 * Inclua o valor (R$${payment.amount.toFixed(2)}) no corpo da mensagem de forma clara.
 * ${isOverdue ? `Mencione claramente que está VENCIDA há ${daysOverdue} dia(s).` : `Mencione que VENCE em ${daysUntilDue} dia(s) e que é um lembrete preventivo.`}
-* O call-to-action (CTA) principal deve ser o link de pagamento.
+* **NÃO INCLUA NENHUM LINK** - ele será enviado automaticamente em seguida.
+* Finalize indicando que o link de pagamento será enviado logo após.
 * Termine a mensagem com "Atenciosamente, ${companyName}".
 
-**GERE APENAS O TEXTO DA MENSAGEM.**`;
+**GERE APENAS O TEXTO DA MENSAGEM SEM LINKS.**`;
 
       // Chamar OpenAI API
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -261,14 +267,21 @@ ${toneInstruction}
           (new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24)
         );
 
-        // Buscar informações da empresa
+        // Buscar informações da empresa (incluindo domínio)
         const { data: companyInfo } = await supabase
           .from('companies')
-          .select('name')
+          .select('name, domain')
           .eq('id', company_id)
           .single();
 
         const companyName = companyInfo?.name || 'Lira Tracker';
+
+        // Build payment link using company domain
+        const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+        const baseUrl = companyInfo?.domain 
+          ? `https://${companyInfo.domain.replace(/^https?:\/\//, '')}` 
+          : defaultAppUrl;
+        const paymentLink = `${baseUrl}/checkout/${payment.id}`;
 
         // Determinar histórico de pagamento
         const { data: pastPayments } = await supabase
@@ -301,20 +314,17 @@ ${toneInstruction}
           toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
         }
 
-        // Gerar link de pagamento - sempre usar checkout para evitar truncamento
-        const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-        const paymentLink = `${appUrl}/checkout/${payment.id}`;
-
         try {
-          // Preparar prompt estruturado para a IA
+          // Preparar prompt estruturado para a IA (SEM link - será enviado separadamente)
           const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
+
+**IMPORTANTE:** NÃO inclua nenhum link na mensagem. O link de pagamento será enviado em uma mensagem separada logo após esta.
 
 **DADOS DO CLIENTE E CONTEXTO:**
 1. Nome do Cliente: ${client.name}
 2. Valor Pendente: R$${payment.amount.toFixed(2)}
 3. Dias de Atraso: ${daysOverdue} dias
 4. Histórico de Pagamento: ${paymentHistory}
-5. Link de Pagamento Direto: ${paymentLink}
 
 **DEFINIÇÃO DO TOM DE VOZ:**
 ${toneInstruction}
@@ -323,10 +333,11 @@ ${toneInstruction}
 * A mensagem deve ser iniciada com a saudação personalizada e a menção direta ao SaaS (${companyName}).
 * **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
 * Inclua o valor (R$${payment.amount.toFixed(2)}) e os dias de atraso (${daysOverdue} dias) no corpo da mensagem de forma clara.
-* O call-to-action (CTA) principal deve ser o link de pagamento.
+* **NÃO INCLUA NENHUM LINK** - ele será enviado automaticamente em seguida.
+* Finalize indicando que o link de pagamento será enviado logo após.
 * Termine a mensagem com "Atenciosamente, ${companyName}".
 
-**GERE APENAS O TEXTO DA MENSAGEM.**`;
+**GERE APENAS O TEXTO DA MENSAGEM SEM LINKS.**`;
 
           // Chamar OpenAI API
           const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -358,7 +369,13 @@ ${toneInstruction}
           const generatedMessage = aiData.choices[0].message.content;
           const usage = aiData.usage;
 
-          // Enviar via WhatsApp (apenas UMA vez)
+          // Remove any links that might have been generated
+          const messageWithoutLink = generatedMessage
+            .replace(/https?:\/\/[^\s]+/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+          // Enviar via WhatsApp (duas mensagens: texto + link)
           const { data: whatsappSettings } = await supabase
             .from('whatsapp_settings')
             .select('*')
@@ -368,20 +385,40 @@ ${toneInstruction}
 
           let messageSent = false;
           if (whatsappSettings) {
-            const whatsappResult = await supabase.functions.invoke('whatsapp-evolution', {
+            // First message: text without link
+            const firstResult = await supabase.functions.invoke('whatsapp-evolution', {
               body: {
                 action: 'sendText',
                 instance_url: whatsappSettings.instance_url,
                 api_token: whatsappSettings.api_token,
                 instance_name: whatsappSettings.instance_name,
                 number: client.phone,
-                message: generatedMessage,
+                message: messageWithoutLink,
                 company_id: company_id,
                 client_id: client.id
               }
             });
 
-            messageSent = whatsappResult.data?.success || false;
+            if (firstResult.data?.success) {
+              // Small delay between messages
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+              // Second message: only the payment link
+              const secondResult = await supabase.functions.invoke('whatsapp-evolution', {
+                body: {
+                  action: 'sendText',
+                  instance_url: whatsappSettings.instance_url,
+                  api_token: whatsappSettings.api_token,
+                  instance_name: whatsappSettings.instance_name,
+                  number: client.phone,
+                  message: paymentLink,
+                  company_id: company_id,
+                  client_id: client.id
+                }
+              });
+              
+              messageSent = secondResult.data?.success || false;
+            }
           }
 
           // Salvar log da IA após enviar (se configurações existirem)
@@ -394,7 +431,7 @@ ${toneInstruction}
               completion_tokens: usage.completion_tokens,
               total_tokens: usage.total_tokens,
               model_used: settings.openai_model || 'gpt-4o-mini',
-              generated_message: generatedMessage,
+              generated_message: `${messageWithoutLink}\n\n[Link enviado separadamente: ${paymentLink}]`,
               sent_successfully: messageSent
             });
           }
@@ -403,7 +440,8 @@ ${toneInstruction}
             payment_id: payment.id,
             client_name: client.name,
             success: messageSent,
-            message: generatedMessage
+            message: messageWithoutLink,
+            link: paymentLink
           });
 
         } catch (error) {
