@@ -50,7 +50,8 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
       valor: 'R$ 150,00',
       dias: '3',
       vencimento: '15/12/2025',
-      link_pagamento: 'https://exemplo.com/pagar/abc123'
+      link_pagamento: 'https://exemplo.com/pagar/abc123',
+      empresa: 'Sua Empresa'
     };
     
     return template
@@ -58,7 +59,8 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
       .replace(/\{\{valor\}\}/g, sampleData.valor)
       .replace(/\{\{dias\}\}/g, sampleData.dias)
       .replace(/\{\{vencimento\}\}/g, sampleData.vencimento)
-      .replace(/\{\{link_pagamento\}\}/g, sampleData.link_pagamento);
+      .replace(/\{\{link_pagamento\}\}/g, sampleData.link_pagamento)
+      .replace(/\{\{empresa\}\}/g, sampleData.empresa);
   };
 
   // Sync settings when modal opens
@@ -430,6 +432,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{dias}}' })}>{"{{dias}}"}</Badge>
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{vencimento}}' })}>{"{{vencimento}}"}</Badge>
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{link_pagamento}}' })}>{"{{link_pagamento}}"}</Badge>
+                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/20 border-green-500 text-green-600" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{empresa}}' })}>{"{{empresa}}"}</Badge>
                     </div>
                   </div>
 
@@ -449,6 +452,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{valor}}' })}>{"{{valor}}"}</Badge>
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{vencimento}}' })}>{"{{vencimento}}"}</Badge>
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{link_pagamento}}' })}>{"{{link_pagamento}}"}</Badge>
+                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/20 border-green-500 text-green-600" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{empresa}}' })}>{"{{empresa}}"}</Badge>
                     </div>
                   </div>
 
@@ -469,6 +473,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{dias}}' })}>{"{{dias}}"}</Badge>
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{vencimento}}' })}>{"{{vencimento}}"}</Badge>
                       <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{link_pagamento}}' })}>{"{{link_pagamento}}"}</Badge>
+                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/20 border-green-500 text-green-600" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{empresa}}' })}>{"{{empresa}}"}</Badge>
                     </div>
                   </div>
                 </TabsContent>

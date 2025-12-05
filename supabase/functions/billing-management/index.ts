@@ -111,6 +111,22 @@ serve(async (req) => {
           throw new Error('Payment ID is required');
         }
 
+        // Helper function to format date in Brazilian format (DD/MM/YYYY)
+        const formatDateBR = (date: Date): string => {
+          const day = date.getDate().toString().padStart(2, '0');
+          const month = (date.getMonth() + 1).toString().padStart(2, '0');
+          const year = date.getFullYear();
+          return `${day}/${month}/${year}`;
+        };
+
+        // Helper function to format currency in Brazilian format (R$ X.XXX,XX)
+        const formatCurrencyBR = (value: number): string => {
+          const formatted = value.toFixed(2).replace('.', ',');
+          const parts = formatted.split(',');
+          parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+          return `R$ ${parts.join(',')}`;
+        };
+
         // Get payment details
         const { data: payment, error: paymentError } = await supabase
           .from('payment_transactions')
@@ -123,9 +139,43 @@ serve(async (req) => {
           throw new Error('Payment not found');
         }
 
-        // Prepare payment reminder message
-        const paymentUrl = payment.payment_url || payment.pix_code || 'Contacte-nos para obter o link de pagamento';
-        const message = `Olá ${payment.clients?.name || 'Cliente'}, lembramos que você tem um pagamento no valor de R$ ${payment.amount} com vencimento em ${payment.due_date}. ${paymentUrl.startsWith('http') ? `Link para pagamento: ${paymentUrl}` : paymentUrl}`;
+        // Get notification settings and company name
+        const { data: notifSettings } = await supabase
+          .from('payment_notification_settings')
+          .select('template_pre_due')
+          .eq('company_id', userCompanyId)
+          .single();
+
+        const { data: company } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', userCompanyId)
+          .single();
+
+        // Use template from settings or default
+        const template = notifSettings?.template_pre_due || `📋 *Lembrete de Pagamento*
+
+Olá *{{cliente}}*!
+
+Sua fatura de *{{valor}}* vence em *{{vencimento}}*.
+
+💳 Pague agora:
+{{link_pagamento}}
+
+_{{empresa}}_`;
+
+        const dueDate = new Date(payment.due_date);
+        const today = new Date();
+        const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Build message using template
+        const message = template
+          .replace(/\{\{cliente\}\}/g, payment.clients?.name || 'Cliente')
+          .replace(/\{\{valor\}\}/g, formatCurrencyBR(Number(payment.amount)))
+          .replace(/\{\{vencimento\}\}/g, formatDateBR(dueDate))
+          .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
+          .replace(/\{\{link_pagamento\}\}/g, `https://vehicleguard-pro.lovable.app/checkout/${payment.id}`)
+          .replace(/\{\{empresa\}\}/g, company?.name || 'Sistema');
 
         // Send notification via WhatsApp using the user's JWT (RLS-aware)
         const notificationResponse = await supabase.functions.invoke('notify-whatsapp', {
