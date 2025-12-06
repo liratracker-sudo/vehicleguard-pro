@@ -537,11 +537,13 @@ async function checkConnection(payload: any) {
           method: 'POST',
           headers: { 'apikey': api_token, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            url: webhookUrl,
-            enabled: true,
-            webhookByEvents: true,
-            webhookBase64: false,
-            events: ["CONNECTION_UPDATE", "QRCODE_UPDATED", "MESSAGES_UPDATE", "MESSAGES_UPSERT", "SEND_MESSAGE"]
+            webhook: {
+              url: webhookUrl,
+              enabled: true,
+              webhookByEvents: true,
+              webhookBase64: false,
+              events: ["CONNECTION_UPDATE", "QRCODE_UPDATED", "MESSAGES_UPDATE", "MESSAGES_UPSERT", "SEND_MESSAGE"]
+            }
           })
         });
         const webhookResult = await webhookResponse.json();
@@ -715,17 +717,19 @@ async function updateWebhook(payload: any) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        url: webhookUrl,
-        enabled: true,
-        webhookByEvents: true,
-        webhookBase64: false,
-        events: [
-          "CONNECTION_UPDATE",
-          "QRCODE_UPDATED", 
-          "MESSAGES_UPDATE",
-          "MESSAGES_UPSERT",
-          "SEND_MESSAGE"
-        ]
+        webhook: {
+          url: webhookUrl,
+          enabled: true,
+          webhookByEvents: true,
+          webhookBase64: false,
+          events: [
+            "CONNECTION_UPDATE",
+            "QRCODE_UPDATED", 
+            "MESSAGES_UPDATE",
+            "MESSAGES_UPSERT",
+            "SEND_MESSAGE"
+          ]
+        }
       })
     });
 
