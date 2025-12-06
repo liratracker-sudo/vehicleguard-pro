@@ -43,7 +43,8 @@ serve(async (req) => {
           phone_number: payload.number || payload.phone_number,
           message: payload.message,
           company_id: payload.company_id,
-          client_id: payload.client_id
+          client_id: payload.client_id,
+          linkPreview: payload.linkPreview
         };
         return await sendMessage(mappedPayload);
       }
@@ -83,7 +84,7 @@ serve(async (req) => {
 async function sendMessage(payload: any) {
   // Handle nested payload structure
   const actualPayload = payload.payload || payload;
-  let { instance_url, api_token, instance_name, phone_number, message, company_id, client_id } = actualPayload;
+  let { instance_url, api_token, instance_name, phone_number, message, company_id, client_id, linkPreview } = actualPayload;
   
   // Buscar credenciais dos secrets se não fornecidas ou se for placeholder
   if (!instance_url || instance_url === 'from_secrets') {
@@ -243,7 +244,8 @@ async function sendMessage(payload: any) {
   const messageData = {
     number: normalizedPhone,
     text: message,
-    delay: 1000
+    delay: 1000,
+    linkPreview: linkPreview !== undefined ? linkPreview : true
   };
 
   console.log('Enviando para Evolution API:', {
