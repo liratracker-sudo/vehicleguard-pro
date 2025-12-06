@@ -945,6 +945,39 @@ function formatCurrencyBR(value: number): string {
   return `R$ ${parts.join(',')}`;
 }
 
+// Helper function to calculate days difference correctly (considering Brasília timezone)
+function calculateDaysDiff(dueDate: Date): number {
+  const now = new Date();
+  
+  // Normalize due_date to midnight UTC
+  const dueDateOnly = new Date(Date.UTC(
+    dueDate.getUTCFullYear(), 
+    dueDate.getUTCMonth(), 
+    dueDate.getUTCDate()
+  ));
+  
+  // Get current date in Brasília (UTC-3)
+  const brazilOffset = -3 * 60 * 60 * 1000;
+  const nowInBrazil = new Date(now.getTime() + brazilOffset);
+  const todayOnly = new Date(Date.UTC(
+    nowInBrazil.getUTCFullYear(), 
+    nowInBrazil.getUTCMonth(), 
+    nowInBrazil.getUTCDate()
+  ));
+  
+  const diffMs = dueDateOnly.getTime() - todayOnly.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+// Helper function to format days text dynamically
+function formatDaysText(daysDiff: number): string {
+  if (daysDiff === 0) return 'hoje';
+  if (daysDiff === 1) return 'amanhã';
+  if (daysDiff === -1) return 'ontem';
+  if (daysDiff > 0) return `em ${daysDiff} dias`;
+  return `há ${Math.abs(daysDiff)} dias`;
+}
+
 async function renderTemplate(notification: any, payment: any, client: any, settings: any): Promise<string> {
   let template = '';
   
@@ -962,10 +995,10 @@ async function renderTemplate(notification: any, payment: any, client: any, sett
       template = 'Olá {{cliente}}, temos uma cobrança de R$ {{valor}} para você.';
   }
 
-  // Calculate days difference
+  // Calculate days difference using correct timezone logic
   const dueDate = new Date(payment.due_date);
-  const today = new Date();
-  const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const daysDiff = calculateDaysDiff(dueDate);
+  const daysText = formatDaysText(daysDiff);
   
   // Format values using manual functions (Deno-compatible)
   const formattedValue = formatCurrencyBR(payment.amount);
@@ -980,12 +1013,12 @@ async function renderTemplate(notification: any, payment: any, client: any, sett
 
   const companyName = company?.name || 'Sistema';
 
-  // Replace template variables - remove {{link_pagamento}} (will be sent separately)
+  // Replace template variables - use daysText for dynamic message
   return template
     .replace(/\{\{cliente\}\}/g, client.name)
     .replace(/\{\{valor\}\}/g, formattedValue)
     .replace(/\{\{vencimento\}\}/g, formattedDueDate)
-    .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
+    .replace(/\{\{dias\}\}/g, daysText) // Now uses "hoje", "amanhã", "em X dias", "há X dias"
     .replace(/\{\{link_pagamento\}\}/g, '') // Link será enviado em mensagem separada
     .replace(/\{\{empresa\}\}/g, companyName)
     .replace(/\n{3,}/g, '\n\n') // Clean up extra blank lines
