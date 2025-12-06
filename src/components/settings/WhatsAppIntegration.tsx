@@ -41,6 +41,36 @@ export function WhatsAppIntegration() {
     }
   }, [connectionState.isConnected])
 
+  // Fechar dialog do QR Code automaticamente quando conectar
+  useEffect(() => {
+    if (connectionState.isConnected && showQRDialog) {
+      console.log('WhatsApp conectado! Fechando dialog do QR Code...')
+      setShowQRDialog(false)
+      setQrCodeData(null)
+      toast({
+        title: "WhatsApp Conectado!",
+        description: "O WhatsApp foi conectado com sucesso.",
+      })
+    }
+  }, [connectionState.isConnected, showQRDialog, toast])
+
+  // Polling para verificar conexão enquanto dialog está aberto
+  useEffect(() => {
+    if (!showQRDialog || connectionState.isConnected || !qrCodeData) return
+
+    console.log('Iniciando polling de verificação de conexão...')
+    
+    const checkInterval = setInterval(async () => {
+      console.log('Verificando se conectou...')
+      await checkConnection()
+    }, 3000) // Verificar a cada 3 segundos
+
+    return () => {
+      console.log('Parando polling de verificação de conexão')
+      clearInterval(checkInterval)
+    }
+  }, [showQRDialog, connectionState.isConnected, qrCodeData, checkConnection])
+
   // Listener em tempo real para mudanças nas configurações
   useEffect(() => {
     if (!companyId) return
@@ -395,6 +425,11 @@ export function WhatsAppIntegration() {
                       e.currentTarget.src = '/placeholder.svg';
                     }}
                   />
+                </div>
+                {/* Indicador de aguardando conexão */}
+                <div className="flex items-center gap-2 text-amber-600">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span className="text-sm font-medium">Aguardando leitura do QR Code...</span>
                 </div>
                 <div className="text-center space-y-1">
                   <p className="text-sm font-medium">Abra o WhatsApp no seu celular</p>
