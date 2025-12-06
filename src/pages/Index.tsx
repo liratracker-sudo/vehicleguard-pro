@@ -10,52 +10,63 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { MetricCard } from "@/components/dashboard/MetricCard"
 import { RecentClients } from "@/components/dashboard/RecentClients"
 import { RevenueChart } from "@/components/dashboard/RevenueChart"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const Index = () => {
-  const metrics = [
+  const { stats, recentClients, monthlyRevenue, isLoading } = useDashboardStats();
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const metrics = stats ? [
     {
       title: "Total de Clientes",
-      value: "1,234",
+      value: stats.totalClients.toLocaleString('pt-BR'),
       icon: <Users className="h-4 w-4" />,
-      trend: { value: "12%", isPositive: true },
-      description: "Clientes ativos no sistema"
+      trend: stats.clientsTrend,
+      description: "Clientes cadastrados no sistema"
     },
     {
       title: "Veículos Rastreados",
-      value: "2,847",
+      value: stats.totalVehicles.toLocaleString('pt-BR'),
       icon: <Car className="h-4 w-4" />,
-      trend: { value: "8%", isPositive: true },
+      trend: stats.vehiclesTrend,
       description: "Veículos com rastreamento ativo"
     },
     {
       title: "Receita Mensal",
-      value: "R$ 67.890",
+      value: formatCurrency(stats.monthlyRevenue),
       icon: <DollarSign className="h-4 w-4" />,
-      trend: { value: "15%", isPositive: true },
+      trend: stats.revenueTrend,
       description: "Faturamento do mês atual"
     },
     {
       title: "Taxa de Crescimento",
-      value: "23.5%",
+      value: `${stats.growthRate.toFixed(1)}%`,
       icon: <TrendingUp className="h-4 w-4" />,
-      trend: { value: "2.3%", isPositive: true },
-      description: "Crescimento nos últimos 6 meses"
+      trend: { value: stats.growthRate >= 0 ? `${stats.growthRate.toFixed(1)}%` : "0%", isPositive: stats.growthRate >= 0 },
+      description: "Crescimento de clientes"
     },
     {
       title: "Contratos Ativos",
-      value: "1,156",
+      value: stats.activeContracts.toLocaleString('pt-BR'),
       icon: <FileText className="h-4 w-4" />,
-      trend: { value: "9%", isPositive: true },
+      trend: stats.contractsTrend,
       description: "Contratos vigentes"
     },
     {
       title: "Inadimplência",
-      value: "3.2%",
+      value: `${stats.delinquencyRate.toFixed(1)}%`,
       icon: <AlertCircle className="h-4 w-4" />,
-      trend: { value: "1.1%", isPositive: false },
+      trend: { value: `${stats.delinquencyRate.toFixed(1)}%`, isPositive: stats.delinquencyRate <= 5 },
       description: "Taxa de inadimplência atual"
     }
-  ]
+  ] : [];
 
   return (
     <AppLayout>
@@ -70,15 +81,21 @@ const Index = () => {
 
         {/* Metrics Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {metrics.map((metric, index) => (
-            <MetricCard key={index} {...metric} />
-          ))}
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-32 w-full" />
+            ))
+          ) : (
+            metrics.map((metric, index) => (
+              <MetricCard key={index} {...metric} />
+            ))
+          )}
         </div>
 
         {/* Charts and Recent Activity */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <RevenueChart />
-          <RecentClients />
+          <RevenueChart data={monthlyRevenue} isLoading={isLoading} />
+          <RecentClients clients={recentClients} isLoading={isLoading} />
         </div>
       </div>
     </AppLayout>

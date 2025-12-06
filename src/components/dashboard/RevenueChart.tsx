@@ -1,16 +1,46 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { Skeleton } from "@/components/ui/skeleton"
+import { MonthlyRevenue } from "@/hooks/useDashboardStats"
 
-const data = [
-  { month: "Jan", revenue: 45000, contracts: 120 },
-  { month: "Fev", revenue: 52000, contracts: 135 },
-  { month: "Mar", revenue: 48000, contracts: 128 },
-  { month: "Abr", revenue: 61000, contracts: 152 },
-  { month: "Mai", revenue: 55000, contracts: 140 },
-  { month: "Jun", revenue: 67000, contracts: 168 },
-]
+interface RevenueChartProps {
+  data: MonthlyRevenue[];
+  isLoading?: boolean;
+}
 
-export function RevenueChart() {
+export function RevenueChart({ data, isLoading }: RevenueChartProps) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Receita Mensal</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[300px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const hasData = data.some(d => d.revenue > 0);
+
+  if (!hasData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Receita Mensal</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] flex items-center justify-center">
+            <p className="text-sm text-muted-foreground text-center">
+              Nenhum pagamento registrado nos últimos 6 meses.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -29,7 +59,7 @@ export function RevenueChart() {
               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip 
-              formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Receita']}
+              formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Receita']}
               labelStyle={{ color: 'hsl(var(--foreground))' }}
               contentStyle={{ 
                 backgroundColor: 'hsl(var(--card))', 
