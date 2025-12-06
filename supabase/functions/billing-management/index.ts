@@ -127,6 +127,39 @@ serve(async (req) => {
           return `R$ ${parts.join(',')}`;
         };
 
+        // Helper function to calculate days difference correctly (considering Brasília timezone)
+        const calculateDaysDiff = (dueDate: Date): number => {
+          const now = new Date();
+          
+          // Normalize due_date to midnight UTC
+          const dueDateOnly = new Date(Date.UTC(
+            dueDate.getUTCFullYear(), 
+            dueDate.getUTCMonth(), 
+            dueDate.getUTCDate()
+          ));
+          
+          // Get current date in Brasília (UTC-3)
+          const brazilOffset = -3 * 60 * 60 * 1000;
+          const nowInBrazil = new Date(now.getTime() + brazilOffset);
+          const todayOnly = new Date(Date.UTC(
+            nowInBrazil.getUTCFullYear(), 
+            nowInBrazil.getUTCMonth(), 
+            nowInBrazil.getUTCDate()
+          ));
+          
+          const diffMs = dueDateOnly.getTime() - todayOnly.getTime();
+          return Math.round(diffMs / (1000 * 60 * 60 * 24));
+        };
+
+        // Helper function to format days text dynamically
+        const formatDaysText = (daysDiff: number): string => {
+          if (daysDiff === 0) return 'hoje';
+          if (daysDiff === 1) return 'amanhã';
+          if (daysDiff === -1) return 'ontem';
+          if (daysDiff > 0) return `em ${daysDiff} dias`;
+          return `há ${Math.abs(daysDiff)} dias`;
+        };
+
         // Get payment details
         const { data: payment, error: paymentError } = await supabase
           .from('payment_transactions')
@@ -169,15 +202,15 @@ Sua fatura de *{{valor}}* vence em *{{vencimento}}*.
 _{{empresa}}_`;
 
         const dueDate = new Date(payment.due_date);
-        const today = new Date();
-        const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const daysDiff = calculateDaysDiff(dueDate);
+        const daysText = formatDaysText(daysDiff);
 
         // Build message using template (link será incluído no final)
         const messageWithoutLink = template
           .replace(/\{\{cliente\}\}/g, payment.clients?.name || 'Cliente')
           .replace(/\{\{valor\}\}/g, formatCurrencyBR(Number(payment.amount)))
           .replace(/\{\{vencimento\}\}/g, formatDateBR(dueDate))
-          .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
+          .replace(/\{\{dias\}\}/g, daysText) // Now uses "hoje", "amanhã", "em X dias", etc.
           .replace(/\{\{link_pagamento\}\}/g, '')
           .replace(/\{\{empresa\}\}/g, company?.name || 'Sistema')
           .replace(/\n{3,}/g, '\n\n')
