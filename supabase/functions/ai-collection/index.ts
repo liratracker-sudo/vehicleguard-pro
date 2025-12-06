@@ -18,9 +18,9 @@ serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { action, company_id, payment_id } = await req.json();
+    const { action, company_id, payment_id, custom_tone } = await req.json();
     
-    console.log('AI Collection action:', { action, company_id, payment_id });
+    console.log('AI Collection action:', { action, company_id, payment_id, custom_tone: custom_tone || 'padrão' });
 
     // Processar pagamento específico (para comando do gestor ou sistema de notificações)
     if (action === 'process_specific_payment') {
@@ -123,6 +123,32 @@ serve(async (req) => {
       } else {
         contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dias.`;
         toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
+      }
+
+      // Se o gestor especificou um tom customizado, sobrescrever o tom padrão
+      if (custom_tone) {
+        console.log('🎯 Tom customizado solicitado pelo gestor:', custom_tone);
+        
+        const toneMap: Record<string, string> = {
+          'agressivo': 'Use um TOM AGRESSIVO E FIRME. Seja direto e incisivo. Deixe claro que há consequências imediatas para o não pagamento. Use frases como "urgente", "imediatamente", "último aviso". Deixe claro que a inadimplência é inaceitável.',
+          'muito_agressivo': 'Use um TOM MUITO AGRESSIVO E INTIMIDADOR. Mencione ação judicial iminente, suspensão imediata do serviço, negativação no SPC/Serasa. Seja extremamente firme e direto. Use linguagem de ÚLTIMO AVISO.',
+          'amigavel': 'Use um TOM AMIGÁVEL E COMPREENSIVO. Seja gentil, empático e ofereça ajuda para resolver a situação. Demonstre que entende possíveis dificuldades.',
+          'formal': 'Use um TOM EXTREMAMENTE FORMAL E PROFISSIONAL. Linguagem corporativa, distante e técnica. Sem informalidades.',
+          'urgente': 'Use um TOM DE URGÊNCIA MÁXIMA. Enfatize que o prazo está acabando, que a ação é necessária AGORA e que há consequências para demora.',
+          'firme': 'Use um TOM FIRME E ASSERTIVO. Seja direto, sem rodeios, deixando claro a seriedade da situação.'
+        };
+        
+        // Normalizar o tom recebido (aceitar variações)
+        const normalizedTone = custom_tone.toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
+          .replace(/muito\s*agressivo/g, 'muito_agressivo')
+          .replace(/\s+/g, '_')
+          .trim();
+        
+        toneInstruction = toneMap[normalizedTone] || 
+          `Use um TOM ${custom_tone.toUpperCase()}. Adapte completamente a mensagem seguindo esse estilo de comunicação.`;
+        
+        console.log('📝 Instrução de tom aplicada:', toneInstruction);
       }
 
       // Preparar prompt estruturado para a IA (SEM incluir link - será enviado separadamente)

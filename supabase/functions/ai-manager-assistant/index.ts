@@ -202,10 +202,12 @@ REGRAS IMPORTANTES:
 - VOCÊ PRECISA SEMPRE RESPONDER, NUNCA FIQUE SILENCIOSO
 
 COMANDOS ESPECIAIS:
-- Para forçar cobrança IMEDIATA: Use "EXECUTAR_COBRANCA:" seguido do ID REAL do pagamento
-  * ATENÇÃO: SEMPRE use o ID REAL do pagamento listado acima, NUNCA use "ID_DO_PAGAMENTO" como placeholder
-  * Exemplo correto: "EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  * Quando o gestor pedir "dispare a notificação dessa cobrança pendente", identifique qual cobrança (geralmente a mais recente ou única pendente) e use seu ID real
+- Para forçar cobrança IMEDIATA: Use "EXECUTAR_COBRANCA:ID:TOM" onde:
+  * ID = o ID REAL do pagamento (UUID) listado acima
+  * TOM = tom solicitado pelo gestor (agressivo, amigavel, formal, urgente, firme, muito_agressivo) - OPCIONAL
+  * Se o gestor NÃO especificar tom: "EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  * Se o gestor ESPECIFICAR tom (ex: "use tom agressivo"): "EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890:agressivo"
+  * ATENÇÃO: SEMPRE use o ID REAL do pagamento, NUNCA use "ID_DO_PAGAMENTO" como placeholder
 - Para gerar relatório: "EXECUTAR_RELATORIO"
 - Para agendar lembrete: "AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM" (exemplo: "AGENDAR_LEMBRETE:2025-10-09 09:00:Atualizar base de dados")
 - Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_REAL_DO_PAGAMENTO" - use sempre o ID real do pagamento, não o placeholder
@@ -233,8 +235,13 @@ Analise a solicitação e responda adequadamente:
    - Identifique qual cobrança o gestor está se referindo (pendente, em atraso, cliente específico, etc.)
    - Use o ID REAL do pagamento listado no contexto acima
    - NUNCA use placeholders como "ID_DO_PAGAMENTO"
-   - Formato: EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890
-   - Exemplo: Se há uma cobrança pendente com ID "550e8400-e29b-41d4-a716-446655440000", use: EXECUTAR_COBRANCA:550e8400-e29b-41d4-a716-446655440000
+   - Se o gestor ESPECIFICAR UM TOM (ex: "use tom agressivo", "seja agressivo", "tom firme"):
+     * Use formato: EXECUTAR_COBRANCA:UUID:TOM
+     * Exemplo: EXECUTAR_COBRANCA:550e8400-e29b-41d4-a716-446655440000:agressivo
+   - Se o gestor NÃO especificar tom:
+     * Use formato simples: EXECUTAR_COBRANCA:UUID
+     * Exemplo: EXECUTAR_COBRANCA:550e8400-e29b-41d4-a716-446655440000
+   - Tons disponíveis: agressivo, muito_agressivo, amigavel, formal, urgente, firme
 
 3. Se for uma solicitação de gerar relatório, use: EXECUTAR_RELATORIO
 
@@ -389,18 +396,20 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
       console.log('Resposta vazia detectada, usando fallback');
     }
     
-    // Detectar comando de cobrança
-    const forceCollectionMatch = aiResponse.match(/EXECUTAR_COBRANCA:([a-f0-9-]+)/);
+    // Detectar comando de cobrança (agora com suporte a tom customizado)
+    const forceCollectionMatch = aiResponse.match(/EXECUTAR_COBRANCA:([a-f0-9-]+)(?::([^\s]+))?/);
     if (forceCollectionMatch) {
       const paymentId = forceCollectionMatch[1];
-      console.log('Executando cobrança para pagamento:', paymentId);
+      const customTone = forceCollectionMatch[2] || null; // Captura o tom, se houver
+      console.log('Executando cobrança para pagamento:', paymentId, 'com tom:', customTone || 'padrão');
       
       // Invocar função de cobrança individual (apenas gera a mensagem)
       const collectionResult = await supabase.functions.invoke('ai-collection', {
         body: {
           action: 'process_specific_payment',
           company_id,
-          payment_id: paymentId
+          payment_id: paymentId,
+          custom_tone: customTone  // Passa o tom customizado se especificado
         }
       });
       
