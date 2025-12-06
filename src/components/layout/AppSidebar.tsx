@@ -133,7 +133,7 @@ export function AppSidebar() {
       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [companyName, setCompanyName] = useState("VehicleGuard")
+  const [companyName, setCompanyName] = useState("GestaoTracker")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const { pendingCount } = useClientRegistrations()
   

@@ -173,7 +173,7 @@ const AuthPage = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              VehicleGuard Pro
+              GestaoTracker
             </motion.h1>
             <motion.p 
               className="text-slate-400 text-sm"
