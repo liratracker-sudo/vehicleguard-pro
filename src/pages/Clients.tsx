@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, Download, FileText, History, Eye } from "lucide-react"
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, FileText, History, Eye } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -26,8 +26,6 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ClientForm } from "@/components/clients/ClientForm"
 import { useClients } from "@/hooks/useClients"
-import { useAsaasImport } from "@/hooks/useAsaasImport"
-import { useFixAddresses } from "@/hooks/useFixAddresses"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const ClientsPage = () => {
@@ -37,8 +35,6 @@ const ClientsPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
   const { clients, loading, deleteClient, loadClients } = useClients()
-  const { importing, importCustomers } = useAsaasImport()
-  const { fixing, fixAddresses } = useFixAddresses()
 
   const handleViewContracts = (clientId: string) => {
     navigate(`/contracts?client_id=${clientId}`)
@@ -82,25 +78,6 @@ const ClientsPage = () => {
     setViewMode(null)
   }
 
-  const handleImportFromAsaas = async () => {
-    if (confirm('Deseja importar todos os clientes cadastrados no Asaas? Esta é uma operação única.')) {
-      const result = await importCustomers()
-      if (result.success) {
-        // Recarregar lista de clientes
-        await loadClients()
-      }
-    }
-  }
-
-  const handleFixAddresses = async () => {
-    if (confirm('Deseja corrigir os endereços dos clientes importados do Asaas? Esta operação converterá os endereços em texto para o formato estruturado do sistema.')) {
-      const result = await fixAddresses()
-      if (result.success) {
-        // Recarregar lista de clientes
-        await loadClients()
-      }
-    }
-  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -127,21 +104,6 @@ const ClientsPage = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleImportFromAsaas}
-              disabled={importing || loading || fixing}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              {importing ? 'Importando...' : 'Importar do Asaas'}
-            </Button>
-            <Button 
-              variant="outline"
-              onClick={handleFixAddresses}
-              disabled={fixing || loading || importing}
-            >
-              {fixing ? 'Corrigindo...' : 'Corrigir Endereços'}
-            </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="shrink-0" onClick={() => setIsDialogOpen(true)}>
