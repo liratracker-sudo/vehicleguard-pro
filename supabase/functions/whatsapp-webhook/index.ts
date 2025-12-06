@@ -17,10 +17,16 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const webhookData = await req.json();
-    console.log('Webhook recebido:', JSON.stringify(webhookData, null, 2));
+    
+    // Normalizar evento para lowercase para compatibilidade
+    const eventType = (webhookData.event || '').toLowerCase();
+    console.log('=== WEBHOOK RECEBIDO ===');
+    console.log('Evento original:', webhookData.event);
+    console.log('Evento normalizado:', eventType);
+    console.log('Dados completos:', JSON.stringify(webhookData, null, 2));
 
-    // CRÍTICO: Processar eventos de conexão
-    if (webhookData.event === 'connection.update' || webhookData.event === 'CONNECTION_UPDATE') {
+    // CRÍTICO: Processar eventos de conexão (case-insensitive)
+    if (eventType === 'connection.update' || eventType === 'connection_update') {
       console.log('Processando atualização de conexão:', webhookData.data);
       
       const instanceName = webhookData.instance || webhookData.data?.instanceName;
@@ -80,8 +86,8 @@ serve(async (req) => {
       });
     }
 
-    // Processar QR Code atualizado
-    if (webhookData.event === 'qrcode.updated' || webhookData.event === 'QRCODE_UPDATED') {
+    // Processar QR Code atualizado (case-insensitive)
+    if (eventType === 'qrcode.updated' || eventType === 'qrcode_updated') {
       console.log('QR Code atualizado:', webhookData.data);
       
       const instanceName = webhookData.instance || webhookData.data?.instanceName;
@@ -112,8 +118,9 @@ serve(async (req) => {
       });
     }
 
-    // Verifica se é uma mensagem recebida
-    if (webhookData.event === 'messages.upsert') {
+    // Verifica se é uma mensagem recebida (case-insensitive)
+    if (eventType === 'messages.upsert' || eventType === 'messages_upsert') {
+      console.log('=== MENSAGEM RECEBIDA ===');
       const message = webhookData.data;
       
       if (!message || message.key?.fromMe) {
