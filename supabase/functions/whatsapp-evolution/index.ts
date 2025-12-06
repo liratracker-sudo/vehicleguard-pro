@@ -60,6 +60,8 @@ serve(async (req) => {
         return await getQRCode(payload);
       case 'clear_instance':
         return await clearInstance(payload);
+      case 'update_webhook':
+        return await updateWebhook(payload);
       case 'createSession': {
         // Compatibilidade com chamadas antigas que enviam payload aninhado e usam "token"
         const p: any = (payload as any)?.payload ? { ...(payload as any).payload } : payload;
@@ -526,6 +528,29 @@ async function checkConnection(payload: any) {
       }
     }
 
+    // Se conectado, atualizar webhook automaticamente
+    if (result.instance?.state === 'open') {
+      console.log('Instância conectada, atualizando webhook...');
+      try {
+        const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook`;
+        const webhookResponse = await fetch(`${instance_url}/webhook/set/${instance_name}`, {
+          method: 'POST',
+          headers: { 'apikey': api_token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: webhookUrl,
+            enabled: true,
+            webhookByEvents: true,
+            webhookBase64: false,
+            events: ["CONNECTION_UPDATE", "QRCODE_UPDATED", "MESSAGES_UPDATE", "MESSAGES_UPSERT", "SEND_MESSAGE"]
+          })
+        });
+        const webhookResult = await webhookResponse.json();
+        console.log('Webhook atualizado automaticamente:', webhookResult);
+      } catch (webhookError) {
+        console.error('Erro ao atualizar webhook (não crítico):', webhookError);
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: response.ok,
@@ -654,6 +679,84 @@ async function getInstanceInfo(payload: any) {
   } catch (error) {
     console.error('Erro ao obter informações da instância:', error);
     throw error;
+  }
+}
+
+async function updateWebhook(payload: any) {
+  const actualPayload = payload.payload || payload;
+  let { instance_url, api_token, instance_name, company_id } = actualPayload;
+  
+  // Buscar credenciais dos secrets se não fornecidas
+  if (!instance_url || instance_url === 'from_secrets') {
+    instance_url = Deno.env.get('WHATSAPP_EVOLUTION_URL');
+  }
+  if (!api_token || api_token === 'from_secrets') {
+    api_token = Deno.env.get('WHATSAPP_EVOLUTION_TOKEN');
+  }
+  
+  console.log('Atualizando webhook para instância:', instance_name);
+  
+  if (!instance_url || !api_token || !instance_name) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Parâmetros obrigatórios faltando' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook`;
+    console.log('Configurando webhook URL:', webhookUrl);
+    
+    // Configurar webhook na instância existente
+    const response = await fetch(`${instance_url}/webhook/set/${instance_name}`, {
+      method: 'POST',
+      headers: {
+        'apikey': api_token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: webhookUrl,
+        enabled: true,
+        webhookByEvents: true,
+        webhookBase64: false,
+        events: [
+          "CONNECTION_UPDATE",
+          "QRCODE_UPDATED", 
+          "MESSAGES_UPDATE",
+          "MESSAGES_UPSERT",
+          "SEND_MESSAGE"
+        ]
+      })
+    });
+
+    const result = await response.json();
+    console.log('Resultado da configuração do webhook:', result);
+
+    if (response.ok) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Webhook atualizado com sucesso',
+          data: result
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Falha ao atualizar webhook',
+          data: result
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (error) {
+    console.error('Erro ao atualizar webhook:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 }
 
