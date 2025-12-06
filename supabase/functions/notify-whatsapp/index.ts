@@ -42,12 +42,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { client_id, message, payment_id, schedule_for, phone } = body as {
+    const { client_id, message, payment_id, schedule_for, phone, linkPreview } = body as {
       client_id: string;
       message: string;
       payment_id?: string;
       schedule_for?: string; // ISO string for future scheduling
       phone?: string;
+      linkPreview?: boolean; // Controla preview de link no WhatsApp
     };
 
     if (!client_id || !message) {
@@ -167,6 +168,7 @@ serve(async (req) => {
         message,
         company_id,
         client_id,
+        linkPreview: linkPreview !== undefined ? linkPreview : true, // Passa o parâmetro
       },
     });
 

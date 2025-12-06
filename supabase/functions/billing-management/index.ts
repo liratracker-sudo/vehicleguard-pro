@@ -172,25 +172,28 @@ _{{empresa}}_`;
         const today = new Date();
         const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-        // Build message using template (without link)
-        const message = template
+        // Build message using template (link será incluído no final)
+        const messageWithoutLink = template
           .replace(/\{\{cliente\}\}/g, payment.clients?.name || 'Cliente')
           .replace(/\{\{valor\}\}/g, formatCurrencyBR(Number(payment.amount)))
           .replace(/\{\{vencimento\}\}/g, formatDateBR(dueDate))
           .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
-          .replace(/\{\{link_pagamento\}\}/g, '') // Link será enviado separadamente
+          .replace(/\{\{link_pagamento\}\}/g, '')
           .replace(/\{\{empresa\}\}/g, company?.name || 'Sistema')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
 
-        // Send notification via WhatsApp using the user's JWT (RLS-aware)
-        // First message: text without link
+        // Unificar mensagem: texto + link em uma só mensagem
+        const fullMessage = `${messageWithoutLink}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
+
+        // Send notification via WhatsApp - UMA única mensagem com linkPreview: false
         const notificationResponse = await supabase.functions.invoke('notify-whatsapp', {
           body: {
             client_id: payment.client_id,
-            message: message,
+            message: fullMessage,
             payment_id: payment_id,
-            phone: payment.clients?.phone
+            phone: payment.clients?.phone,
+            linkPreview: false  // Desabilita preview do link
           }
         });
 
@@ -204,34 +207,8 @@ _{{empresa}}_`;
           errMsg = notificationResponse.data?.error || 'Falha ao enviar notificação via WhatsApp';
         }
 
-        if (!success) {
-          return new Response(
-            JSON.stringify({ success: false, message: errMsg }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Small delay between messages
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Second message: only the payment link
-        const linkResponse = await supabase.functions.invoke('notify-whatsapp', {
-          body: {
-            client_id: payment.client_id,
-            message: paymentLink,
-            payment_id: payment_id,
-            phone: payment.clients?.phone
-          }
-        });
-
-        if (linkResponse.error || !linkResponse.data?.success) {
-          const linkErr = linkResponse.error?.message || linkResponse.data?.error || 'Falha ao enviar link';
-          console.error('Failed to send payment link:', linkErr);
-          // Don't fail the whole operation, first message was sent
-        }
-
         return new Response(
-          JSON.stringify({ success: true, message: 'Notification sent successfully (2 messages)' }),
+          JSON.stringify({ success, message: success ? 'Notification sent successfully' : errMsg }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
