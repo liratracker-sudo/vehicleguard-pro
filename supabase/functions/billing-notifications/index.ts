@@ -849,19 +849,20 @@ async function sendSingleNotification(notification: any) {
     message = await renderTemplate(notification, payment, client, settings);
   }
   
-  // Remove any existing links from the message (will be sent separately)
+  // Remove any existing links from the message and add the payment link at the end
   const messageWithoutLink = message
     .replace(/https?:\/\/[^\s]+/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   
-  // === SEND TWO SEPARATE MESSAGES ===
+  // Build unified message with link at the end
+  const fullMessage = `${messageWithoutLink}\n\n🔗 Acesse aqui: ${paymentLink}`;
   
-  // 1. Send FIRST message (text without link)
-  console.log(`📤 Sending message 1/2 (text) for notification ${notification.id}...`);
-  console.log('Message preview:', messageWithoutLink.substring(0, 100) + '...');
+  // === SEND SINGLE UNIFIED MESSAGE (without link preview) ===
+  console.log(`📤 Sending unified message for notification ${notification.id}...`);
+  console.log('Message preview:', fullMessage.substring(0, 150) + '...');
   
-  const firstResponse = await supabase.functions.invoke('whatsapp-evolution', {
+  const response = await supabase.functions.invoke('whatsapp-evolution', {
     body: {
       action: 'send_message',
       payload: {
@@ -869,24 +870,25 @@ async function sendSingleNotification(notification: any) {
         api_token: whatsappSettings.api_token,
         instance_name: whatsappSettings.instance_name,
         phone_number: client.phone,
-        message: messageWithoutLink,
+        message: fullMessage,
         company_id: notification.company_id,
-        client_id: notification.client_id
+        client_id: notification.client_id,
+        linkPreview: false  // Disable link preview for cleaner message
       }
     }
   });
 
-  // Check first message result
-  if (firstResponse.error) {
-    const errorMsg = `HTTP Error: ${firstResponse.error.message}`;
-    console.error(`❌ First message failed for notification ${notification.id}:`, errorMsg);
+  // Check message result
+  if (response.error) {
+    const errorMsg = `HTTP Error: ${response.error.message}`;
+    console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
     await logWhatsAppAlert(notification.company_id, `Erro na API WhatsApp: ${errorMsg}`);
     throw new Error(errorMsg);
   }
 
-  if (firstResponse.data && firstResponse.data.success === false) {
-    const errorMsg = firstResponse.data.error || firstResponse.data.message || 'Falha no envio da primeira mensagem';
-    console.error(`❌ First message failed for notification ${notification.id}:`, errorMsg);
+  if (response.data && response.data.success === false) {
+    const errorMsg = response.data.error || response.data.message || 'Falha no envio da mensagem';
+    console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
     
     if (errorMsg.includes('not connected') || errorMsg.includes('WhatsApp instance not connected') || errorMsg.includes('não autenticado')) {
       await logWhatsAppAlert(notification.company_id, `WhatsApp desconectado durante envio: ${errorMsg}`);
@@ -897,52 +899,12 @@ async function sendSingleNotification(notification: any) {
     throw new Error(`WhatsApp send failed: ${errorMsg}`);
   }
 
-  console.log(`✅ First message sent successfully for notification ${notification.id}`);
-  
-  // Small delay between messages (1.5 seconds)
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  // 2. Send SECOND message (only the payment link)
-  console.log(`📤 Sending message 2/2 (link) for notification ${notification.id}...`);
-  console.log('Link:', paymentLink);
-  
-  const secondResponse = await supabase.functions.invoke('whatsapp-evolution', {
-    body: {
-      action: 'send_message',
-      payload: {
-        instance_url: whatsappSettings.instance_url,
-        api_token: whatsappSettings.api_token,
-        instance_name: whatsappSettings.instance_name,
-        phone_number: client.phone,
-        message: paymentLink,
-        company_id: notification.company_id,
-        client_id: notification.client_id
-      }
-    }
-  });
+  console.log(`✅ Message sent successfully for notification ${notification.id}`);
 
-  // Check second message result
-  if (secondResponse.error) {
-    const errorMsg = `HTTP Error: ${secondResponse.error.message}`;
-    console.error(`❌ Second message (link) failed for notification ${notification.id}:`, errorMsg);
-    await logWhatsAppAlert(notification.company_id, `Erro ao enviar link: ${errorMsg}`);
-    throw new Error(errorMsg);
-  }
-
-  if (secondResponse.data && secondResponse.data.success === false) {
-    const errorMsg = secondResponse.data.error || secondResponse.data.message || 'Falha no envio do link';
-    console.error(`❌ Second message (link) failed for notification ${notification.id}:`, errorMsg);
-    await logWhatsAppAlert(notification.company_id, `Erro ao enviar link: ${errorMsg}`);
-    throw new Error(`WhatsApp link send failed: ${errorMsg}`);
-  }
-
-  console.log(`✅ Second message (link) sent successfully for notification ${notification.id}`);
-  console.log(`✅ Both messages sent successfully for notification ${notification.id}`);
-
-  // Store rendered message for audit (including the link for reference)
+  // Store rendered message for audit
   await supabase
     .from('payment_notifications')
-    .update({ message_body: `${messageWithoutLink}\n\n[Link enviado separadamente: ${paymentLink}]` })
+    .update({ message_body: fullMessage })
     .eq('id', notification.id);
 }
 

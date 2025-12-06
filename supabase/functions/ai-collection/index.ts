@@ -375,7 +375,10 @@ ${toneInstruction}
             .replace(/\n{3,}/g, '\n\n')
             .trim();
 
-          // Enviar via WhatsApp (duas mensagens: texto + link)
+          // Build unified message with link
+          const fullMessage = `${messageWithoutLink}\n\n🔗 Acesse aqui: ${paymentLink}`;
+
+          // Enviar via WhatsApp (mensagem única sem preview de link)
           const { data: whatsappSettings } = await supabase
             .from('whatsapp_settings')
             .select('*')
@@ -385,40 +388,21 @@ ${toneInstruction}
 
           let messageSent = false;
           if (whatsappSettings) {
-            // First message: text without link
-            const firstResult = await supabase.functions.invoke('whatsapp-evolution', {
+            const sendResult = await supabase.functions.invoke('whatsapp-evolution', {
               body: {
                 action: 'sendText',
                 instance_url: whatsappSettings.instance_url,
                 api_token: whatsappSettings.api_token,
                 instance_name: whatsappSettings.instance_name,
                 number: client.phone,
-                message: messageWithoutLink,
+                message: fullMessage,
                 company_id: company_id,
-                client_id: client.id
+                client_id: client.id,
+                linkPreview: false  // Disable link preview for cleaner message
               }
             });
 
-            if (firstResult.data?.success) {
-              // Small delay between messages
-              await new Promise(resolve => setTimeout(resolve, 1500));
-              
-              // Second message: only the payment link
-              const secondResult = await supabase.functions.invoke('whatsapp-evolution', {
-                body: {
-                  action: 'sendText',
-                  instance_url: whatsappSettings.instance_url,
-                  api_token: whatsappSettings.api_token,
-                  instance_name: whatsappSettings.instance_name,
-                  number: client.phone,
-                  message: paymentLink,
-                  company_id: company_id,
-                  client_id: client.id
-                }
-              });
-              
-              messageSent = secondResult.data?.success || false;
-            }
+            messageSent = sendResult.data?.success || false;
           }
 
           // Salvar log da IA após enviar (se configurações existirem)
