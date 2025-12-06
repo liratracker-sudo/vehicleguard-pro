@@ -28,44 +28,64 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
-  // Sincronizar tema do banco em background (sem afetar UX inicial)
+  // Aplicar tema imediatamente ao montar
   useEffect(() => {
-    const syncThemeFromDatabase = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+    applyTheme(theme);
+  }, []);
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('company_id')
-          .eq('user_id', user.id)
-          .single();
+  // Sincronizar tema do banco em background
+  const syncThemeFromDatabase = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-        if (!profile?.company_id) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single();
 
-        setCompanyId(profile.company_id);
+      if (!profile?.company_id) return;
 
-        const { data: branding } = await supabase
-          .from('company_branding')
-          .select('theme_mode')
-          .eq('company_id', profile.company_id)
-          .maybeSingle();
+      setCompanyId(profile.company_id);
 
-        if (branding?.theme_mode) {
-          const dbTheme = branding.theme_mode as ThemeMode;
-          // Só atualiza se diferente do localStorage (outra sessão mudou)
-          if (dbTheme !== theme) {
-            setThemeState(dbTheme);
-            applyTheme(dbTheme);
-            localStorage.setItem('theme', dbTheme);
-          }
+      const { data: branding } = await supabase
+        .from('company_branding')
+        .select('theme_mode')
+        .eq('company_id', profile.company_id)
+        .maybeSingle();
+
+      if (branding?.theme_mode) {
+        const dbTheme = branding.theme_mode as ThemeMode;
+        // Atualiza se diferente do estado atual
+        if (dbTheme !== theme) {
+          setThemeState(dbTheme);
+          applyTheme(dbTheme);
+          localStorage.setItem('theme', dbTheme);
         }
-      } catch (error) {
-        console.error('Error syncing theme from database:', error);
       }
-    };
+    } catch (error) {
+      console.error('Error syncing theme from database:', error);
+    }
+  };
 
+  // Sincronizar ao montar e escutar mudanças de autenticação
+  useEffect(() => {
     syncThemeFromDatabase();
+
+    // Listener para sincronizar tema imediatamente após login
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Usar setTimeout para evitar deadlock
+          setTimeout(() => {
+            syncThemeFromDatabase();
+          }, 0);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const applyTheme = (newTheme: ThemeMode) => {
