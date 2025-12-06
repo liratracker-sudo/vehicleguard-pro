@@ -131,6 +131,8 @@ serve(async (req) => {
 
       const instanceName = webhookData.instance;
       const remoteJid = message.key?.remoteJid || '';
+      // IMPORTANTE: remoteJidAlt contém o número real quando o formato é LID
+      const remoteJidAlt = message.key?.remoteJidAlt || '';
       const isGroup = remoteJid.includes('@g.us');
       
       // Ignorar mensagens de grupos
@@ -141,7 +143,14 @@ serve(async (req) => {
         });
       }
       
-      const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
+      // Usar remoteJidAlt (formato real) quando disponível, senão usar remoteJid
+      const jidToUse = remoteJidAlt || remoteJid;
+      // Extrair apenas o número, removendo sufixos @s.whatsapp.net, @lid, etc.
+      const phoneNumber = jidToUse.split('@')[0];
+      
+      console.log('JID original:', remoteJid);
+      console.log('JID alternativo:', remoteJidAlt);
+      console.log('Número extraído:', phoneNumber);
       
       const messageText = message.message?.conversation || 
                          message.message?.extendedTextMessage?.text || '';
