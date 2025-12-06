@@ -77,14 +77,18 @@ serve(async (req) => {
       .order('due_date', { ascending: true })
       .limit(50);
 
-    // Buscar últimos pagamentos recebidos
+    // Buscar últimos pagamentos recebidos (com nome do cliente)
     const { data: paidPayments } = await supabase
       .from('payment_transactions')
-      .select('amount, paid_at')
+      .select('amount, paid_at, clients:client_id(name)')
       .eq('company_id', company_id)
       .eq('status', 'paid')
       .order('paid_at', { ascending: false })
-      .limit(10);
+      .limit(30);
+
+    // Filtrar pagamentos de HOJE
+    const today = new Date().toISOString().split('T')[0];
+    const todayPayments = paidPayments?.filter(p => p.paid_at?.startsWith(today)) || [];
 
     // Construir contexto financeiro
     const totalOverdue = overduePayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
@@ -149,8 +153,13 @@ Suas capacidades:
 Contexto financeiro atual:
 - Total em atraso: R$ ${totalOverdue.toFixed(2)} (${overduePayments?.length || 0} cobranças)
 - Total pendente: R$ ${totalPending.toFixed(2)} (${pendingPayments?.length || 0} cobranças)
-- Total recebido (últimos 10): R$ ${totalPaid.toFixed(2)}
+- Total recebido (últimos 30): R$ ${totalPaid.toFixed(2)}
 - Total de clientes cadastrados: ${allClients?.length || 0}
+
+PAGAMENTOS RECEBIDOS HOJE (${today}):
+${todayPayments.length > 0 
+  ? todayPayments.map((p: any) => `- ${p.clients?.name || 'Cliente'}: R$ ${Number(p.amount).toFixed(2)} (pago às ${p.paid_at?.split('T')[1]?.substring(0,5) || ''})`).join('\n')
+  : 'Nenhum pagamento recebido hoje ainda'}
 
 Clientes cadastrados (completo):
 ${clientsInfo.map((c, i) => `${i + 1}. ${c.name}
@@ -386,7 +395,7 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
       const paymentId = forceCollectionMatch[1];
       console.log('Executando cobrança para pagamento:', paymentId);
       
-      // Invocar função de cobrança individual
+      // Invocar função de cobrança individual (apenas gera a mensagem)
       const collectionResult = await supabase.functions.invoke('ai-collection', {
         body: {
           action: 'process_specific_payment',
@@ -403,7 +412,63 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
         console.error('Erro ao executar cobrança:', errorMsg);
         finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, `❌ Erro ao enviar cobrança: ${errorMsg}`);
       } else {
-        finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, '✅ Cobrança enviada com sucesso!');
+        // AGORA PRECISAMOS ENVIAR A MENSAGEM VIA WHATSAPP
+        const generatedMessage = collectionResult.data.generated_message;
+        const clientPhone = collectionResult.data.client_phone;
+        const clientName = collectionResult.data.client_name;
+        
+        console.log('Mensagem gerada, enviando para cliente:', clientName, clientPhone);
+        
+        // Buscar configurações do WhatsApp
+        const { data: whatsappSettings } = await supabase
+          .from('whatsapp_settings')
+          .select('*')
+          .eq('company_id', company_id)
+          .eq('is_active', true)
+          .single();
+        
+        if (whatsappSettings && clientPhone) {
+          // Buscar informações da empresa para o link
+          const { data: companyInfo } = await supabase
+            .from('companies')
+            .select('domain')
+            .eq('id', company_id)
+            .single();
+          
+          const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+          const baseUrl = companyInfo?.domain 
+            ? `https://${companyInfo.domain.replace(/^https?:\/\//, '')}` 
+            : defaultAppUrl;
+          const paymentLink = `${baseUrl}/checkout/${paymentId}`;
+          
+          // Construir mensagem completa com link
+          const fullMessage = `${generatedMessage}\n\n🔗 Acesse aqui: ${paymentLink}`;
+          
+          // Enviar via WhatsApp
+          const sendResult = await supabase.functions.invoke('whatsapp-evolution', {
+            body: {
+              action: 'sendText',
+              instance_url: whatsappSettings.instance_url,
+              api_token: whatsappSettings.api_token,
+              instance_name: whatsappSettings.instance_name,
+              number: clientPhone,
+              message: fullMessage,
+              company_id,
+              linkPreview: false
+            }
+          });
+          
+          console.log('Resultado do envio WhatsApp:', sendResult);
+          
+          if (sendResult.data?.success) {
+            finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, `✅ Cobrança enviada com sucesso para ${clientName}!`);
+          } else {
+            finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, `⚠️ Mensagem gerada mas erro ao enviar: ${sendResult.error?.message || 'Falha no envio'}`);
+          }
+        } else {
+          console.error('WhatsApp não configurado ou cliente sem telefone');
+          finalResponse = aiResponse.replace(/EXECUTAR_COBRANCA:[a-f0-9-]+/, '⚠️ Mensagem gerada mas WhatsApp não configurado ou cliente sem telefone');
+        }
       }
     }
 
