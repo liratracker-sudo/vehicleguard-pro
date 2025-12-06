@@ -38,7 +38,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink-0">
                 <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10" />
                 <div className="hidden sm:block min-w-0">
-                  <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent truncate">VehicleGuard Pro</h1>
+                  <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent truncate">GestaoTracker</h1>
                   <p className="text-xs sm:text-sm text-muted-foreground truncate">Sistema de Gestão de Rastreamento</p>
                 </div>
               </div>

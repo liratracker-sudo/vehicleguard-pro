@@ -673,7 +673,7 @@ const WhiteLabelPage = () => {
                     placeholder="app.suaempresa.com.br"
                   />
                   <p className="text-sm text-muted-foreground">
-                    Configure um CNAME apontando para: vehicleguard-pro.app
+                    Configure um CNAME apontando para: gestaotracker.app
                   </p>
                 </div>
 
@@ -684,7 +684,7 @@ const WhiteLabelPage = () => {
                     <li>Adicione um registro CNAME:</li>
                     <ul className="ml-4 mt-1 space-y-1">
                       <li>• Nome: app (ou subdomínio desejado)</li>
-                      <li>• Valor: vehicleguard-pro.app</li>
+                      <li>• Valor: gestaotracker.app</li>
                     </ul>
                     <li>Aguarde a propagação (até 24h)</li>
                     <li>Clique em "Verificar Domínio" abaixo</li>
@@ -1011,9 +1011,9 @@ const WhiteLabelPage = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label>Ocultar Marca VehicleGuard</Label>
+                      <Label>Ocultar Marca GestaoTracker</Label>
                       <p className="text-sm text-muted-foreground">
-                        Remove todas as referências à marca VehicleGuard
+                        Remove todas as referências à marca GestaoTracker
                       </p>
                     </div>
                     <Switch />
