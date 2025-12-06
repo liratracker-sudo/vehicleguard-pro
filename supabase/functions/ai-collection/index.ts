@@ -111,9 +111,20 @@ serve(async (req) => {
       let contextDescription = '';
       
       if (!isOverdue) {
-        // Notificação PRÉ-VENCIMENTO
-        contextDescription = `IMPORTANTE: Este é um LEMBRETE de cobrança que ainda NÃO está vencida. O vencimento é em ${daysUntilDue} dia(s).`;
-        toneInstruction = 'Use um TOM AMIGÁVEL E PREVENTIVO. Foque em lembrar sobre o vencimento próximo para evitar esquecimento. Não mencione atraso ou consequências.';
+        // Notificação PRÉ-VENCIMENTO - melhorar texto para "vence hoje" e "vence amanhã"
+        const dueDateText = daysUntilDue === 0 
+          ? 'HOJE' 
+          : daysUntilDue === 1 
+            ? 'amanhã' 
+            : `em ${daysUntilDue} dias`;
+        
+        if (daysUntilDue === 0) {
+          contextDescription = `IMPORTANTE: Este pagamento VENCE HOJE. Use urgência apropriada.`;
+          toneInstruction = 'Use um TOM DIRETO E OBJETIVO. O vencimento é HOJE - enfatize "vence hoje", não use "0 dias". Enfatize a importância de pagar no dia para evitar pendências.';
+        } else {
+          contextDescription = `IMPORTANTE: Este é um LEMBRETE de cobrança que ainda NÃO está vencida. O vencimento é ${dueDateText}.`;
+          toneInstruction = 'Use um TOM AMIGÁVEL E PREVENTIVO. Foque em lembrar sobre o vencimento próximo para evitar esquecimento. Não mencione atraso ou consequências.';
+        }
       } else if (daysOverdue <= 7) {
         contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dia(s).`;
         toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento. O foco é apenas o lembrete.';
@@ -162,7 +173,7 @@ ${contextDescription}
 **DADOS DO CLIENTE E CONTEXTO:**
 1. Nome do Cliente: ${client.name}
 2. Valor: R$${payment.amount.toFixed(2)}
-3. ${isOverdue ? `Dias de Atraso: ${daysOverdue} dias` : `Dias até o Vencimento: ${daysUntilDue} dia(s)`}
+3. ${isOverdue ? `Dias de Atraso: ${daysOverdue} dias` : daysUntilDue === 0 ? 'Vencimento: HOJE' : daysUntilDue === 1 ? 'Vencimento: Amanhã' : `Dias até o Vencimento: ${daysUntilDue} dias`}
 4. Histórico de Pagamento: ${paymentHistory}
 
 **DEFINIÇÃO DO TOM DE VOZ:**
@@ -172,7 +183,13 @@ ${toneInstruction}
 * A mensagem deve ser iniciada com a saudação personalizada e a menção direta ao SaaS (${companyName}).
 * **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
 * Inclua o valor (R$${payment.amount.toFixed(2)}) no corpo da mensagem de forma clara.
-* ${isOverdue ? `Mencione claramente que está VENCIDA há ${daysOverdue} dia(s).` : `Mencione que VENCE em ${daysUntilDue} dia(s) e que é um lembrete preventivo.`}
+* ${isOverdue 
+    ? `Mencione claramente que está VENCIDA há ${daysOverdue} dia(s).` 
+    : daysUntilDue === 0 
+      ? `Mencione claramente que VENCE HOJE (não use "0 dias", use "hoje").`
+      : daysUntilDue === 1
+        ? `Mencione que VENCE AMANHÃ e que é um lembrete preventivo.`
+        : `Mencione que VENCE em ${daysUntilDue} dias e que é um lembrete preventivo.`}
 * **NÃO INCLUA NENHUM LINK** - ele será enviado automaticamente em seguida.
 * Finalize indicando que o link de pagamento será enviado logo após.
 * Termine a mensagem com "Atenciosamente, ${companyName}".

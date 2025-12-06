@@ -396,11 +396,31 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
       console.log('Resposta vazia detectada, usando fallback');
     }
     
+    // ====== DETECTAR TOM DIRETAMENTE DA MENSAGEM DO GESTOR ======
+    let detectedTone: string | null = null;
+    const tonePatterns: [string, RegExp][] = [
+      ['muito_agressivo', /muito\s*agressivo|super\s*agressivo|extremamente\s*agressivo|bem\s*agressivo/i],
+      ['agressivo', /tom\s*agressivo|seja\s*agressivo|mais\s*agressivo|com\s*agressivo|agressivo\s*com/i],
+      ['amigavel', /tom\s*amig[aá]vel|seja\s*amig[aá]vel|gentil|educad[oa]/i],
+      ['formal', /tom\s*formal|seja\s*formal|profissional/i],
+      ['urgente', /tom\s*urgente|seja\s*urgente|urg[eê]ncia/i],
+      ['firme', /tom\s*firme|seja\s*firme/i]
+    ];
+
+    for (const [tone, pattern] of tonePatterns) {
+      if (pattern.test(message)) {
+        detectedTone = tone;
+        console.log('🎯 Tom detectado na mensagem do gestor:', detectedTone);
+        break;
+      }
+    }
+    
     // Detectar comando de cobrança (agora com suporte a tom customizado)
     const forceCollectionMatch = aiResponse.match(/EXECUTAR_COBRANCA:([a-f0-9-]+)(?::([^\s]+))?/);
     if (forceCollectionMatch) {
       const paymentId = forceCollectionMatch[1];
-      const customTone = forceCollectionMatch[2] || null; // Captura o tom, se houver
+      // Prioridade: tom do comando > tom detectado na mensagem
+      const customTone = forceCollectionMatch[2] || detectedTone;
       console.log('Executando cobrança para pagamento:', paymentId, 'com tom:', customTone || 'padrão');
       
       // Invocar função de cobrança individual (apenas gera a mensagem)
