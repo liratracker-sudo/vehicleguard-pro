@@ -46,8 +46,8 @@ const ContractsPage = () => {
   const [showLogs, setShowLogs] = useState(false)
   const [selectedContractForLogs, setSelectedContractForLogs] = useState<string | undefined>()
   const [syncingStatus, setSyncingStatus] = useState<string | null>(null)
-  const [viewingPdf, setViewingPdf] = useState<{
-    base64: string;
+  const [viewingPdfUrl, setViewingPdfUrl] = useState<{
+    url: string;
     clientName: string;
   } | null>(null)
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
@@ -125,8 +125,18 @@ const ContractsPage = () => {
       if (error) throw error
 
       if (data?.pdfBase64) {
-        setViewingPdf({
-          base64: data.pdfBase64,
+        // Converter base64 para Blob URL (funciona melhor no Chrome)
+        const byteCharacters = atob(data.pdfBase64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'application/pdf' })
+        const blobUrl = URL.createObjectURL(blob)
+        
+        setViewingPdfUrl({
+          url: blobUrl,
           clientName: contract.clients?.name || 'Documento'
         })
       } else {
@@ -140,14 +150,19 @@ const ContractsPage = () => {
     }
   }
 
+  const handleClosePdfViewer = () => {
+    if (viewingPdfUrl?.url) {
+      URL.revokeObjectURL(viewingPdfUrl.url)
+    }
+    setViewingPdfUrl(null)
+  }
+
   const handleDownloadPdf = () => {
-    if (!viewingPdf) return
+    if (!viewingPdfUrl) return
     const link = document.createElement('a')
-    link.href = `data:application/pdf;base64,${viewingPdf.base64}`
-    link.download = `contrato-${viewingPdf.clientName}.pdf`
-    document.body.appendChild(link)
+    link.href = viewingPdfUrl.url
+    link.download = `contrato-${viewingPdfUrl.clientName}.pdf`
     link.click()
-    document.body.removeChild(link)
   }
 
   const handleEdit = (contractId: string) => {
@@ -455,15 +470,15 @@ const ContractsPage = () => {
       />
 
       {/* Modal para visualizar PDF */}
-      <Dialog open={!!viewingPdf} onOpenChange={() => setViewingPdf(null)}>
+      <Dialog open={!!viewingPdfUrl} onOpenChange={handleClosePdfViewer}>
         <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-4 border-b">
-            <DialogTitle>Contrato - {viewingPdf?.clientName}</DialogTitle>
+            <DialogTitle>Contrato - {viewingPdfUrl?.clientName}</DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0">
-            {viewingPdf && (
+            {viewingPdfUrl && (
               <iframe 
-                src={`data:application/pdf;base64,${viewingPdf.base64}`}
+                src={viewingPdfUrl.url}
                 className="w-full h-full border-0"
                 title="Visualização do contrato"
               />
