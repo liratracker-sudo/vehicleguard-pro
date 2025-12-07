@@ -1053,7 +1053,7 @@ export type Database = {
       }
       contracts: {
         Row: {
-          autentique_document_id: string | null
+          assinafy_document_id: string | null
           client_id: string
           company_id: string
           contract_type: string | null
@@ -1071,7 +1071,7 @@ export type Database = {
           vehicle_id: string | null
         }
         Insert: {
-          autentique_document_id?: string | null
+          assinafy_document_id?: string | null
           client_id: string
           company_id: string
           contract_type?: string | null
@@ -1089,7 +1089,7 @@ export type Database = {
           vehicle_id?: string | null
         }
         Update: {
-          autentique_document_id?: string | null
+          assinafy_document_id?: string | null
           client_id?: string
           company_id?: string
           contract_type?: string | null
