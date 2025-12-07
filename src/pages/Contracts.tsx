@@ -107,6 +107,26 @@ const ContractsPage = () => {
       return
     }
 
+    // Abrir janela ANTES do async para evitar bloqueio de popup
+    const newWindow = window.open('about:blank', '_blank')
+    if (!newWindow) {
+      toast.error('Popup bloqueado. Permita popups para este site.')
+      return
+    }
+
+    // Mostrar loading na janela
+    newWindow.document.write(`
+      <html>
+        <head><title>Carregando documento...</title></head>
+        <body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#f5f5f5;">
+          <div style="text-align:center;">
+            <p style="font-size:18px;color:#333;">Carregando documento...</p>
+            <p style="font-size:14px;color:#666;">Aguarde um momento</p>
+          </div>
+        </body>
+      </html>
+    `)
+
     // Se foi assinado, baixar via edge function (proxy autenticado)
     setDownloadingDocument(contract.id)
     try {
@@ -120,7 +140,7 @@ const ContractsPage = () => {
       if (error) throw error
 
       if (data?.pdfBase64) {
-        // Converter base64 para blob e abrir
+        // Converter base64 para blob e redirecionar janela
         const byteCharacters = atob(data.pdfBase64)
         const byteNumbers = new Array(byteCharacters.length)
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -129,12 +149,14 @@ const ContractsPage = () => {
         const byteArray = new Uint8Array(byteNumbers)
         const blob = new Blob([byteArray], { type: 'application/pdf' })
         const url = URL.createObjectURL(blob)
-        window.open(url, '_blank')
+        newWindow.location.href = url
       } else {
+        newWindow.close()
         throw new Error('PDF não retornado')
       }
     } catch (error: any) {
       console.error('Erro ao baixar documento:', error)
+      newWindow.close()
       toast.error('Erro ao abrir documento assinado')
     } finally {
       setDownloadingDocument(null)
