@@ -46,10 +46,6 @@ const ContractsPage = () => {
   const [showLogs, setShowLogs] = useState(false)
   const [selectedContractForLogs, setSelectedContractForLogs] = useState<string | undefined>()
   const [syncingStatus, setSyncingStatus] = useState<string | null>(null)
-  const [viewingPdfUrl, setViewingPdfUrl] = useState<{
-    url: string;
-    clientName: string;
-  } | null>(null)
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
   const clearClientFilter = () => {
@@ -112,8 +108,10 @@ const ContractsPage = () => {
       return
     }
 
-    // Se foi assinado, baixar via edge function e exibir no modal
+    // Se foi assinado, baixar PDF diretamente
     setDownloadingDocument(contract.id)
+    toast.info('Baixando contrato assinado...')
+    
     try {
       const { data, error } = await supabase.functions.invoke('assinafy-integration', {
         body: { 
@@ -125,7 +123,7 @@ const ContractsPage = () => {
       if (error) throw error
 
       if (data?.pdfBase64) {
-        // Converter base64 para Blob URL (funciona melhor no Chrome)
+        // Converter base64 para Blob
         const byteCharacters = atob(data.pdfBase64)
         const byteNumbers = new Array(byteCharacters.length)
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -135,34 +133,27 @@ const ContractsPage = () => {
         const blob = new Blob([byteArray], { type: 'application/pdf' })
         const blobUrl = URL.createObjectURL(blob)
         
-        setViewingPdfUrl({
-          url: blobUrl,
-          clientName: contract.clients?.name || 'Documento'
-        })
+        // Fazer download automático
+        const link = document.createElement('a')
+        link.href = blobUrl
+        link.download = `contrato-${contract.clients?.name || 'documento'}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        // Limpar Blob URL após download
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+        
+        toast.success('Contrato baixado com sucesso!')
       } else {
         throw new Error('PDF não retornado')
       }
     } catch (error: any) {
       console.error('Erro ao baixar documento:', error)
-      toast.error('Erro ao abrir documento assinado')
+      toast.error('Erro ao baixar documento assinado')
     } finally {
       setDownloadingDocument(null)
     }
-  }
-
-  const handleClosePdfViewer = () => {
-    if (viewingPdfUrl?.url) {
-      URL.revokeObjectURL(viewingPdfUrl.url)
-    }
-    setViewingPdfUrl(null)
-  }
-
-  const handleDownloadPdf = () => {
-    if (!viewingPdfUrl) return
-    const link = document.createElement('a')
-    link.href = viewingPdfUrl.url
-    link.download = `contrato-${viewingPdfUrl.clientName}.pdf`
-    link.click()
   }
 
   const handleEdit = (contractId: string) => {
@@ -469,29 +460,6 @@ const ContractsPage = () => {
         contractId={selectedContractForLogs}
       />
 
-      {/* Modal para visualizar PDF */}
-      <Dialog open={!!viewingPdfUrl} onOpenChange={handleClosePdfViewer}>
-        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle>Contrato - {viewingPdfUrl?.clientName}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0">
-            {viewingPdfUrl && (
-              <iframe 
-                src={viewingPdfUrl.url}
-                className="w-full h-full border-0"
-                title="Visualização do contrato"
-              />
-            )}
-          </div>
-          <DialogFooter className="p-4 border-t">
-            <Button onClick={handleDownloadPdf}>
-              <Download className="mr-2 h-4 w-4" />
-              Baixar PDF
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AppLayout>
   )
 }
