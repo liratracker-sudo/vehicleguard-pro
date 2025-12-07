@@ -171,7 +171,7 @@ const BillingPage = () => {
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="shrink-0 w-fit">
                 <Plus className="w-4 h-4 mr-2" />
                 Nova Cobrança
               </Button>
