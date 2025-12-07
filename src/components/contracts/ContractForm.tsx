@@ -243,7 +243,12 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
           client_email: selectedClient.email,
           client_cpf: selectedClient.document,
           content: generateContractContent(selectedClient),
-          title: `Contrato de Prestação de Serviços - ${selectedClient.name}`
+          title: `Contrato de Prestação de Serviços - ${selectedClient.name}`,
+          // Dados da empresa para o PDF
+          company_name: companyInfo?.name,
+          company_cnpj: companyInfo?.cnpj,
+          company_address: companyInfo?.address,
+          company_owner: companyInfo?.ownerName
         }
       })
 
@@ -322,6 +327,12 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
       .replace(/\{\{veiculo_info\}\}/g, vehiclesInfo)
       .replace(/\{\{data_inicio\}\}/g, format(formData.start_date, 'dd/MM/yyyy'))
       .replace(/\{\{data_fim\}\}/g, formData.end_date ? `até ${format(formData.end_date, 'dd/MM/yyyy')}` : '(prazo indeterminado)')
+      // Variáveis da empresa
+      .replace(/\{\{empresa_razao_social\}\}/g, companyInfo?.name || '[Nome da Empresa]')
+      .replace(/\{\{empresa_nome\}\}/g, companyInfo?.name || '[Nome da Empresa]')
+      .replace(/\{\{empresa_cnpj\}\}/g, companyInfo?.cnpj || '[CNPJ]')
+      .replace(/\{\{empresa_endereco\}\}/g, companyInfo?.address || '[Endereço]')
+      .replace(/\{\{empresa_responsavel\}\}/g, companyInfo?.ownerName || '[Responsável]')
   }
 
   const generateContractContent = (client: any) => {
@@ -344,6 +355,12 @@ CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 CONTRATANTE: ${client.name}
 E-mail: ${client.email}
 Telefone: ${client.phone}
+Documento: ${client.document || 'Não informado'}
+
+CONTRATADA: ${companyInfo?.name || '[Nome da Empresa]'}
+CNPJ: ${companyInfo?.cnpj || '[CNPJ]'}
+Endereço: ${companyInfo?.address || '[Endereço]'}
+Responsável: ${companyInfo?.ownerName || '[Responsável]'}
 
 PLANO: ${selectedPlan?.name || 'Não especificado'}
 VALOR MENSAL: R$ ${formData.monthly_value.toFixed(2)}
@@ -358,6 +375,11 @@ Este contrato estabelece os termos e condições para a prestação dos serviço
 
 _________________________________
 Assinatura do Contratante
+
+_________________________________
+${companyInfo?.ownerName || '[Responsável]'}
+${companyInfo?.name || '[Nome da Empresa]'}
+Contratada
     `
   }
 

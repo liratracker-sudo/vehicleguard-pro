@@ -69,6 +69,11 @@ interface ContractData {
   client_cpf?: string;
   content: string;
   title: string;
+  // Dados da empresa
+  company_name?: string;
+  company_cnpj?: string;
+  company_address?: string;
+  company_owner?: string;
 }
 
 serve(async (req) => {
@@ -996,7 +1001,7 @@ async function generateContractPDF(contractData: ContractData): Promise<string> 
     // Company signature
     doc.line(110, yPosition, 180, yPosition);
     doc.setFontSize(10);
-    doc.text('[Nome da Empresa]', 145, yPosition + 6, { align: 'center' });
+    doc.text(contractData.company_name || '[Nome da Empresa]', 145, yPosition + 6, { align: 'center' });
     doc.setFontSize(8);
     doc.text('CONTRATADA', 145, yPosition + 12, { align: 'center' });
     
