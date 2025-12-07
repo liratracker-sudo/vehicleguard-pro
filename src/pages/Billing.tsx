@@ -161,7 +161,7 @@ const BillingPage = () => {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Gestão de Cobranças</h1>
             <p className="text-muted-foreground">
@@ -171,7 +171,7 @@ const BillingPage = () => {
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="shrink-0 w-fit">
+              <Button className="w-fit sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Nova Cobrança
               </Button>
