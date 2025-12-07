@@ -267,7 +267,10 @@ serve(async (req) => {
         return await getDocumentStatus(assinafyApiKey, data.documentId);
       case "syncStatus":
         console.log("🔄 Syncing document status...");
-        return await syncDocumentStatus(assinafyApiKey, data.documentId, supabase);
+        // Support both document_id (from frontend) and documentId
+        const syncDocId = data.document_id || data.documentId;
+        console.log("📄 Document ID to sync:", syncDocId);
+        return await syncDocumentStatus(assinafyApiKey, syncDocId, supabase);
       default:
         console.error("❌ Invalid action:", action);
         return new Response(
