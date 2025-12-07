@@ -8,6 +8,61 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============= LOCAL ENCRYPTION FUNCTIONS =============
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+function bufToBase64(buf: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToBuf(b64: string): ArrayBuffer {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+async function getAesKey(secret: string): Promise<CryptoKey> {
+  const keyData = textEncoder.encode(secret.padEnd(32, '0').slice(0, 32));
+  return crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptTokenLocal(token: string, secret: string): Promise<string> {
+  const key = await getAesKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    textEncoder.encode(token)
+  );
+  const combined = new Uint8Array(iv.length + encrypted.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(encrypted), iv.length);
+  return bufToBase64(combined.buffer);
+}
+
+async function decryptTokenLocal(encrypted: string, secret: string): Promise<string> {
+  const key = await getAesKey(secret);
+  const combined = new Uint8Array(base64ToBuf(encrypted));
+  const iv = combined.slice(0, 12);
+  const data = combined.slice(12);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    data
+  );
+  return textDecoder.decode(decrypted);
+}
+// ============= END LOCAL ENCRYPTION FUNCTIONS =============
+
 interface ContractData {
   client_name: string;
   client_email: string;
@@ -119,10 +174,17 @@ serve(async (req) => {
             if (settings) {
               console.log("Assinafy settings found, decrypting...");
               
-              // Decrypt API token
-              const { data: decryptedToken } = await supabase.rpc('decrypt_assinafy_token', {
-                p_encrypted_token: settings.api_token_encrypted
-              });
+              // Decrypt API token using local encryption
+              const encryptionKey = Deno.env.get('ASAAS_ENCRYPTION_KEY');
+              let decryptedToken: string | null = null;
+              
+              if (encryptionKey && settings.api_token_encrypted) {
+                try {
+                  decryptedToken = await decryptTokenLocal(settings.api_token_encrypted, encryptionKey);
+                } catch (decryptError) {
+                  console.error("Error decrypting token:", decryptError);
+                }
+              }
               
               console.log("Settings data found:");
               console.log("- API Key:", decryptedToken ? "✓ Present (decrypted)" : "✗ Missing");
@@ -237,15 +299,16 @@ async function saveSettings(supabaseClient: any, companyId: string, apiKey: stri
       throw new Error("Company ID, API Key e Workspace ID são obrigatórios");
     }
     
-    // Encrypt API key
-    const { data: encryptedToken, error: encryptError } = await supabaseClient.rpc('encrypt_assinafy_token', {
-      p_token: apiKey
-    });
-    
-    if (encryptError || !encryptedToken) {
-      console.error("Error encrypting API key:", encryptError);
-      throw new Error("Erro ao criptografar API key");
+    // Get encryption key from environment
+    const encryptionKey = Deno.env.get('ASAAS_ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      console.error("Encryption key not found in environment");
+      throw new Error("Chave de criptografia não configurada no servidor");
     }
+    
+    // Encrypt API key using local encryption
+    const encryptedToken = await encryptTokenLocal(apiKey, encryptionKey);
+    console.log("API key encrypted successfully");
     
     // Check if settings already exist
     const { data: existingSettings } = await supabaseClient
