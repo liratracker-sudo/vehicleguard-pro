@@ -54,7 +54,7 @@ export const useContractTemplates = () => {
     }
   }
 
-  const createTemplate = async (templateData: { name: string; content: string }) => {
+  const createTemplate = async (templateData: { name: string; content: string }): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuário não autenticado')
@@ -83,6 +83,7 @@ export const useContractTemplates = () => {
       })
 
       await loadTemplates()
+      return true
     } catch (error: any) {
       console.error('Erro ao criar modelo:', error)
       toast({
@@ -90,10 +91,11 @@ export const useContractTemplates = () => {
         description: error.message || "Erro ao criar modelo",
         variant: "destructive"
       })
+      return false
     }
   }
 
-  const updateTemplate = async (templateId: string, templateData: { name: string; content: string }) => {
+  const updateTemplate = async (templateId: string, templateData: { name: string; content: string }): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('contract_templates')
@@ -111,6 +113,7 @@ export const useContractTemplates = () => {
       })
 
       await loadTemplates()
+      return true
     } catch (error: any) {
       console.error('Erro ao atualizar modelo:', error)
       toast({
@@ -118,6 +121,7 @@ export const useContractTemplates = () => {
         description: error.message || "Erro ao atualizar modelo",
         variant: "destructive"
       })
+      return false
     }
   }
 

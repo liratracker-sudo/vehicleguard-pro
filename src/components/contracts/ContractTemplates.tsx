@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -96,13 +97,16 @@ Contratada`
       return
     }
 
+    let success = false
     if (template) {
-      await updateTemplate(template.id, formData)
+      success = await updateTemplate(template.id, formData)
     } else {
-      await createTemplate(formData)
+      success = await createTemplate(formData)
     }
 
-    onSuccess()
+    if (success) {
+      onSuccess()
+    }
   }
 
   return (
@@ -150,7 +154,7 @@ Contratada`
 export const ContractTemplates = () => {
   const [showForm, setShowForm] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
-  const { templates, loading, deleteTemplate } = useContractTemplates()
+  const { templates, loading, deleteTemplate, loadTemplates } = useContractTemplates()
 
   const handleEdit = (template: ContractTemplate) => {
     setEditingTemplate(template)
@@ -165,6 +169,7 @@ export const ContractTemplates = () => {
   const handleFormSuccess = () => {
     setShowForm(false)
     setEditingTemplate(null)
+    loadTemplates() // Força recarga da lista
   }
 
   const handleFormCancel = () => {
@@ -198,6 +203,9 @@ export const ContractTemplates = () => {
                 <DialogTitle>
                   {editingTemplate ? 'Editar Modelo' : 'Novo Modelo'}
                 </DialogTitle>
+                <DialogDescription>
+                  Crie ou edite modelos de contrato com variáveis personalizadas
+                </DialogDescription>
               </DialogHeader>
               <TemplateForm
                 template={editingTemplate}
