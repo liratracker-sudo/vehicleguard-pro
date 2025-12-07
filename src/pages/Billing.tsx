@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, RefreshCw, Zap, Settings } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { BillingHistory } from "@/components/billing/BillingHistory"
 import { PaymentForm } from "@/components/billing/PaymentForm"
@@ -169,57 +169,24 @@ const BillingPage = () => {
             </p>
           </div>
           
-          {/* Navigation buttons - responsive layout with proper spacing */}
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            <Button
-              variant="outline" 
-              onClick={loadPayments}
-              disabled={loading}
-              className="flex-shrink-0"
-            >
-              <RefreshCw className={`w-4 h-4 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden xs:inline ml-1">Atualizar</span>
-            </Button>
-            
-            <Button 
-              variant="outline"
-              onClick={handleGenerateCharges}
-              disabled={managementLoading}
-              className="flex-shrink-0"
-            >
-              <Zap className="w-4 h-4 sm:mr-2" />
-              <span className="hidden xs:inline ml-1">Gerar Cobranças</span>
-            </Button>
-
-            <Button 
-              variant="outline"
-              onClick={() => navigate('/billing-diagnostics')}
-              className="flex-shrink-0"
-            >
-              <Settings className="w-4 h-4 sm:mr-2" />
-              <span className="hidden xs:inline ml-1">Diagnósticos</span>
-            </Button>
-
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex-shrink-0">
-                  <Plus className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden xs:inline ml-1">Nova Cobrança</span>
-                  <span className="xs:hidden">Nova</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl">
-                <PaymentForm
-                  onSuccess={() => {
-                    setIsDialogOpen(false)
-                    loadPayments()
-                    loadCompanyBalance()
-                  }}
-                  onCancel={() => setIsDialogOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Cobrança
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <PaymentForm
+                onSuccess={() => {
+                  setIsDialogOpen(false)
+                  loadPayments()
+                  loadCompanyBalance()
+                }}
+                onCancel={() => setIsDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Stats Cards */}
