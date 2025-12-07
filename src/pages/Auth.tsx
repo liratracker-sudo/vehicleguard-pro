@@ -150,7 +150,7 @@ const AuthPage = () => {
       showSignals={true}
       showGrid={true}
     >
-      <div className="container mx-auto px-4 min-h-screen flex items-center justify-center py-8">
+      <div className="container mx-auto px-4 min-h-screen flex items-center justify-center py-4">
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -158,17 +158,17 @@ const AuthPage = () => {
           className="w-full max-w-md px-2"
         >
           {/* Logo and Header */}
-          <div className="text-center mb-4">
+          <div className="text-center mb-2">
             <motion.div 
-              className="w-12 h-12 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-xl flex items-center justify-center mx-auto mb-2"
+              className="w-10 h-10 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-xl flex items-center justify-center mx-auto mb-1"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <Car className="w-6 h-6 text-white" />
+              <Car className="w-5 h-5 text-white" />
             </motion.div>
             <motion.h1 
-              className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-1"
+              className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -176,7 +176,7 @@ const AuthPage = () => {
               GestaoTracker
             </motion.h1>
             <motion.p 
-              className="text-slate-400 text-sm"
+              className="text-muted-foreground text-xs"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.6 }}
@@ -190,24 +190,24 @@ const AuthPage = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.8 }}
           >
-            <Card className="border border-slate-700 shadow-2xl bg-slate-900/80 backdrop-blur-sm">
-              <CardHeader className="pb-3 pt-4">
-                <CardTitle className="text-lg text-center">Acesse sua conta</CardTitle>
+            <Card className="border border-border shadow-2xl bg-card/80 backdrop-blur-sm">
+              <CardHeader className="pb-2 pt-3">
+                <CardTitle className="text-base text-center">Acesse sua conta</CardTitle>
                 <CardDescription className="text-center text-xs">
                   Entre com suas credenciais ou crie uma nova conta
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pb-4">
+              <CardContent className="pb-3 pt-0">
                 <Tabs defaultValue="signin" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="signin">Entrar</TabsTrigger>
-                    <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+                  <TabsList className="grid w-full grid-cols-2 h-9">
+                    <TabsTrigger value="signin" className="text-sm">Entrar</TabsTrigger>
+                    <TabsTrigger value="signup" className="text-sm">Cadastrar</TabsTrigger>
                   </TabsList>
               
-              <TabsContent value="signin">
-                <form onSubmit={signIn} className="space-y-2.5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signin-email" className="text-sm">Email</Label>
+              <TabsContent value="signin" className="mt-3">
+                <form onSubmit={signIn} className="space-y-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="signin-email" className="text-xs">Email</Label>
                     <Input
                       id="signin-email"
                       name="email"
@@ -216,12 +216,12 @@ const AuthPage = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      className="h-10"
+                      className="h-9"
                     />
                   </div>
                   
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signin-password" className="text-sm">Senha</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="signin-password" className="text-xs">Senha</Label>
                     <div className="relative">
                       <Input
                         id="signin-password"
@@ -231,13 +231,13 @@ const AuthPage = () => {
                         value={formData.password}
                         onChange={handleInputChange}
                         required
-                        className="h-10 pr-10"
+                        className="h-9 pr-10"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-10 w-10 px-0 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-9 w-9 px-0 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
                         tabIndex={-1}
                       >
@@ -250,16 +250,16 @@ const AuthPage = () => {
                     </div>
                   </div>
                   
-                  <Button type="submit" className="w-full mt-4 h-10" disabled={loading}>
+                  <Button type="submit" className="w-full mt-3 h-9" disabled={loading}>
                     {loading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
               </TabsContent>
               
-              <TabsContent value="signup">
-                <form onSubmit={signUp} className="space-y-2.5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signup-name" className="text-sm">Nome Completo</Label>
+              <TabsContent value="signup" className="mt-3">
+                <form onSubmit={signUp} className="space-y-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="signup-name" className="text-xs">Nome Completo</Label>
                     <Input
                       id="signup-name"
                       name="fullName"
@@ -268,12 +268,12 @@ const AuthPage = () => {
                       value={formData.fullName}
                       onChange={handleInputChange}
                       required
-                      className="h-10"
+                      className="h-9"
                     />
                   </div>
                   
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signup-email" className="text-sm">Email</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="signup-email" className="text-xs">Email</Label>
                     <Input
                       id="signup-email"
                       name="email"
@@ -282,12 +282,12 @@ const AuthPage = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      className="h-10"
+                      className="h-9"
                     />
                   </div>
                   
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signup-password" className="text-sm">Senha</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="signup-password" className="text-xs">Senha</Label>
                     <div className="relative">
                       <Input
                         id="signup-password"
@@ -298,13 +298,13 @@ const AuthPage = () => {
                         onChange={handleInputChange}
                         required
                         minLength={6}
-                        className="h-10 pr-10"
+                        className="h-9 pr-10"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-10 w-10 px-0 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-9 w-9 px-0 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
                         tabIndex={-1}
                       >
@@ -315,12 +315,12 @@ const AuthPage = () => {
                         )}
                       </Button>
                     </div>
-                    <p className="text-xs text-slate-400">
-                      A senha deve ter pelo menos 6 caracteres
+                    <p className="text-[10px] text-muted-foreground">
+                      Mínimo 6 caracteres
                     </p>
                   </div>
                   
-                  <Button type="submit" className="w-full mt-4 h-10" disabled={loading}>
+                  <Button type="submit" className="w-full mt-3 h-9" disabled={loading}>
                     {loading ? "Criando conta..." : "Criar conta"}
                   </Button>
                 </form>
@@ -329,7 +329,7 @@ const AuthPage = () => {
               </CardContent>
             </Card>
 
-            <p className="text-center text-xs text-slate-500 mt-3">
+            <p className="text-center text-[10px] text-muted-foreground mt-2">
               Ao continuar, você concorda com nossos Termos de Serviço e Política de Privacidade
             </p>
           </motion.div>
