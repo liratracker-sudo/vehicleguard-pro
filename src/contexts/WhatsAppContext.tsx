@@ -11,6 +11,8 @@ interface WhatsAppConnectionState {
   lastChecked: Date | null;
   reconnectAttempts: number;
   isChecking: boolean;
+  autoReconnectEnabled: boolean;
+  lastDisconnectedAt: Date | null;
 }
 
 interface WhatsAppContextType {
@@ -19,6 +21,8 @@ interface WhatsAppContextType {
   reconnect: () => Promise<boolean>;
   refreshConnection: () => void;
   validateSession: () => Promise<boolean>;
+  setAutoReconnect: (enabled: boolean) => void;
+  triggerManualReconnect: () => void;
 }
 
 const WhatsAppContext = createContext<WhatsAppContextType | undefined>(undefined);
@@ -40,8 +44,12 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     companyId: null,
     lastChecked: null,
     reconnectAttempts: 0,
-    isChecking: false
+    isChecking: false,
+    autoReconnectEnabled: true,
+    lastDisconnectedAt: null
   });
+
+  const [wasConnected, setWasConnected] = useState(false);
 
   const { toast } = useToast();
 
@@ -343,13 +351,66 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [connectionState.reconnectAttempts, connectionState.connectionStatus]);
 
+  // NOVO: Detectar desconexão e iniciar reconexão automática
+  useEffect(() => {
+    // Atualizar estado de "estava conectado"
+    if (connectionState.isConnected && !wasConnected) {
+      setWasConnected(true);
+    }
+
+    // Detectar desconexão
+    if (!connectionState.isConnected && wasConnected) {
+      console.log('🔴 WhatsApp desconectou! Registrando momento da desconexão...');
+      
+      setConnectionState(prev => ({
+        ...prev,
+        lastDisconnectedAt: new Date()
+      }));
+
+      // Iniciar reconexão automática se habilitada
+      if (connectionState.autoReconnectEnabled && connectionState.reconnectAttempts < 3) {
+        console.log('🔄 Iniciando reconexão automática em 5 segundos...');
+        
+        const autoReconnectTimer = setTimeout(async () => {
+          console.log('🔄 Tentando reconexão automática...');
+          const success = await reconnect();
+          if (success) {
+            console.log('✅ Reconexão automática bem sucedida!');
+          } else {
+            console.log('❌ Reconexão automática falhou');
+          }
+        }, 5000);
+
+        return () => clearTimeout(autoReconnectTimer);
+      }
+    }
+
+    // Resetar wasConnected quando reconectar
+    if (!connectionState.isConnected && !wasConnected) {
+      // Mantém wasConnected como false
+    }
+  }, [connectionState.isConnected, wasConnected, connectionState.autoReconnectEnabled, connectionState.reconnectAttempts]);
+
+  // Função para habilitar/desabilitar reconexão automática
+  const setAutoReconnect = useCallback((enabled: boolean) => {
+    setConnectionState(prev => ({ ...prev, autoReconnectEnabled: enabled }));
+  }, []);
+
+  // Função para forçar reconexão manual (reseta contador)
+  const triggerManualReconnect = useCallback(() => {
+    setConnectionState(prev => ({ ...prev, reconnectAttempts: 0 }));
+    reconnect();
+  }, [reconnect]);
+
   return (
     <WhatsAppContext.Provider value={{
       connectionState,
       checkConnection,
       reconnect,
       refreshConnection,
-      validateSession
+      validateSession,
+      setAutoReconnect,
+      triggerManualReconnect
     }}>
       {children}
     </WhatsAppContext.Provider>
