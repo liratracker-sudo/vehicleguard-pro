@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { User, Phone, Mail, Save, Loader2 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { User, Phone, Mail, Save, Loader2, Building } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -15,15 +16,30 @@ interface ProfileData {
   email: string
   phone: string | null
   role: string | null
+  company_id: string | null
+}
+
+interface CompanyData {
+  id: string
+  name: string
+  cnpj: string | null
+  address: string | null
 }
 
 const ProfilePage = () => {
   const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [company, setCompany] = useState<CompanyData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingCompany, setSavingCompany] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',
     phone: ''
+  })
+  const [companyFormData, setCompanyFormData] = useState({
+    name: '',
+    cnpj: '',
+    address: ''
   })
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -48,7 +64,7 @@ const ProfilePage = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone, role')
+        .select('id, full_name, email, phone, role, company_id')
         .eq('user_id', user.id)
         .single()
 
@@ -57,8 +73,26 @@ const ProfilePage = () => {
       setProfile(data)
       setFormData({
         full_name: data.full_name || '',
-        phone: data.phone || ''
+        phone: formatPhone(data.phone || '')
       })
+
+      // Buscar dados da empresa
+      if (data?.company_id) {
+        const { data: companyData, error: companyError } = await supabase
+          .from('companies')
+          .select('id, name, cnpj, address')
+          .eq('id', data.company_id)
+          .single()
+
+        if (!companyError && companyData) {
+          setCompany(companyData)
+          setCompanyFormData({
+            name: companyData.name || '',
+            cnpj: formatCNPJ(companyData.cnpj || ''),
+            address: companyData.address || ''
+          })
+        }
+      }
     } catch (error) {
       console.error('Error loading profile:', error)
       toast({
@@ -79,19 +113,32 @@ const ProfilePage = () => {
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`
   }
 
+  const formatCNPJ = (value: string) => {
+    const numbers = value.replace(/\D/g, '')
+    if (numbers.length <= 2) return numbers
+    if (numbers.length <= 5) return `${numbers.slice(0, 2)}.${numbers.slice(2)}`
+    if (numbers.length <= 8) return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`
+    if (numbers.length <= 12) return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}/${numbers.slice(8)}`
+    return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}/${numbers.slice(8, 12)}-${numbers.slice(12, 14)}`
+  }
+
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhone(e.target.value)
     setFormData(prev => ({ ...prev, phone: formatted }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCNPJ(e.target.value)
+    setCompanyFormData(prev => ({ ...prev, cnpj: formatted }))
+  }
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!profile) return
 
-    setSaving(true)
+    setSavingProfile(true)
     try {
-      // Remove formatting from phone for storage
       const cleanPhone = formData.phone.replace(/\D/g, '')
 
       const { error } = await supabase
@@ -109,7 +156,6 @@ const ProfilePage = () => {
         description: "Perfil atualizado com sucesso!",
       })
 
-      // Reload profile to get updated data
       loadProfile()
     } catch (error) {
       console.error('Error updating profile:', error)
@@ -119,7 +165,45 @@ const ProfilePage = () => {
         variant: "destructive",
       })
     } finally {
-      setSaving(false)
+      setSavingProfile(false)
+    }
+  }
+
+  const handleCompanySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!company) return
+
+    setSavingCompany(true)
+    try {
+      const cleanCNPJ = companyFormData.cnpj.replace(/\D/g, '')
+
+      const { error } = await supabase
+        .from('companies')
+        .update({
+          name: companyFormData.name,
+          cnpj: cleanCNPJ || null,
+          address: companyFormData.address || null
+        })
+        .eq('id', company.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Sucesso",
+        description: "Dados da empresa atualizados!",
+      })
+
+      loadProfile()
+    } catch (error) {
+      console.error('Error updating company:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar empresa.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingCompany(false)
     }
   }
 
@@ -148,10 +232,11 @@ const ProfilePage = () => {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Meu Perfil</h1>
           <p className="text-muted-foreground">
-            Gerencie suas informações pessoais
+            Gerencie suas informações pessoais e da empresa
           </p>
         </div>
 
+        {/* Informações Pessoais */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -163,7 +248,7 @@ const ProfilePage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email" className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
@@ -216,8 +301,8 @@ const ProfilePage = () => {
                 </div>
               </div>
 
-              <Button type="submit" disabled={saving} className="w-full">
-                {saving ? (
+              <Button type="submit" disabled={savingProfile} className="w-full">
+                {savingProfile ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Salvando...
@@ -232,6 +317,71 @@ const ProfilePage = () => {
             </form>
           </CardContent>
         </Card>
+
+        {/* Dados da Empresa */}
+        {company && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                Dados da Empresa
+              </CardTitle>
+              <CardDescription>
+                Informações da sua empresa para contratos e documentos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCompanySubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company_name">Nome da Empresa</Label>
+                  <Input
+                    id="company_name"
+                    value={companyFormData.name}
+                    onChange={(e) => setCompanyFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Nome da sua empresa"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cnpj">CNPJ</Label>
+                  <Input
+                    id="cnpj"
+                    value={companyFormData.cnpj}
+                    onChange={handleCNPJChange}
+                    placeholder="00.000.000/0000-00"
+                    maxLength={18}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Endereço</Label>
+                  <Textarea
+                    id="address"
+                    value={companyFormData.address}
+                    onChange={(e) => setCompanyFormData(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Endereço completo da empresa"
+                    rows={3}
+                  />
+                </div>
+
+                <Button type="submit" disabled={savingCompany} className="w-full">
+                  {savingCompany ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar Dados da Empresa
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   )
