@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,7 @@ interface AssinafyLogsDialogProps {
 
 export function AssinafyLogsDialog({ open, onOpenChange, contractId }: AssinafyLogsDialogProps) {
   const [logs, setLogs] = useState<AssinafyLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -38,36 +38,47 @@ export function AssinafyLogsDialog({ open, onOpenChange, contractId }: AssinafyL
     try {
       setLoading(true);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 8000)
+      );
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const loadPromise = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
 
-      if (!profile?.company_id) return;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      let query = supabase
-        .from('assinafy_logs')
-        .select('*')
-        .eq('company_id', profile.company_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
+        if (!profile?.company_id) return [];
 
-      if (contractId) {
-        query = query.eq('contract_id', contractId);
-      }
+        let query = supabase
+          .from('assinafy_logs')
+          .select('*')
+          .eq('company_id', profile.company_id)
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-      const { data, error } = await query;
+        if (contractId) {
+          query = query.eq('contract_id', contractId);
+        }
 
-      if (error) throw error;
-      setLogs(data || []);
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      };
+
+      const result = await Promise.race([loadPromise(), timeoutPromise]);
+      setLogs(result as AssinafyLog[]);
     } catch (error: any) {
+      console.error('Erro ao carregar logs:', error);
       toast({
         title: "Erro",
-        description: "Erro ao carregar logs",
+        description: error.message === 'Timeout' 
+          ? "Tempo esgotado ao carregar logs" 
+          : "Erro ao carregar logs",
         variant: "destructive"
       });
     } finally {
@@ -107,6 +118,9 @@ export function AssinafyLogsDialog({ open, onOpenChange, contractId }: AssinafyL
           <DialogTitle>
             Logs Assinafy {contractId ? '- Contrato específico' : '- Todos'}
           </DialogTitle>
+          <DialogDescription>
+            Histórico de operações com a API Assinafy
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="h-[600px] pr-4">
