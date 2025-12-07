@@ -44,6 +44,12 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
   const [dataLoading, setDataLoading] = useState(true)
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [showPreview, setShowPreview] = useState(false)
+  const [companyInfo, setCompanyInfo] = useState<{
+    name: string
+    cnpj: string | null
+    address: string | null
+    ownerName: string | null
+  } | null>(null)
   const { toast } = useToast()
   const { templates } = useContractTemplates()
 
@@ -71,22 +77,33 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
 
       console.log('🏢 Company ID:', profile.company_id);
 
-      // Carregar dados em paralelo
-      const [clientsRes, vehiclesRes, plansRes] = await Promise.all([
-        supabase.from('clients').select('id, name, phone, email').eq('company_id', profile.company_id).eq('status', 'active'),
+      // Carregar dados em paralelo (incluindo dados da empresa)
+      const [clientsRes, vehiclesRes, plansRes, companyRes, ownerRes] = await Promise.all([
+        supabase.from('clients').select('id, name, phone, email, document').eq('company_id', profile.company_id).eq('status', 'active'),
         supabase.from('vehicles').select('id, license_plate, model, brand, client_id').eq('company_id', profile.company_id).eq('is_active', true),
-        supabase.from('plans').select('id, name, price').eq('company_id', profile.company_id).eq('is_active', true)
+        supabase.from('plans').select('id, name, price').eq('company_id', profile.company_id).eq('is_active', true),
+        supabase.from('companies').select('name, cnpj, address').eq('id', profile.company_id).maybeSingle(),
+        supabase.from('profiles').select('full_name').eq('company_id', profile.company_id).eq('role', 'admin').limit(1).maybeSingle()
       ])
 
       console.log('📊 Dados carregados:', {
         clients: clientsRes.data?.length || 0,
         vehicles: vehiclesRes.data?.length || 0,
-        plans: plansRes.data?.length || 0
+        plans: plansRes.data?.length || 0,
+        company: companyRes.data?.name || 'N/A'
       });
 
       if (clientsRes.data) setClients(clientsRes.data)
       if (vehiclesRes.data) setVehicles(vehiclesRes.data)
       if (plansRes.data) setPlans(plansRes.data)
+      
+      // Salvar dados da empresa
+      setCompanyInfo({
+        name: companyRes.data?.name || '',
+        cnpj: companyRes.data?.cnpj || null,
+        address: companyRes.data?.address || null,
+        ownerName: ownerRes.data?.full_name || null
+      })
 
       // Load existing contract if editing
       if (contractId) {
@@ -361,7 +378,10 @@ E-mail: {{cliente_email}}
 Telefone: {{cliente_telefone}}
 Documento: {{cliente_documento}}
 
-CONTRATADA: [Nome da sua empresa]
+CONTRATADA: {{empresa_razao_social}}
+CNPJ: {{empresa_cnpj}}
+Endereço: {{empresa_endereco}}
+Responsável: {{empresa_responsavel}}
 
 OBJETO DO CONTRATO:
 A contratada se compromete a prestar os seguintes serviços:
@@ -393,7 +413,8 @@ _________________________________
 Contratante
 
 _________________________________
-[Nome do Responsável]
+{{empresa_responsavel}}
+{{empresa_razao_social}}
 Contratada`
 
     return {
@@ -406,6 +427,10 @@ Contratada`
       vehicleInfo: vehiclesInfo,
       startDate: formData.start_date,
       endDate: formData.end_date,
+      companyName: companyInfo?.name || '',
+      companyCnpj: companyInfo?.cnpj || '',
+      companyAddress: companyInfo?.address || '',
+      companyOwner: companyInfo?.ownerName || '',
       templateContent: selectedTemplate?.content || defaultTemplate
     }
   }
