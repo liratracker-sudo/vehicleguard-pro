@@ -26,6 +26,8 @@ import {
   DialogContent,
   DialogTitle,
   DialogTrigger,
+  DialogHeader,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { ContractForm } from "@/components/contracts/ContractForm"
 import { ContractTemplates } from "@/components/contracts/ContractTemplates"
@@ -44,7 +46,10 @@ const ContractsPage = () => {
   const [showLogs, setShowLogs] = useState(false)
   const [selectedContractForLogs, setSelectedContractForLogs] = useState<string | undefined>()
   const [syncingStatus, setSyncingStatus] = useState<string | null>(null)
-  
+  const [viewingPdf, setViewingPdf] = useState<{
+    base64: string;
+    clientName: string;
+  } | null>(null)
   const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
 
   const clearClientFilter = () => {
@@ -107,27 +112,7 @@ const ContractsPage = () => {
       return
     }
 
-    // Abrir janela ANTES do async para evitar bloqueio de popup
-    const newWindow = window.open('about:blank', '_blank')
-    if (!newWindow) {
-      toast.error('Popup bloqueado. Permita popups para este site.')
-      return
-    }
-
-    // Mostrar loading na janela
-    newWindow.document.write(`
-      <html>
-        <head><title>Carregando documento...</title></head>
-        <body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#f5f5f5;">
-          <div style="text-align:center;">
-            <p style="font-size:18px;color:#333;">Carregando documento...</p>
-            <p style="font-size:14px;color:#666;">Aguarde um momento</p>
-          </div>
-        </body>
-      </html>
-    `)
-
-    // Se foi assinado, baixar via edge function (proxy autenticado)
+    // Se foi assinado, baixar via edge function e exibir no modal
     setDownloadingDocument(contract.id)
     try {
       const { data, error } = await supabase.functions.invoke('assinafy-integration', {
@@ -140,36 +125,29 @@ const ContractsPage = () => {
       if (error) throw error
 
       if (data?.pdfBase64) {
-        // Escrever PDF diretamente na janela usando data URL base64
-        newWindow.document.open()
-        newWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Contrato - ${contract.client?.name || 'Documento'}</title>
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                html, body { height: 100%; overflow: hidden; }
-                iframe { width: 100%; height: 100%; border: none; }
-              </style>
-            </head>
-            <body>
-              <iframe src="data:application/pdf;base64,${data.pdfBase64}"></iframe>
-            </body>
-          </html>
-        `)
-        newWindow.document.close()
+        setViewingPdf({
+          base64: data.pdfBase64,
+          clientName: contract.clients?.name || 'Documento'
+        })
       } else {
-        newWindow.close()
         throw new Error('PDF não retornado')
       }
     } catch (error: any) {
       console.error('Erro ao baixar documento:', error)
-      newWindow.close()
       toast.error('Erro ao abrir documento assinado')
     } finally {
       setDownloadingDocument(null)
     }
+  }
+
+  const handleDownloadPdf = () => {
+    if (!viewingPdf) return
+    const link = document.createElement('a')
+    link.href = `data:application/pdf;base64,${viewingPdf.base64}`
+    link.download = `contrato-${viewingPdf.clientName}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleEdit = (contractId: string) => {
@@ -475,6 +453,30 @@ const ContractsPage = () => {
         onOpenChange={setShowLogs}
         contractId={selectedContractForLogs}
       />
+
+      {/* Modal para visualizar PDF */}
+      <Dialog open={!!viewingPdf} onOpenChange={() => setViewingPdf(null)}>
+        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-4 border-b">
+            <DialogTitle>Contrato - {viewingPdf?.clientName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {viewingPdf && (
+              <iframe 
+                src={`data:application/pdf;base64,${viewingPdf.base64}`}
+                className="w-full h-full border-0"
+                title="Visualização do contrato"
+              />
+            )}
+          </div>
+          <DialogFooter className="p-4 border-t">
+            <Button onClick={handleDownloadPdf}>
+              <Download className="mr-2 h-4 w-4" />
+              Baixar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }
