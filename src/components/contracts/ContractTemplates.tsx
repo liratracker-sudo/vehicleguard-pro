@@ -53,7 +53,10 @@ E-mail: {{cliente_email}}
 Telefone: {{cliente_telefone}}
 Documento: {{cliente_documento}}
 
-CONTRATADA: [Nome da sua empresa]
+CONTRATADA: {{empresa_razao_social}}
+CNPJ: {{empresa_cnpj}}
+Endereço: {{empresa_endereco}}
+Responsável: {{empresa_responsavel}}
 
 OBJETO DO CONTRATO:
 A contratada se compromete a prestar os seguintes serviços:
@@ -85,7 +88,8 @@ _________________________________
 Contratante
 
 _________________________________
-[Nome do Responsável]
+{{empresa_responsavel}}
+{{empresa_razao_social}}
 Contratada`
   })
   const { createTemplate, updateTemplate, loading } = useContractTemplates()
@@ -133,7 +137,9 @@ Contratada`
           required
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Use variáveis como: {`{{cliente_nome}}, {{cliente_email}}, {{plano_nome}}, {{valor_mensal}}, {{veiculo_info}}, {{data_inicio}}, {{data_fim}}`}
+          <strong>Cliente:</strong> {`{{cliente_nome}}, {{cliente_email}}, {{cliente_telefone}}, {{cliente_documento}}`}<br />
+          <strong>Empresa:</strong> {`{{empresa_razao_social}}, {{empresa_cnpj}}, {{empresa_endereco}}, {{empresa_responsavel}}`}<br />
+          <strong>Contrato:</strong> {`{{plano_nome}}, {{valor_mensal}}, {{veiculo_info}}, {{data_inicio}}, {{data_fim}}`}
         </p>
       </div>
 

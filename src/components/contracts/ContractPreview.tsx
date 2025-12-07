@@ -20,6 +20,10 @@ interface ContractPreviewProps {
     vehicleInfo: string
     startDate: Date
     endDate: Date | null
+    companyName: string
+    companyCnpj: string
+    companyAddress: string
+    companyOwner: string
     templateContent: string
   }
 }
@@ -37,7 +41,11 @@ export function ContractPreview({ open, onOpenChange, contractData }: ContractPr
       monthlyValue, 
       vehicleInfo, 
       startDate, 
-      endDate 
+      endDate,
+      companyName,
+      companyCnpj,
+      companyAddress,
+      companyOwner
     } = contractData
 
     const formatCurrency = (value: number) => {
@@ -52,15 +60,23 @@ export function ContractPreview({ open, onOpenChange, contractData }: ContractPr
     const endDateStr = endDate ? ` até ${formatDateStr(endDate)}` : ' (indeterminado)'
 
     return content
+      // Variáveis do cliente
       .replace(/\{\{cliente_nome\}\}/g, clientName || '[Nome do Cliente]')
       .replace(/\{\{cliente_email\}\}/g, clientEmail || '[Email do Cliente]')
       .replace(/\{\{cliente_telefone\}\}/g, clientPhone || '[Telefone do Cliente]')
       .replace(/\{\{cliente_documento\}\}/g, clientDocument || '[Documento do Cliente]')
+      // Variáveis do plano/contrato
       .replace(/\{\{plano_nome\}\}/g, planName || '[Plano]')
       .replace(/\{\{valor_mensal\}\}/g, formatCurrency(monthlyValue || 0))
       .replace(/\{\{veiculo_info\}\}/g, vehicleInfo || 'Não aplicável')
       .replace(/\{\{data_inicio\}\}/g, formatDateStr(startDate))
       .replace(/\{\{data_fim\}\}/g, endDateStr)
+      // Variáveis da empresa (CONTRATADA)
+      .replace(/\{\{empresa_razao_social\}\}/g, companyName || '[Razão Social]')
+      .replace(/\{\{empresa_nome\}\}/g, companyName || '[Nome da Empresa]')
+      .replace(/\{\{empresa_cnpj\}\}/g, companyCnpj || '[CNPJ]')
+      .replace(/\{\{empresa_endereco\}\}/g, companyAddress || '[Endereço]')
+      .replace(/\{\{empresa_responsavel\}\}/g, companyOwner || '[Responsável]')
   }
 
   const previewContent = replaceVariables(contractData.templateContent)
