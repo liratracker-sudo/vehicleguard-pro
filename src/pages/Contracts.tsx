@@ -140,16 +140,25 @@ const ContractsPage = () => {
       if (error) throw error
 
       if (data?.pdfBase64) {
-        // Converter base64 para blob e redirecionar janela
-        const byteCharacters = atob(data.pdfBase64)
-        const byteNumbers = new Array(byteCharacters.length)
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i)
-        }
-        const byteArray = new Uint8Array(byteNumbers)
-        const blob = new Blob([byteArray], { type: 'application/pdf' })
-        const url = URL.createObjectURL(blob)
-        newWindow.location.href = url
+        // Escrever PDF diretamente na janela usando data URL base64
+        newWindow.document.open()
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Contrato - ${contract.client?.name || 'Documento'}</title>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                html, body { height: 100%; overflow: hidden; }
+                iframe { width: 100%; height: 100%; border: none; }
+              </style>
+            </head>
+            <body>
+              <iframe src="data:application/pdf;base64,${data.pdfBase64}"></iframe>
+            </body>
+          </html>
+        `)
+        newWindow.document.close()
       } else {
         newWindow.close()
         throw new Error('PDF não retornado')
