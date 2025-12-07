@@ -1089,8 +1089,7 @@ async function downloadDocument(apiKey: string, documentId: string): Promise<Res
       {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/pdf'
+          'Authorization': `Bearer ${apiKey}`
         }
       }
     );
