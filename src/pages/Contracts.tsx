@@ -92,11 +92,52 @@ const ContractsPage = () => {
     }
   }
 
-  const handleViewDocument = (contract: any) => {
-    if (contract.document_url) {
-      window.open(contract.document_url, '_blank')
-    } else {
-      alert('Documento não disponível')
+  const [downloadingDocument, setDownloadingDocument] = useState<string | null>(null)
+
+  const handleViewDocument = async (contract: any) => {
+    // Se não tem ID do documento no Assinafy, não pode visualizar
+    if (!contract.assinafy_document_id) {
+      toast.error('Documento não disponível no Assinafy')
+      return
+    }
+
+    // Se ainda não foi assinado, abrir página de assinatura pública
+    if (contract.signature_status !== 'signed') {
+      window.open(`https://app.assinafy.com.br/sign/${contract.assinafy_document_id}`, '_blank')
+      return
+    }
+
+    // Se foi assinado, baixar via edge function (proxy autenticado)
+    setDownloadingDocument(contract.id)
+    try {
+      const { data, error } = await supabase.functions.invoke('assinafy-integration', {
+        body: { 
+          action: 'downloadDocument', 
+          document_id: contract.assinafy_document_id 
+        }
+      })
+
+      if (error) throw error
+
+      if (data?.pdfBase64) {
+        // Converter base64 para blob e abrir
+        const byteCharacters = atob(data.pdfBase64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank')
+      } else {
+        throw new Error('PDF não retornado')
+      }
+    } catch (error: any) {
+      console.error('Erro ao baixar documento:', error)
+      toast.error('Erro ao abrir documento assinado')
+    } finally {
+      setDownloadingDocument(null)
     }
   }
 

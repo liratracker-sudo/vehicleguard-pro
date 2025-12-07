@@ -271,6 +271,11 @@ serve(async (req) => {
         const syncDocId = data.document_id || data.documentId;
         console.log("📄 Document ID to sync:", syncDocId);
         return await syncDocumentStatus(assinafyApiKey, syncDocId, supabase);
+      case "downloadDocument":
+        console.log("📥 Downloading document...");
+        const downloadDocId = data.document_id || data.documentId;
+        console.log("📄 Document ID to download:", downloadDocId);
+        return await downloadDocument(assinafyApiKey, downloadDocId);
       default:
         console.error("❌ Invalid action:", action);
         return new Response(
@@ -1068,4 +1073,62 @@ function generateContractHTML(contractData: ContractData): string {
     </div>
 </body>
 </html>`;
+}
+
+async function downloadDocument(apiKey: string, documentId: string): Promise<Response> {
+  try {
+    console.log("📥 Downloading certificated document:", documentId);
+    
+    if (!documentId) {
+      throw new Error("Document ID é obrigatório");
+    }
+    
+    // Fazer request autenticado para a API do Assinafy para baixar o documento certificado
+    const response = await fetch(
+      `https://api.assinafy.com.br/v1/documents/${documentId}/download/certificated`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/pdf'
+        }
+      }
+    );
+    
+    console.log("📥 Assinafy download response status:", response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Error downloading document:", errorText);
+      throw new Error(`Erro ao baixar documento: ${response.status} - ${errorText}`);
+    }
+    
+    // Converter o PDF para base64 para enviar via JSON
+    const pdfBuffer = await response.arrayBuffer();
+    const pdfBytes = new Uint8Array(pdfBuffer);
+    
+    // Converter para base64
+    let binary = '';
+    for (let i = 0; i < pdfBytes.byteLength; i++) {
+      binary += String.fromCharCode(pdfBytes[i]);
+    }
+    const pdfBase64 = btoa(binary);
+    
+    console.log("✅ Document downloaded successfully, size:", pdfBytes.byteLength, "bytes");
+    
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        pdfBase64: pdfBase64,
+        contentType: 'application/pdf'
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("❌ Error in downloadDocument:", error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 }
