@@ -820,16 +820,15 @@ Contratada`
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="template_id">Modelo de Contrato</Label>
+                  <Label htmlFor="template_id">Modelo de Contrato *</Label>
                   <Select 
-                    value={formData.template_id || "default"}
-                    onValueChange={(value) => setFormData({...formData, template_id: value === "default" ? "" : value})}
+                    value={formData.template_id || ""}
+                    onValueChange={(value) => setFormData({...formData, template_id: value})}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um modelo (opcional)" />
+                      <SelectValue placeholder="Selecione o modelo de contrato" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="default">Modelo padrão</SelectItem>
                       {templates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}
@@ -838,7 +837,7 @@ Contratada`
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Escolha um modelo personalizado para o conteúdo do contrato
+                    Selecione um modelo para gerar o contrato
                   </p>
                 </div>
                 <div>
