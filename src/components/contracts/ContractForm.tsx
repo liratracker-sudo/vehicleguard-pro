@@ -277,6 +277,52 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
 
       if (updateError) throw updateError
 
+      // Enviar notificação WhatsApp para o cliente
+      if (response.data.signing_url) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('company_id')
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+          if (profile?.company_id) {
+            const { data: whatsappSettings } = await supabase
+              .from('whatsapp_settings')
+              .select('instance_url, instance_name, api_token, is_active, connection_status')
+              .eq('company_id', profile.company_id)
+              .eq('is_active', true)
+              .maybeSingle()
+
+            if (whatsappSettings?.connection_status === 'connected' && selectedClient.phone) {
+              const selectedPlan = plans.find(p => p.id === formData.plan_id)
+              const message = `Olá ${selectedClient.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\n📋 *Plano:* ${selectedPlan?.name || 'Contratado'}\n💰 *Valor:* R$ ${Number(formData.monthly_value).toFixed(2)}/mês\n\n🔗 *Acesse o link abaixo para assinar:*\n${response.data.signing_url}\n\nEm caso de dúvidas, entre em contato.`
+
+              try {
+                await supabase.functions.invoke('whatsapp-evolution', {
+                  body: {
+                    action: 'send_message',
+                    instance_url: whatsappSettings.instance_url,
+                    api_token: whatsappSettings.api_token,
+                    instance_name: whatsappSettings.instance_name,
+                    phone_number: selectedClient.phone,
+                    message: message,
+                    company_id: profile.company_id,
+                    client_id: formData.client_id
+                  }
+                })
+                console.log('✅ WhatsApp enviado para cliente com link de assinatura')
+              } catch (whatsappError) {
+                console.error('Erro ao enviar WhatsApp:', whatsappError)
+              }
+            } else {
+              console.log('⚠️ WhatsApp não configurado/conectado ou cliente sem telefone')
+            }
+          }
+        }
+      }
+
       toast({
         title: "Enviado para assinatura",
         description: "Contrato enviado com sucesso via Assinafy!"

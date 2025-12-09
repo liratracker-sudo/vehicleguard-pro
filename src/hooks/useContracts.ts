@@ -390,11 +390,6 @@ export function useContracts() {
           if (!whatsappSettings || whatsappSettings.connection_status !== 'connected') {
             console.log('⚠️ WhatsApp não configurado ou desconectado - pulando notificações')
           } else {
-            const { data: company } = await supabase
-              .from('companies')
-              .select('name, phone')
-              .eq('id', profile.company_id)
-              .maybeSingle()
 
             const clientMessage = `Olá ${client.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\n📋 *Plano:* ${plan?.name || 'Contratado'}\n💰 *Valor:* R$ ${contract.monthly_value.toFixed(2)}/mês\n\n🔗 *Acesse o link abaixo para assinar:*\n${signingUrl}\n\nEm caso de dúvidas, entre em contato.`
             
@@ -416,26 +411,6 @@ export function useContracts() {
               console.error('Erro ao enviar WhatsApp para cliente:', whatsappError)
             }
 
-            if (company?.phone) {
-              const companyMessage = `📄 Novo contrato enviado para assinatura!\n\nCliente: ${client.name}\nContrato: ${contract.id.substring(0, 8)}\n\n🔗 Link de assinatura:\n${signingUrl}`
-              
-              try {
-                await supabase.functions.invoke('whatsapp-evolution', {
-                  body: {
-                    action: 'send_message',
-                    instance_url: whatsappSettings.instance_url,
-                    api_token: whatsappSettings.api_token,
-                    instance_name: whatsappSettings.instance_name,
-                    phone_number: company.phone,
-                    message: companyMessage,
-                    company_id: profile.company_id
-                  }
-                })
-                console.log('✅ Mensagem WhatsApp enviada para a empresa')
-              } catch (whatsappError) {
-                console.error('Erro ao enviar WhatsApp para empresa:', whatsappError)
-              }
-            }
           }
         }
       }
