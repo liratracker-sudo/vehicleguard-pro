@@ -111,15 +111,15 @@ const ClientsPage = () => {
                   Novo Cliente
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-                <ScrollArea className="flex-1 p-6">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+                <div className="p-6">
                   <ClientForm
                     clientId={selectedClient || undefined}
                     onSuccess={handleDialogClose}
                     onCancel={handleDialogClose}
                     readOnly={viewMode === 'view'}
                   />
-                </ScrollArea>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
