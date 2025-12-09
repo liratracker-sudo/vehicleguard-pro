@@ -12,6 +12,7 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { toISODateBR } from "@/lib/timezone"
 
 interface VehicleFormProps {
   onSuccess?: () => void
@@ -133,7 +134,7 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
       const vehicleData = {
         ...formData,
         company_id: profile.company_id,
-        installation_date: formData.installation_date.toISOString().split('T')[0]
+        installation_date: toISODateBR(formData.installation_date)
       }
 
       const { error } = vehicleId 
