@@ -81,7 +81,7 @@ const ContractsPage = () => {
   const getSignatureBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline">Pendente</Badge>
+        return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">Pendente</Badge>
       case 'sent':
         return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Enviado</Badge>
       case 'signed':
