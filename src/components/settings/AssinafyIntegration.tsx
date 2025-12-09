@@ -255,7 +255,7 @@ export function AssinafyIntegration() {
 
       const result = await response.json()
 
-      if (response.ok && result.success) {
+      if (response.ok && (result.ok || result.processed)) {
         toast({
           title: "Webhook processado!",
           description: `Contrato de ${contract.client_name} marcado como assinado`,
