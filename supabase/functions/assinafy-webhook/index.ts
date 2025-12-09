@@ -240,27 +240,8 @@ async function sendWhatsAppNotifications(
       } catch (whatsappError) {
         console.error("[assinafy-webhook] ❌ WhatsApp error (client):", whatsappError);
       }
-    }
-
-    if (company && company.phone) {
-      const companyMessage = `✅ Contrato assinado!\n\nCliente: ${client?.name || 'N/A'}\nDocumento ID: ${documentId.substring(0, 8)}...\n\nO contrato foi assinado digitalmente e está disponível no sistema.`;
-      
-      try {
-        await supabase.functions.invoke('whatsapp-evolution', {
-          body: {
-            action: 'send_message',
-            instance_url: whatsappSettings.instance_url,
-            api_token: whatsappSettings.api_token,
-            instance_name: whatsappSettings.instance_name,
-            phone_number: company.phone,
-            message: companyMessage,
-            company_id: contract.company_id
-          }
-        });
-        console.log("[assinafy-webhook] ✅ WhatsApp sent to company:", company.phone);
-      } catch (whatsappError) {
-        console.error("[assinafy-webhook] ❌ WhatsApp error (company):", whatsappError);
-      }
+    } else {
+      console.log("[assinafy-webhook] ⚠️ Client has no phone:", contract.client_id);
     }
   } catch (error) {
     console.error("[assinafy-webhook] ❌ Error sending WhatsApp notifications:", error);
