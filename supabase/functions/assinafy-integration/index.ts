@@ -854,6 +854,22 @@ async function syncDocumentStatus(apiKey: string, documentId: string, supabaseCl
 
     console.log("✅ Contract updated successfully:", data);
 
+    // Send WhatsApp notification to client when contract is signed via sync
+    if (isSigned && data && data.length > 0) {
+      const contractId = data[0].id;
+      
+      // Fetch full contract data for notification
+      const { data: contractData } = await supabaseClient
+        .from('contracts')
+        .select('company_id, client_id')
+        .eq('id', contractId)
+        .single();
+
+      if (contractData) {
+        await sendWhatsAppNotificationToClient(supabaseClient, contractData, documentId);
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -1134,5 +1150,69 @@ async function downloadDocument(apiKey: string, documentId: string): Promise<Res
       JSON.stringify({ success: false, error: error.message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  }
+}
+
+// Função para enviar notificação WhatsApp apenas para o cliente quando contrato é assinado
+async function sendWhatsAppNotificationToClient(
+  supabase: any, 
+  contract: { company_id: string; client_id: string },
+  documentId: string
+) {
+  try {
+    console.log("[assinafy-integration] 📱 Sending WhatsApp notification to client for document:", documentId);
+    
+    // Buscar configurações do WhatsApp da empresa
+    const { data: whatsappSettings } = await supabase
+      .from("whatsapp_settings")
+      .select("instance_url, instance_name, api_token, is_active, connection_status")
+      .eq("company_id", contract.company_id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!whatsappSettings) {
+      console.log("[assinafy-integration] ⚠️ WhatsApp not configured for company:", contract.company_id);
+      return;
+    }
+
+    if (whatsappSettings.connection_status !== 'connected') {
+      console.log("[assinafy-integration] ⚠️ WhatsApp not connected for company:", contract.company_id);
+      return;
+    }
+
+    console.log("[assinafy-integration] ✅ WhatsApp configured and connected");
+
+    // Get client info
+    const { data: client } = await supabase
+      .from("clients")
+      .select("name, phone")
+      .eq("id", contract.client_id)
+      .single();
+
+    if (client && client.phone) {
+      const clientMessage = `✅ Parabéns ${client.name}!\n\nSeu contrato foi assinado com sucesso! 🎉\n\nVocê receberá uma cópia do documento assinado em breve.\n\nObrigado pela confiança!`;
+      
+      try {
+        await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'send_message',
+            instance_url: whatsappSettings.instance_url,
+            api_token: whatsappSettings.api_token,
+            instance_name: whatsappSettings.instance_name,
+            phone_number: client.phone,
+            message: clientMessage,
+            company_id: contract.company_id,
+            client_id: contract.client_id
+          }
+        });
+        console.log("[assinafy-integration] ✅ WhatsApp sent to client:", client.phone);
+      } catch (whatsappError) {
+        console.error("[assinafy-integration] ❌ WhatsApp error:", whatsappError);
+      }
+    } else {
+      console.log("[assinafy-integration] ⚠️ Client has no phone:", contract.client_id);
+    }
+  } catch (error) {
+    console.error("[assinafy-integration] ❌ Error sending WhatsApp notification:", error);
   }
 }
