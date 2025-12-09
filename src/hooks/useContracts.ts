@@ -378,47 +378,63 @@ export function useContracts() {
           .maybeSingle()
         
         if (profile?.company_id) {
-          const { data: company } = await supabase
-            .from('companies')
-            .select('name, phone')
-            .eq('id', profile.company_id)
+          // Buscar configurações do WhatsApp da empresa
+          const { data: whatsappSettings } = await supabase
+            .from('whatsapp_settings')
+            .select('instance_url, instance_name, api_token, is_active, connection_status')
+            .eq('company_id', profile.company_id)
+            .eq('is_active', true)
             .maybeSingle()
 
-          const clientMessage = `Olá ${client.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\nAcesse o link abaixo para assinar:\n${signingUrl}\n\nEm caso de dúvidas, entre em contato.`
-          
-          try {
-            await supabase.functions.invoke('whatsapp-evolution', {
-              body: {
-                action: 'sendMessage',
-                payload: {
-                  phone: client.phone,
-                  message: clientMessage,
-                  instance_name: 'luck'
-                }
-              }
-            })
-            console.log('✅ Mensagem WhatsApp enviada para o cliente')
-          } catch (whatsappError) {
-            console.error('Erro ao enviar WhatsApp para cliente:', whatsappError)
-          }
+          // Verificar se WhatsApp está configurado e conectado
+          if (!whatsappSettings || whatsappSettings.connection_status !== 'connected') {
+            console.log('⚠️ WhatsApp não configurado ou desconectado - pulando notificações')
+          } else {
+            const { data: company } = await supabase
+              .from('companies')
+              .select('name, phone')
+              .eq('id', profile.company_id)
+              .maybeSingle()
 
-          if (company?.phone) {
-            const companyMessage = `📄 Novo contrato enviado para assinatura!\n\nCliente: ${client.name}\nContrato: ${contract.id.substring(0, 8)}\n\nLink de assinatura:\n${signingUrl}`
+            const clientMessage = `Olá ${client.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\n📋 *Plano:* ${plan?.name || 'Contratado'}\n💰 *Valor:* R$ ${contract.monthly_value.toFixed(2)}/mês\n\n🔗 *Acesse o link abaixo para assinar:*\n${signingUrl}\n\nEm caso de dúvidas, entre em contato.`
             
             try {
               await supabase.functions.invoke('whatsapp-evolution', {
                 body: {
-                  action: 'sendMessage',
-                  payload: {
-                    phone: company.phone,
-                    message: companyMessage,
-                    instance_name: 'luck'
-                  }
+                  action: 'send_message',
+                  instance_url: whatsappSettings.instance_url,
+                  api_token: whatsappSettings.api_token,
+                  instance_name: whatsappSettings.instance_name,
+                  phone_number: client.phone,
+                  message: clientMessage,
+                  company_id: profile.company_id,
+                  client_id: contract.client_id
                 }
               })
-              console.log('✅ Mensagem WhatsApp enviada para a empresa')
+              console.log('✅ Mensagem WhatsApp enviada para o cliente')
             } catch (whatsappError) {
-              console.error('Erro ao enviar WhatsApp para empresa:', whatsappError)
+              console.error('Erro ao enviar WhatsApp para cliente:', whatsappError)
+            }
+
+            if (company?.phone) {
+              const companyMessage = `📄 Novo contrato enviado para assinatura!\n\nCliente: ${client.name}\nContrato: ${contract.id.substring(0, 8)}\n\n🔗 Link de assinatura:\n${signingUrl}`
+              
+              try {
+                await supabase.functions.invoke('whatsapp-evolution', {
+                  body: {
+                    action: 'send_message',
+                    instance_url: whatsappSettings.instance_url,
+                    api_token: whatsappSettings.api_token,
+                    instance_name: whatsappSettings.instance_name,
+                    phone_number: company.phone,
+                    message: companyMessage,
+                    company_id: profile.company_id
+                  }
+                })
+                console.log('✅ Mensagem WhatsApp enviada para a empresa')
+              } catch (whatsappError) {
+                console.error('Erro ao enviar WhatsApp para empresa:', whatsappError)
+              }
             }
           }
         }
