@@ -800,8 +800,12 @@ async function sendSingleNotification(notification: any) {
                     'WhatsApp não está conectado';
     console.error(`Connection check failed for company ${notification.company_id}:`, errorMsg);
     
-    // Log WhatsApp disconnection alert
-    await logWhatsAppAlert(notification.company_id, `WhatsApp não autenticado — reconectar o número para continuar os envios. Estado: ${connectionCheck.data?.state || 'unknown'}`);
+    // Log WhatsApp disconnection alert with client info
+    await logWhatsAppAlert(
+      notification.company_id, 
+      `WhatsApp não autenticado — reconectar o número para continuar os envios. Estado: ${connectionCheck.data?.state || 'unknown'}`,
+      { name: client.name, phone: client.phone }
+    );
     
     throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
   }
@@ -880,7 +884,7 @@ async function sendSingleNotification(notification: any) {
   if (response.error) {
     const errorMsg = `HTTP Error: ${response.error.message}`;
     console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
-    await logWhatsAppAlert(notification.company_id, `Erro na API WhatsApp: ${errorMsg}`);
+    await logWhatsAppAlert(notification.company_id, `Erro na API WhatsApp: ${errorMsg}`, { name: client.name, phone: client.phone });
     throw new Error(errorMsg);
   }
 
@@ -889,11 +893,11 @@ async function sendSingleNotification(notification: any) {
     console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
     
     if (errorMsg.includes('not connected') || errorMsg.includes('WhatsApp instance not connected') || errorMsg.includes('não autenticado')) {
-      await logWhatsAppAlert(notification.company_id, `WhatsApp desconectado durante envio: ${errorMsg}`);
+      await logWhatsAppAlert(notification.company_id, `WhatsApp desconectado durante envio: ${errorMsg}`, { name: client.name, phone: client.phone });
       throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
     }
     
-    await logWhatsAppAlert(notification.company_id, `Erro no envio: ${errorMsg}`);
+    await logWhatsAppAlert(notification.company_id, `Erro no envio: ${errorMsg}`, { name: client.name, phone: client.phone });
     throw new Error(`WhatsApp send failed: ${errorMsg}`);
   }
 
@@ -906,10 +910,21 @@ async function sendSingleNotification(notification: any) {
     .eq('id', notification.id);
 }
 
-// Helper function to log WhatsApp alerts
-async function logWhatsAppAlert(companyId: string, message: string) {
+// Helper function to log WhatsApp alerts with optional client info
+async function logWhatsAppAlert(
+  companyId: string, 
+  message: string,
+  clientInfo?: { name?: string; phone?: string }
+) {
   try {
-    console.log('🚨 Logging WhatsApp alert:', { companyId, message });
+    // Append client details to message for easier identification
+    const clientDetails = clientInfo?.name 
+      ? ` (Cliente: ${clientInfo.name}${clientInfo.phone ? ` - ${clientInfo.phone}` : ''})` 
+      : '';
+    
+    const fullMessage = `${message}${clientDetails}`;
+    
+    console.log('🚨 Logging WhatsApp alert:', { companyId, message: fullMessage });
     
     // Insert alert into system_alerts table
     await supabase
@@ -917,7 +932,7 @@ async function logWhatsAppAlert(companyId: string, message: string) {
       .insert({
         company_id: companyId,
         type: 'whatsapp_connection',
-        message: message,
+        message: fullMessage,
         severity: 'error',
         created_at: new Date().toISOString()
       });
