@@ -572,7 +572,7 @@ function generateRecommendations(debugInfo: any): string[] {
 async function sendPendingNotifications(force = false) {
   console.log('Sending pending notifications...', { force });
   
-  const results = { sent: 0, failed: 0 };
+  const results = { sent: 0, failed: 0, skipped: 0 };
   
   // First, cleanup notifications for cancelled/paid payments BEFORE querying
   await cleanupInvalidNotifications();
@@ -589,6 +589,8 @@ async function sendPendingNotifications(force = false) {
       payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('status', 'pending')
+    // Order by offset_days ASC for pre_due to send most relevant (closest to due date) first
+    .order('offset_days', { ascending: true })
     .order('scheduled_for', { ascending: true })
     .limit(100); // Increase limit for manual triggers
 
@@ -609,8 +611,12 @@ async function sendPendingNotifications(force = false) {
     id: n.id,
     event_type: n.event_type,
     payment_status: n.payment_transactions?.status,
-    scheduled_for: n.scheduled_for
+    scheduled_for: n.scheduled_for,
+    offset_days: n.offset_days
   })));
+
+  // Track which payment+event_type combinations we've already sent in this batch
+  const sentInThisBatch = new Set<string>();
 
   for (const notification of pendingNotifications || []) {
     console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
@@ -636,6 +642,51 @@ async function sendPendingNotifications(force = false) {
         })
         .eq('id', notification.id);
       
+      continue;
+    }
+
+    // Check if we already sent this payment+event_type in this batch
+    const batchKey = `${notification.payment_id}:${notification.event_type}`;
+    if (sentInThisBatch.has(batchKey)) {
+      console.log(`⏭️ Skipping notification ${notification.id} - already sent ${notification.event_type} for payment ${notification.payment_id} in this batch`);
+      
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'skipped',
+          last_error: `Duplicate ${notification.event_type} - another notification of same type already sent`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      
+      results.skipped++;
+      continue;
+    }
+
+    // Check if we already sent a similar notification recently (last 12 hours)
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { data: recentSent } = await supabase
+      .from('payment_notifications')
+      .select('id, sent_at')
+      .eq('payment_id', notification.payment_id)
+      .eq('event_type', notification.event_type)
+      .eq('status', 'sent')
+      .gte('sent_at', twelveHoursAgo)
+      .limit(1);
+
+    if (recentSent && recentSent.length > 0) {
+      console.log(`⏭️ Skipping notification ${notification.id} - similar ${notification.event_type} already sent in last 12h (at ${recentSent[0].sent_at})`);
+      
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'skipped',
+          last_error: `Similar notification already sent at ${recentSent[0].sent_at}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      
+      results.skipped++;
       continue;
     }
     
@@ -692,8 +743,12 @@ async function sendPendingNotifications(force = false) {
       
       results.failed++;
     }
+    
+    // Mark as sent in this batch to prevent duplicates
+    sentInThisBatch.add(batchKey);
   }
   
+  console.log(`Notification results: sent=${results.sent}, failed=${results.failed}, skipped=${results.skipped}`);
   return results;
 }
 
