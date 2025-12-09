@@ -29,6 +29,7 @@ import {
 import { VehicleForm } from "@/components/vehicles/VehicleForm"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateBR } from "@/lib/timezone"
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([])
@@ -294,7 +295,7 @@ const VehiclesPage = () => {
                         </TableCell>
                         <TableCell>{getStatusBadge(vehicle.tracker_status)}</TableCell>
                         <TableCell>
-                          {vehicle.installation_date ? new Date(vehicle.installation_date).toLocaleDateString() : '-'}
+                          {vehicle.installation_date ? formatDateBR(vehicle.installation_date) : '-'}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
