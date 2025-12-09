@@ -303,11 +303,36 @@ export function useContracts() {
 
       console.log('Iniciando envio para assinatura - Contrato:', contractId)
 
-      const { data: client } = await supabase
-        .from('clients')
-        .select('name, email, phone, document')
-        .eq('id', contract.client_id)
-        .single()
+      // Buscar dados do cliente, plano e empresa em paralelo
+      const [clientResult, planResult, companyResult, adminResult] = await Promise.all([
+        supabase
+          .from('clients')
+          .select('name, email, phone, document')
+          .eq('id', contract.client_id)
+          .single(),
+        supabase
+          .from('plans')
+          .select('name, description, price')
+          .eq('id', contract.plan_id)
+          .single(),
+        supabase
+          .from('companies')
+          .select('name, cnpj, address')
+          .eq('id', contract.company_id)
+          .single(),
+        supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('company_id', contract.company_id)
+          .eq('role', 'admin')
+          .limit(1)
+          .maybeSingle()
+      ])
+
+      const client = clientResult.data
+      const plan = planResult.data
+      const company = companyResult.data
+      const adminProfile = adminResult.data
 
       if (!client) {
         throw new Error('Cliente não encontrado')
@@ -319,12 +344,15 @@ export function useContracts() {
 
       console.log('Cliente encontrado:', { name: client.name, email: client.email })
 
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('name, description, price')
-        .eq('id', contract.plan_id)
-        .single()
+      // Montar informações da empresa (CONTRATADA)
+      const companyInfo = {
+        name: company?.name,
+        cnpj: company?.cnpj,
+        address: company?.address,
+        ownerName: adminProfile?.full_name
+      }
 
+      console.log('Empresa encontrada:', companyInfo)
       console.log('Chamando API Assinafy para criar documento...')
       
       const response = await supabase.functions.invoke('assinafy-integration', {
@@ -334,8 +362,12 @@ export function useContracts() {
           client_name: client.name,
           client_email: client.email,
           client_cpf: client.document,
-          content: generateContractContent(contract, client, plan),
-          title: `Contrato ${contract.id.substring(0, 8)} - ${client.name}`
+          content: generateContractContent(contract, client, plan, companyInfo),
+          title: `Contrato ${contract.id.substring(0, 8)} - ${client.name}`,
+          company_name: companyInfo.name,
+          company_cnpj: companyInfo.cnpj,
+          company_address: companyInfo.address,
+          company_owner: companyInfo.ownerName
         }
       })
 
@@ -440,7 +472,12 @@ export function useContracts() {
     }
   }
 
-  const generateContractContent = (contract: Contract, client: any, plan: any) => {
+  const generateContractContent = (
+    contract: Contract, 
+    client: any, 
+    plan: any,
+    companyInfo?: { name?: string; cnpj?: string; address?: string; ownerName?: string }
+  ) => {
     // Gerar seção de veículos
     const vehiclesSection = contract.contract_vehicles && contract.contract_vehicles.length > 0
       ? `VEÍCULOS COBERTOS:\n${contract.contract_vehicles.map((v, i) => `${i + 1}. ${v.license_plate} - ${v.brand} ${v.model}`).join('\n')}`
@@ -450,6 +487,11 @@ export function useContracts() {
 
     return `
 CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+CONTRATADA: ${companyInfo?.name || '[Nome da Empresa]'}
+CNPJ: ${companyInfo?.cnpj || '[CNPJ]'}
+Endereço: ${companyInfo?.address || '[Endereço]'}
+Responsável: ${companyInfo?.ownerName || '[Responsável]'}
 
 CONTRATANTE: ${client.name}
 E-mail: ${client.email}
@@ -469,7 +511,13 @@ TIPO DE CONTRATO: ${contract.contract_type === 'service' ? 'Prestação de Servi
 Este contrato estabelece os termos e condições para a prestação dos serviços contratados.
 
 _________________________________
-Assinatura do Contratante
+${client.name}
+Contratante
+
+_________________________________
+${companyInfo?.ownerName || '[Responsável]'}
+${companyInfo?.name || '[Nome da Empresa]'}
+Contratada
     `
   }
 
