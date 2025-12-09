@@ -386,7 +386,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Botão 9h dispara as notificações imediatamente
+                    Dispara apenas notificações atrasadas (já agendadas)
                   </p>
                 </div>
               </div>

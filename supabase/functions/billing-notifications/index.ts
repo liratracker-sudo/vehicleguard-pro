@@ -592,12 +592,10 @@ async function sendPendingNotifications(force = false) {
     .order('scheduled_for', { ascending: true })
     .limit(100); // Increase limit for manual triggers
 
-  if (force) {
-    console.log('🚀 Force mode: processing ALL pending notifications');
-    // Don't filter by scheduled_for when force=true
-  } else {
-    query = query.lte('scheduled_for', bufferTime.toISOString());
-  }
+  // ALWAYS filter by scheduled_for to prevent sending future notifications
+  // force mode only means "send immediately" for notifications that are already due
+  console.log(`Processing notifications${force ? ' (force mode - only overdue)' : ''}, cutoff: ${bufferTime.toISOString()}`);
+  query = query.lte('scheduled_for', bufferTime.toISOString());
 
   const { data: pendingNotifications, error } = await query;
 

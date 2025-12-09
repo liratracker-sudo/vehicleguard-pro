@@ -192,8 +192,9 @@ _Evite juros e multas! — {{empresa}}_`
     try {
       setTriggering(true);
       
-      console.log('🚀 Disparando notificações às 9:00...');
+      console.log('🚀 Disparando notificações atrasadas...');
       
+      // force: true only means "process now" - it still respects scheduled_for dates
       const { data, error } = await supabase.functions.invoke('billing-notifications', {
         body: { 
           force: true,
