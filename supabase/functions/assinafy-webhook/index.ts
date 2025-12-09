@@ -17,6 +17,8 @@ async function parseJson<T = any>(req: Request): Promise<T> {
 }
 
 serve(async (req) => {
+  console.log("[assinafy-webhook] 🚀 Webhook called");
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,20 +35,20 @@ serve(async (req) => {
 
   try {
     const payload = await parseJson<any>(req);
-    const event = payload?.event;
+    console.log("[assinafy-webhook] 📋 Full payload received:", JSON.stringify(payload, null, 2));
+    
+    const event = payload?.event || payload;
 
-    if (!event || !event.type) {
-      console.error("[assinafy-webhook] ❌ Invalid event received");
+    if (!event) {
+      console.error("[assinafy-webhook] ❌ Invalid event received - no event object");
       return new Response(JSON.stringify({ error: "Evento inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const eventType: string = event.type;
-    console.log("[assinafy-webhook] 📨 Event received:", eventType);
-    console.log("[assinafy-webhook] 📋 Event ID:", event.id);
-    console.log("[assinafy-webhook] 📋 Full event data:", JSON.stringify(event, null, 2));
+    const eventType: string = event.type || payload.type || 'unknown';
+    console.log("[assinafy-webhook] 📨 Event type:", eventType);
 
     // Extract document id and relevant data from known event types
     let documentId: string | undefined;
@@ -55,43 +57,56 @@ serve(async (req) => {
     let setAsSigned = false;
 
     // Assinafy webhook events structure - support multiple event formats
-    console.log("[assinafy-webhook] Processing event type:", eventType);
-    
     const docObj = event.data || event || {};
-    console.log("[assinafy-webhook] Document object:", JSON.stringify(docObj, null, 2));
+    console.log("[assinafy-webhook] 📄 Document object:", JSON.stringify(docObj, null, 2));
     
     // Extract document ID from various possible locations
-    documentId = docObj.document_id || docObj.id || event.document_id;
+    documentId = docObj.document_id || docObj.id || event.document_id || payload.document_id;
+    console.log("[assinafy-webhook] 🔑 Document ID found:", documentId);
     
     // Check various event types and statuses that indicate signing completion
+    // IMPORTANTE: Incluir "document_ready" que é o evento enviado pela Assinafy quando documento é assinado
     const completionEvents = [
       "document.signed",
+      "document_ready",          // Evento principal da Assinafy quando documento é assinado
+      "document.ready",          // Variante com ponto
       "assignment.completed", 
       "document.certificated",
       "document.status_changed",
-      "assignment.status_changed"
+      "assignment.status_changed",
+      "document.completed"       // Outra variante possível
     ];
     
-    const completionStatuses = ["certificated", "completed", "signed"];
+    const completionStatuses = ["certificated", "completed", "signed", "ready"];
     
-    if (completionEvents.includes(eventType)) {
-      console.log("[assinafy-webhook] Checking completion status...");
+    // Verificar se é um evento de conclusão
+    const isCompletionEvent = completionEvents.includes(eventType);
+    console.log("[assinafy-webhook] 🔍 Is completion event:", isCompletionEvent, "| Event type:", eventType);
+    
+    if (isCompletionEvent) {
+      console.log("[assinafy-webhook] ✅ Completion event detected, checking status...");
       
       // Check status in various locations
-      const status = docObj.status || event.status;
-      console.log("[assinafy-webhook] Document status:", status);
+      const status = docObj.status || event.status || payload.status;
+      console.log("[assinafy-webhook] 📊 Document status:", status);
       
-      if (completionStatuses.includes(status)) {
+      // Se é document_ready, consideramos como assinado independente do status
+      if (eventType === "document_ready" || eventType === "document.ready") {
+        setAsSigned = true;
+        signedFileUrl = docObj.artifacts?.certificated || docObj.download_url || docObj.signed_url || docObj.file_url;
+        signedAt = docObj.completed_at || docObj.updated_at || docObj.signed_at || new Date().toISOString();
+        console.log("[assinafy-webhook] ✅ Document ready event - marking as signed!");
+      } else if (completionStatuses.includes(status)) {
         setAsSigned = true;
         signedFileUrl = docObj.artifacts?.certificated || docObj.download_url || docObj.signed_url;
         signedAt = docObj.completed_at || docObj.updated_at || docObj.signed_at || new Date().toISOString();
-        console.log("[assinafy-webhook] ✅ Document marked as signed!");
+        console.log("[assinafy-webhook] ✅ Document marked as signed based on status!");
       }
     }
 
     if (!documentId) {
-      console.warn("[assinafy-webhook] no document id found in event");
-      return new Response(JSON.stringify({ ok: true, ignored: true }), {
+      console.warn("[assinafy-webhook] ⚠️ No document ID found in event");
+      return new Response(JSON.stringify({ ok: true, ignored: true, reason: "no_document_id" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -138,76 +153,116 @@ serve(async (req) => {
             request_data: { event: eventType, document_id: documentId },
             response_data: { update_data: updateData }
           });
-        }
-        
-        // Send WhatsApp notification when document is signed
-        if (setAsSigned && data && data.length > 0) {
+          
+          // Send WhatsApp notification when document is signed
           for (const contract of data) {
-            try {
-              // Get client info
-              const { data: client } = await supabase
-                .from("clients")
-                .select("name, phone")
-                .eq("id", contract.client_id)
-                .single();
-
-              // Get company info
-              const { data: company } = await supabase
-                .from("companies")
-                .select("name, phone")
-                .eq("id", contract.company_id)
-                .single();
-
-              if (client && client.phone) {
-                const clientMessage = `✅ Parabéns ${client.name}!\n\nSeu contrato foi assinado com sucesso! 🎉\n\nVocê receberá uma cópia do documento assinado em breve.\n\nObrigado pela confiança!`;
-                
-                await supabase.functions.invoke('whatsapp-evolution', {
-                  body: {
-                    action: 'sendMessage',
-                    payload: {
-                      phone: client.phone,
-                      message: clientMessage,
-                      instance_name: 'luck'
-                    }
-                  }
-                });
-                console.log("[assinafy-webhook] ✅ WhatsApp sent to client");
-              }
-
-              if (company && company.phone) {
-                const companyMessage = `✅ Contrato assinado!\n\nCliente: ${client?.name || 'N/A'}\nDocumento ID: ${documentId}\n\nO contrato foi assinado digitalmente e está disponível no sistema.`;
-                
-                await supabase.functions.invoke('whatsapp-evolution', {
-                  body: {
-                    action: 'sendMessage',
-                    payload: {
-                      phone: company.phone,
-                      message: companyMessage,
-                      instance_name: 'luck'
-                    }
-                  }
-                });
-                console.log("[assinafy-webhook] ✅ WhatsApp sent to company");
-              }
-            } catch (whatsappError) {
-              console.error("[assinafy-webhook] WhatsApp error:", whatsappError);
-            }
+            await sendWhatsAppNotifications(supabase, contract, documentId);
           }
         }
       }
     } else {
-      console.log("[assinafy-webhook] no state change required for event", eventType);
+      console.log("[assinafy-webhook] ℹ️ No state change required for event", eventType);
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, processed: setAsSigned }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    console.error("[assinafy-webhook] error:", err?.message || err);
+    console.error("[assinafy-webhook] ❌ Error:", err?.message || err);
     return new Response(
       JSON.stringify({ error: "Invalid payload", details: String(err?.message || err) }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
+
+// Função separada para enviar notificações WhatsApp
+async function sendWhatsAppNotifications(
+  supabase: any, 
+  contract: { id: string; company_id: string; client_id: string },
+  documentId: string
+) {
+  try {
+    console.log("[assinafy-webhook] 📱 Sending WhatsApp notifications for contract:", contract.id);
+    
+    // Buscar configurações do WhatsApp da empresa
+    const { data: whatsappSettings } = await supabase
+      .from("whatsapp_settings")
+      .select("instance_url, instance_name, api_token, is_active, connection_status")
+      .eq("company_id", contract.company_id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!whatsappSettings) {
+      console.log("[assinafy-webhook] ⚠️ WhatsApp not configured for company:", contract.company_id);
+      return;
+    }
+
+    if (whatsappSettings.connection_status !== 'connected') {
+      console.log("[assinafy-webhook] ⚠️ WhatsApp not connected for company:", contract.company_id);
+      return;
+    }
+
+    console.log("[assinafy-webhook] ✅ WhatsApp configured and connected");
+
+    // Get client info
+    const { data: client } = await supabase
+      .from("clients")
+      .select("name, phone")
+      .eq("id", contract.client_id)
+      .single();
+
+    // Get company info
+    const { data: company } = await supabase
+      .from("companies")
+      .select("name, phone")
+      .eq("id", contract.company_id)
+      .single();
+
+    if (client && client.phone) {
+      const clientMessage = `✅ Parabéns ${client.name}!\n\nSeu contrato foi assinado com sucesso! 🎉\n\nVocê receberá uma cópia do documento assinado em breve.\n\nObrigado pela confiança!`;
+      
+      try {
+        await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'send_message',
+            instance_url: whatsappSettings.instance_url,
+            api_token: whatsappSettings.api_token,
+            instance_name: whatsappSettings.instance_name,
+            phone_number: client.phone,
+            message: clientMessage,
+            company_id: contract.company_id,
+            client_id: contract.client_id
+          }
+        });
+        console.log("[assinafy-webhook] ✅ WhatsApp sent to client:", client.phone);
+      } catch (whatsappError) {
+        console.error("[assinafy-webhook] ❌ WhatsApp error (client):", whatsappError);
+      }
+    }
+
+    if (company && company.phone) {
+      const companyMessage = `✅ Contrato assinado!\n\nCliente: ${client?.name || 'N/A'}\nDocumento ID: ${documentId.substring(0, 8)}...\n\nO contrato foi assinado digitalmente e está disponível no sistema.`;
+      
+      try {
+        await supabase.functions.invoke('whatsapp-evolution', {
+          body: {
+            action: 'send_message',
+            instance_url: whatsappSettings.instance_url,
+            api_token: whatsappSettings.api_token,
+            instance_name: whatsappSettings.instance_name,
+            phone_number: company.phone,
+            message: companyMessage,
+            company_id: contract.company_id
+          }
+        });
+        console.log("[assinafy-webhook] ✅ WhatsApp sent to company:", company.phone);
+      } catch (whatsappError) {
+        console.error("[assinafy-webhook] ❌ WhatsApp error (company):", whatsappError);
+      }
+    }
+  } catch (error) {
+    console.error("[assinafy-webhook] ❌ Error sending WhatsApp notifications:", error);
+  }
+}
