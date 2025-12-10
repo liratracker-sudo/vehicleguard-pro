@@ -6,15 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, CreditCard, QrCode, Link2, Receipt, Search, AlertCircle } from "lucide-react"
+import { CalendarIcon, Link2 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { useAsaas } from "@/hooks/useAsaas"
 import { supabase } from "@/integrations/supabase/client"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-// Não precisamos de imports de timezone aqui
 
 interface PaymentFormProps {
   onSuccess?: () => void
@@ -26,18 +22,14 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     client_id: "",
     contract_id: "",
     amount: 0,
-    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias a partir de hoje
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   })
   
   const [description, setDescription] = useState("")
-  const [cpf, setCpf] = useState("")
-  const [existingCharges, setExistingCharges] = useState<any[]>([])
-  const [showCharges, setShowCharges] = useState(false)
   const [clients, setClients] = useState<any[]>([])
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
-  const { findChargesByCpf, loading: asaasLoading } = useAsaas()
 
   const loadData = async () => {
     try {
@@ -64,90 +56,11 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     }
   }
 
-  const formatCpf = (value: string) => {
-    const digits = value.replace(/\D/g, '').slice(0, 11)
-    const part1 = digits.slice(0, 3)
-    const part2 = digits.slice(3, 6)
-    const part3 = digits.slice(6, 9)
-    const part4 = digits.slice(9, 11)
-    let out = part1
-    if (part2) out += `.${part2}`
-    if (part3) out += `.${part3}`
-    if (part4) out += `-${part4}`
-    return out
-  }
-
-  const searchClientByCpf = async () => {
-    const cpfDigits = cpf.replace(/\D/g, '')
-    if (cpfDigits.length !== 11) {
-      toast({
-        title: "CPF inválido",
-        description: "Digite um CPF válido com 11 dígitos",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // 1. Buscar cliente local por CPF
-    const localClient = clients.find(c => c.document?.replace(/\D/g, '') === cpfDigits)
-    if (localClient) {
-      setFormData(prev => ({ ...prev, client_id: localClient.id }))
-      toast({
-        title: "Cliente encontrado",
-        description: `Cliente ${localClient.name} selecionado`
-      })
-    }
-
-    // 2. Consultar cobranças existentes no Asaas
-    try {
-      const result = await findChargesByCpf(cpfDigits)
-      if (result.customerFound && result.charges) {
-        setExistingCharges(result.charges)
-        setShowCharges(true)
-        if (result.charges.length > 0) {
-          toast({
-            title: "Cobranças encontradas",
-            description: `${result.charges.length} cobrança(s) encontrada(s) no Asaas`,
-            variant: "default"
-          })
-        }
-      } else {
-        setExistingCharges([])
-        setShowCharges(false)
-      }
-    } catch (error) {
-      // Error already handled by the hook
-      setExistingCharges([])
-      setShowCharges(false)
-    }
-  }
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'RECEIVED':
-      case 'CONFIRMED': return 'default'
-      case 'PENDING': return 'secondary'
-      case 'OVERDUE': return 'destructive'
-      default: return 'outline'
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'RECEIVED':
-      case 'CONFIRMED': return 'Pago'
-      case 'PENDING': return 'Pendente'
-      case 'OVERDUE': return 'Vencido'
-      default: return status
-    }
-  }
-
   useEffect(() => {
     loadData()
   }, [])
 
   const handleContractChange = (contractId: string) => {
-    // Handle "none" selection for standalone payments
     if (contractId === "none") {
       setFormData({
         ...formData,
@@ -164,20 +77,16 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         client_id: contract.client_id,
         amount: contract.monthly_value
       })
-      setDescription("") // Clear description when contract is selected
+      setDescription("")
     }
   }
 
   const generatePayment = async () => {
-    console.log('🚀 Starting payment generation...');
     setLoading(true);
     
     try {
-      console.log('📋 Form data:', formData);
-      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
-      console.log('👤 User authenticated:', user.id);
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -186,35 +95,22 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         .single();
 
       if (!profile) throw new Error('Profile not found');
-      console.log('🏢 Company ID:', profile.company_id);
 
-      // Create payment transaction record
-      // DEBUG: Log da data original
-      console.log('📅 Data selecionada (objeto Date):', formData.due_date);
-      console.log('📅 Data local toString():', formData.due_date.toString());
-      console.log('📅 Data ISO string:', formData.due_date.toISOString());
-      
-      // Formatar data como YYYY-MM-DD usando os valores locais (sem conversão de timezone)
       const year = formData.due_date.getFullYear();
       const month = String(formData.due_date.getMonth() + 1).padStart(2, '0');
       const day = String(formData.due_date.getDate()).padStart(2, '0');
       const dueDateStr = `${year}-${month}-${day}`;
-      
-      console.log('📅 Componentes extraídos:', { year, month, day });
-      console.log('📅 String formatada final:', dueDateStr);
 
       const transactionData = {
         client_id: formData.client_id,
-        contract_id: formData.contract_id || null, // Se vazio, usar null
+        contract_id: formData.contract_id || null,
         amount: formData.amount,
         company_id: profile.company_id,
         status: 'pending',
-        transaction_type: formData.contract_id ? 'link' : 'avulso', // Tipo diferente para avulsa
+        transaction_type: formData.contract_id ? 'link' : 'avulso',
         due_date: dueDateStr,
         description: !formData.contract_id && description ? description : null
       };
-
-      console.log('💾 Creating transaction with data:', transactionData);
 
       const { data: transaction, error } = await supabase
         .from('payment_transactions')
@@ -222,19 +118,10 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         .select()
         .single();
 
-      if (error) {
-        console.error('❌ Transaction creation error:', error);
-        throw error;
-      }
-      
-      console.log('✅ Transaction created:', transaction);
+      if (error) throw error;
 
-      // Set payment URL to checkout page (universal link)
-      // Use VITE_APP_URL from environment or fallback to current origin
       const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const checkoutUrl = `${baseUrl}/checkout/${transaction.id}`;
-      
-      console.log('🔗 Setting checkout URL:', checkoutUrl);
 
       await supabase
         .from('payment_transactions')
@@ -244,21 +131,13 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         })
         .eq('id', transaction.id);
 
-      console.log('✅ Transaction created with checkout URL');
-
       toast({
         title: "Cobrança gerada",
         description: "Link de pagamento gerado com sucesso!"
       });
 
-      console.log('✅ Payment generation completed successfully');
-
       onSuccess?.();
-    } catch (error) {
-      console.error('💥 DETAILED ERROR:', error);
-      console.error('💥 Error stack:', error.stack);
-      console.error('💥 Error message:', error.message);
-      
+    } catch (error: any) {
       toast({
         title: "Erro",
         description: `Erro ao gerar cobrança: ${error.message}`,
@@ -268,55 +147,6 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       setLoading(false);
     }
   };
-
-  const sendWhatsAppNotification = async (clientId: string, paymentId: string, amount: number) => {
-    try {
-      const client = clients.find(c => c.id === clientId)
-      if (!client || !client.phone) return
-
-      const { error } = await supabase.functions.invoke('notify-whatsapp', {
-        body: {
-          client_id: clientId,
-          payment_id: paymentId,
-          event_type: 'manual',
-        }
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "WhatsApp enviado",
-        description: "Notificação enviada para o cliente"
-      })
-    } catch (error) {
-      console.error('Error sending WhatsApp:', error)
-      toast({
-        title: "Erro ao enviar WhatsApp",
-        description: "Verifique a integração do WhatsApp",
-        variant: "destructive"
-      })
-    }
-  }
-
-  const getPaymentTypeLabel = (type: string) => {
-    switch (type) {
-      case 'BOLETO': return 'Boleto'
-      case 'PIX': return 'PIX'
-      case 'CREDIT_CARD': return 'Cartão'
-      case 'DEBIT_CARD': return 'Débito'
-      default: return type
-    }
-  }
-
-  const getPaymentIcon = (type: string) => {
-    switch (type) {
-      case 'BOLETO': return <Receipt className="h-4 w-4" />
-      case 'PIX': return <QrCode className="h-4 w-4" />
-      case 'CREDIT_CARD': return <CreditCard className="h-4 w-4" />
-      case 'DEBIT_CARD': return <CreditCard className="h-4 w-4" />
-      default: return null
-    }
-  }
 
   const filteredContracts = contracts.filter(c => 
     !formData.client_id || c.client_id === formData.client_id
@@ -335,93 +165,6 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* CPF Search Section */}
-          <div className="border rounded-lg p-4 bg-muted/20">
-            <Label htmlFor="cpf">Buscar por CPF</Label>
-            <div className="flex gap-2 mt-2">
-              <Input
-                id="cpf"
-                placeholder="Digite o CPF do cliente"
-                value={cpf}
-                onChange={(e) => setCpf(formatCpf(e.target.value))}
-                maxLength={14}
-                inputMode="numeric"
-              />
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={searchClientByCpf}
-                disabled={asaasLoading}
-              >
-                <Search className={`w-4 h-4 mr-2 ${asaasLoading ? 'animate-pulse' : ''}`} />
-                Buscar
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Busca o cliente no sistema local e consulta cobranças existentes no Asaas
-            </p>
-          </div>
-
-          {/* Existing Charges Section */}
-          {showCharges && existingCharges.length > 0 && (
-            <div className="border rounded-lg p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                <h4 className="font-medium text-amber-800 dark:text-amber-200">
-                  Cobranças Existentes no Asaas
-                </h4>
-              </div>
-              <div className="rounded border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">Valor</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
-                      <TableHead className="w-[120px]">Vencimento</TableHead>
-                      <TableHead>Link de Pagamento</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {existingCharges.slice(0, 3).map((charge: any) => (
-                      <TableRow key={charge.id}>
-                        <TableCell className="font-medium">
-                          R$ {(charge.value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(charge.status)}>
-                            {getStatusLabel(charge.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {charge.dueDate ? charge.dueDate.split('T')[0].split('-').reverse().join('/') : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {charge.invoiceUrl || charge.bankSlipUrl ? (
-                            <a
-                              href={charge.invoiceUrl || charge.bankSlipUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary underline text-sm"
-                            >
-                              Ver cobrança
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {existingCharges.length > 3 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  E mais {existingCharges.length - 3} cobrança(s)...
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="client_id">Cliente *</Label>
@@ -460,13 +203,9 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Deixe em branco para cobrança avulsa (sem vínculo com contrato)
-              </p>
             </div>
           </div>
 
-          {/* Description field for standalone payments */}
           {(!formData.contract_id || formData.contract_id === "none") && (
             <div>
               <Label htmlFor="description">Descrição da Cobrança</Label>
@@ -476,9 +215,6 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Opcional - identifica o motivo da cobrança avulsa
-              </p>
             </div>
           )}
 
@@ -506,39 +242,29 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.due_date ? (
-                    format(formData.due_date, "dd/MM/yyyy")
-                  ) : (
-                    <span>Selecione a data</span>
-                  )}
+                  {formData.due_date ? format(formData.due_date, "dd/MM/yyyy") : "Selecione uma data"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={formData.due_date}
-                  onSelect={(date) => {
-                    if (date) {
-                      // Forçar criação da data às 12:00 do timezone local para evitar problemas de timezone
-                      const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
-                      setFormData({...formData, due_date: localDate});
-                    }
-                  }}
+                  onSelect={(date) => date && setFormData({...formData, due_date: date})}
                   initialFocus
-                  disabled={(date) => date < new Date()}
-                  className="p-3 pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
           </div>
 
-          <div className="flex gap-3 pt-4 pb-2">
+          <div className="flex gap-3 pt-4">
             <Button onClick={generatePayment} disabled={loading}>
               {loading ? "Gerando..." : "Gerar Cobrança"}
             </Button>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancelar
-            </Button>
+            {onCancel && (
+              <Button variant="outline" onClick={onCancel}>
+                Cancelar
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
