@@ -99,7 +99,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   if (showDeletePermanently) {
     return (
       <TooltipProvider>
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
@@ -112,7 +112,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Excluir permanentemente</TooltipContent>
+            <TooltipContent side="bottom">Excluir permanentemente</TooltipContent>
           </Tooltip>
 
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -142,7 +142,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
 
   return (
     <TooltipProvider>
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center justify-end gap-2">
         {/* Link de pagamento */}
         {payment.payment_url && (
           <Tooltip>
@@ -156,7 +156,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <ExternalLink className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Abrir link</TooltipContent>
+            <TooltipContent side="bottom">Abrir link</TooltipContent>
           </Tooltip>
         )}
 
@@ -173,7 +173,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <Copy className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Copiar PIX</TooltipContent>
+            <TooltipContent side="bottom">Copiar PIX</TooltipContent>
           </Tooltip>
         )}
 
@@ -191,7 +191,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <CheckCircle className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Marcar como pago</TooltipContent>
+            <TooltipContent side="bottom">Marcar como pago</TooltipContent>
           </Tooltip>
         )}
 
@@ -209,7 +209,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <MessageSquare className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent side="bottom">
               {payment.clients?.phone ? 'Enviar notificação' : 'Sem telefone'}
             </TooltipContent>
           </Tooltip>
@@ -229,7 +229,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <XCircle className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Cancelar cobrança</TooltipContent>
+            <TooltipContent side="bottom">Cancelar cobrança</TooltipContent>
           </Tooltip>
         )}
 
