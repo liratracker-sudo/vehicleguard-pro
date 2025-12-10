@@ -1873,6 +1873,7 @@ export type Database = {
           company_id: string
           contract_id: string | null
           created_at: string
+          description: string | null
           due_date: string | null
           external_id: string | null
           id: string
@@ -1892,6 +1893,7 @@ export type Database = {
           company_id: string
           contract_id?: string | null
           created_at?: string
+          description?: string | null
           due_date?: string | null
           external_id?: string | null
           id?: string
@@ -1911,6 +1913,7 @@ export type Database = {
           company_id?: string
           contract_id?: string | null
           created_at?: string
+          description?: string | null
           due_date?: string | null
           external_id?: string | null
           id?: string
