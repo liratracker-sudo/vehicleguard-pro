@@ -50,6 +50,11 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
     address: string | null
     ownerName: string | null
   } | null>(null)
+  // Cache de contexto do usuário para evitar múltiplas requisições
+  const [userContext, setUserContext] = useState<{
+    userId: string
+    companyId: string
+  } | null>(null)
   const { toast } = useToast()
   const { templates } = useContractTemplates()
 
@@ -74,6 +79,9 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         console.log('❌ Perfil da empresa não encontrado');
         return;
       }
+
+      // Cachear contexto do usuário para uso posterior
+      setUserContext({ userId: user.id, companyId: profile.company_id })
 
       console.log('🏢 Company ID:', profile.company_id);
 
@@ -227,14 +235,28 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
     return Object.keys(newErrors).length === 0
   }
 
-  const sendForSignature = async (contractId: string) => {
+  const sendForSignature = async (contractIdToSign: string) => {
     try {
-      setLoading(true)
+      console.log('📤 Enviando contrato para assinatura em background:', contractIdToSign)
       
       const selectedClient = clients.find(c => c.id === formData.client_id)
       if (!selectedClient) {
         throw new Error("Cliente não encontrado")
       }
+
+      // Usar contexto cacheado
+      const companyId = userContext?.companyId
+      if (!companyId) {
+        throw new Error("Contexto da empresa não encontrado")
+      }
+
+      // Buscar WhatsApp settings em paralelo com a chamada Assinafy
+      const whatsappPromise = supabase
+        .from('whatsapp_settings')
+        .select('instance_url, instance_name, api_token, is_active, connection_status')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .maybeSingle()
 
       const response = await supabase.functions.invoke('assinafy-integration', {
         body: {
@@ -244,7 +266,6 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
           client_cpf: selectedClient.document,
           content: generateContractContent(selectedClient),
           title: `Contrato de Prestação de Serviços - ${selectedClient.name}`,
-          // Dados da empresa para o PDF
           company_name: companyInfo?.name,
           company_cnpj: companyInfo?.cnpj,
           company_address: companyInfo?.address,
@@ -273,53 +294,37 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
           assinafy_document_id: response.data.document_id,
           document_url: response.data.signing_url
         })
-        .eq('id', contractId)
+        .eq('id', contractIdToSign)
 
       if (updateError) throw updateError
 
-      // Enviar notificação WhatsApp para o cliente
+      // Enviar notificação WhatsApp (não bloqueia)
       if (response.data.signing_url) {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('company_id')
-            .eq('user_id', user.id)
-            .maybeSingle()
+        const { data: whatsappSettings } = await whatsappPromise
+        
+        if (whatsappSettings?.connection_status === 'connected' && selectedClient.phone) {
+          const selectedPlan = plans.find(p => p.id === formData.plan_id)
+          const message = `Olá ${selectedClient.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\n📋 *Plano:* ${selectedPlan?.name || 'Contratado'}\n💰 *Valor:* R$ ${Number(formData.monthly_value).toFixed(2)}/mês\n\n🔗 *Acesse o link abaixo para assinar:*\n${response.data.signing_url}\n\nEm caso de dúvidas, entre em contato.`
 
-          if (profile?.company_id) {
-            const { data: whatsappSettings } = await supabase
-              .from('whatsapp_settings')
-              .select('instance_url, instance_name, api_token, is_active, connection_status')
-              .eq('company_id', profile.company_id)
-              .eq('is_active', true)
-              .maybeSingle()
-
-            if (whatsappSettings?.connection_status === 'connected' && selectedClient.phone) {
-              const selectedPlan = plans.find(p => p.id === formData.plan_id)
-              const message = `Olá ${selectedClient.name}! 📄\n\nSeu contrato está pronto para assinatura digital.\n\n📋 *Plano:* ${selectedPlan?.name || 'Contratado'}\n💰 *Valor:* R$ ${Number(formData.monthly_value).toFixed(2)}/mês\n\n🔗 *Acesse o link abaixo para assinar:*\n${response.data.signing_url}\n\nEm caso de dúvidas, entre em contato.`
-
-              try {
-                await supabase.functions.invoke('whatsapp-evolution', {
-                  body: {
-                    action: 'send_message',
-                    instance_url: whatsappSettings.instance_url,
-                    api_token: whatsappSettings.api_token,
-                    instance_name: whatsappSettings.instance_name,
-                    phone_number: selectedClient.phone,
-                    message: message,
-                    company_id: profile.company_id,
-                    client_id: formData.client_id
-                  }
-                })
-                console.log('✅ WhatsApp enviado para cliente com link de assinatura')
-              } catch (whatsappError) {
-                console.error('Erro ao enviar WhatsApp:', whatsappError)
-              }
-            } else {
-              console.log('⚠️ WhatsApp não configurado/conectado ou cliente sem telefone')
+          // Enviar WhatsApp em background (fire and forget)
+          supabase.functions.invoke('whatsapp-evolution', {
+            body: {
+              action: 'send_message',
+              instance_url: whatsappSettings.instance_url,
+              api_token: whatsappSettings.api_token,
+              instance_name: whatsappSettings.instance_name,
+              phone_number: selectedClient.phone,
+              message: message,
+              company_id: companyId,
+              client_id: formData.client_id
             }
-          }
+          }).then(() => {
+            console.log('✅ WhatsApp enviado para cliente com link de assinatura')
+          }).catch(whatsappError => {
+            console.error('Erro ao enviar WhatsApp:', whatsappError)
+          })
+        } else {
+          console.log('⚠️ WhatsApp não configurado/conectado ou cliente sem telefone')
         }
       }
 
@@ -346,8 +351,6 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
         description: errorMessage,
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -538,24 +541,19 @@ Contratada`
       return
     }
 
+    // Usar contexto cacheado para evitar requisições extras
+    if (!userContext?.companyId) {
+      toast({
+        title: "Erro de sessão",
+        description: "Recarregue a página e tente novamente",
+        variant: "destructive"
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        throw new Error('Usuário não autenticado')
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!profile?.company_id) {
-        throw new Error('Perfil da empresa não encontrado')
-      }
-
       const contractData = {
         client_id: formData.client_id,
         plan_id: formData.plan_id,
@@ -564,7 +562,7 @@ Contratada`
         start_date: formData.start_date.toISOString().split('T')[0],
         end_date: formData.end_date ? formData.end_date.toISOString().split('T')[0] : null,
         contract_type: formData.contract_type,
-        company_id: profile.company_id,
+        company_id: userContext.companyId,
         status: 'active',
         signature_status: contractId ? formData.signature_status : 'pending'
       }
@@ -631,11 +629,25 @@ Contratada`
         description: "Operação realizada com sucesso!"
       })
 
-      // If new contract, ask if user wants to send for signature
+      // Se for novo contrato, perguntar se quer enviar para assinatura
       if (!contractId && result) {
         const shouldSend = window.confirm("Deseja enviar este contrato para assinatura eletrônica?")
         if (shouldSend) {
-          await sendForSignature(result.id)
+          // Mostrar feedback imediato e processar em background
+          toast({
+            title: "Processando...",
+            description: "Enviando contrato para assinatura. Você será notificado.",
+          })
+          
+          // Fechar modal imediatamente e processar assinatura em background
+          setLoading(false)
+          onSuccess?.()
+          
+          // Executar envio em background (não bloqueia)
+          sendForSignature(result.id).catch(error => {
+            console.error('Erro ao enviar para assinatura em background:', error)
+          })
+          return
         }
       }
 
