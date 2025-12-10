@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateBR } from "@/lib/timezone"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -266,7 +267,7 @@ export const ContractTemplates = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {new Date(template.created_at).toLocaleDateString()}
+                      {formatDateBR(template.created_at)}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">Ativo</Badge>

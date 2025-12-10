@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateBR } from "@/lib/timezone"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -198,10 +199,10 @@ export function CpfLookup() {
                           {p.payment_gateway || 'N/A'}
                         </TableCell>
                         <TableCell>
-                          {p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-'}
+                          {p.due_date ? formatDateBR(p.due_date) : '-'}
                         </TableCell>
                         <TableCell>
-                          {new Date(p.created_at).toLocaleDateString('pt-BR')}
+                          {formatDateBR(p.created_at)}
                         </TableCell>
                         <TableCell>
                           {p.payment_url ? (

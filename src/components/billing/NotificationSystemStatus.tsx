@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTimeBR } from "@/lib/timezone";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle, CheckCircle, Clock, Activity } from "lucide-react";
@@ -302,7 +303,7 @@ export function NotificationSystemStatus() {
                       <Clock className="h-4 w-4 text-yellow-500" />
                     )}
                     <span className="text-sm">
-                      {new Date(log.started_at).toLocaleString('pt-BR')}
+                      {formatDateTimeBR(log.started_at)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">

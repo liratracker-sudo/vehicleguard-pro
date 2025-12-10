@@ -1,4 +1,21 @@
 /**
+ * ⚠️ IMPORTANTE - PADRÃO OBRIGATÓRIO DE TIMEZONE ⚠️
+ * 
+ * TODAS as formatações de data no projeto DEVEM usar estas funções.
+ * O ESLint está configurado para bloquear usos incorretos automaticamente.
+ * 
+ * ❌ PROIBIDO (causa erro de build):
+ *   - new Date(x).toLocaleDateString()
+ *   - new Date(x).toLocaleString()
+ *   - new Date(x).toLocaleTimeString()
+ * 
+ * ✅ CORRETO:
+ *   - formatDateBR(x)       → DD/MM/YYYY
+ *   - formatDateTimeBR(x)   → DD/MM/YYYY HH:mm
+ *   - formatTimeBR(x)       → HH:mm
+ * 
+ * Veja TIMEZONE_GUIDE.md para documentação completa.
+ * 
  * Utilitários para trabalhar com fuso horário de Brasília (UTC-3)
  */
 

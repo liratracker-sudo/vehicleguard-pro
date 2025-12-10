@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { formatDateBR } from "@/lib/timezone"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -437,7 +438,7 @@ export function CompanyUsersDialog({
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                            {formatDateBR(user.created_at)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">

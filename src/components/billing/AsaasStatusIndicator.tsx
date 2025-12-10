@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { formatDateTimeBR } from '@/lib/timezone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wifi, WifiOff, RefreshCw, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
@@ -89,7 +90,7 @@ export function AsaasStatusIndicator() {
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {new Date(lastUpdate.updatedAt).toLocaleString('pt-BR')}
+              {formatDateTimeBR(lastUpdate.updatedAt)}
             </div>
           </div>
         )}

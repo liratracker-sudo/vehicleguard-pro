@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
+import { formatDateBR } from "@/lib/timezone"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -382,12 +383,12 @@ const ContractsPage = () => {
                         <TableCell>R$ {contract.monthly_value.toFixed(2)}</TableCell>
                         <TableCell>
                           <div className="text-sm">
-                            {new Date(contract.start_date).toLocaleDateString()}
+                            {formatDateBR(contract.start_date)}
                             {contract.end_date && (
                               <>
                                 <br />
                                 <span className="text-muted-foreground">
-                                  até {new Date(contract.end_date).toLocaleDateString()}
+                                  até {formatDateBR(contract.end_date)}
                                 </span>
                               </>
                             )}

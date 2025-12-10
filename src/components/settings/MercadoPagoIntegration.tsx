@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateTimeBR } from "@/lib/timezone"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -253,7 +254,7 @@ export function MercadoPagoIntegration() {
 
         {settings?.last_test_at && (
           <div className="text-xs text-muted-foreground">
-            Último teste: {new Date(settings.last_test_at).toLocaleString('pt-BR')}
+            Último teste: {formatDateTimeBR(settings.last_test_at)}
           </div>
         )}
       </CardContent>
