@@ -1,4 +1,4 @@
-import { AlertCircle, Clock, CheckCircle2 } from "lucide-react"
+import { AlertCircle, Clock, CheckCircle2, TrendingDown } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -7,9 +7,10 @@ interface QuickAlertsProps {
   overdueCount: number
   overdueAmount: number
   upcomingCount: number
+  defaultRate: number
 }
 
-export function QuickAlerts({ overdueCount, overdueAmount, upcomingCount }: QuickAlertsProps) {
+export function QuickAlerts({ overdueCount, overdueAmount, upcomingCount, defaultRate }: QuickAlertsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -19,24 +20,32 @@ export function QuickAlerts({ overdueCount, overdueAmount, upcomingCount }: Quic
 
   const alerts = [
     {
+      id: 'default-rate',
+      icon: TrendingDown,
+      label: `Taxa de inadimplência: ${defaultRate.toFixed(1)}%`,
+      sublabel: defaultRate > 10 ? 'Acima do recomendado (10%)' : undefined,
+      variant: defaultRate > 10 ? 'danger' : defaultRate > 5 ? 'warning' : 'success',
+      show: defaultRate > 5
+    },
+    {
       id: 'overdue',
       icon: AlertCircle,
       label: `${overdueCount} cobrança${overdueCount !== 1 ? 's' : ''} vencida${overdueCount !== 1 ? 's' : ''}`,
       sublabel: overdueCount > 0 ? formatCurrency(overdueAmount) : undefined,
       variant: overdueCount > 0 ? 'danger' : 'success',
-      show: true
+      show: overdueCount > 0
     },
     {
       id: 'upcoming',
       icon: Clock,
       label: `${upcomingCount} vence${upcomingCount !== 1 ? 'm' : ''} nos próximos 7 dias`,
       variant: upcomingCount > 0 ? 'warning' : 'success',
-      show: true
+      show: upcomingCount > 0
     }
   ];
 
   const visibleAlerts = alerts.filter(a => a.show);
-  const hasIssues = overdueCount > 0 || upcomingCount > 0;
+  const hasIssues = visibleAlerts.length > 0;
 
   if (!hasIssues) {
     return (

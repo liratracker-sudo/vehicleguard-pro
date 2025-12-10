@@ -13,6 +13,7 @@ export interface DashboardStats {
   clientsTrendValue: number;
   vehiclesTrendValue: number;
   revenueTrendValue: number;
+  defaultRate: number;
 }
 
 export interface RecentClient {
@@ -64,6 +65,7 @@ export function useDashboardStats() {
         lastMonthRevenueResult,
         overdueResult,
         upcomingResult,
+        totalPaymentsResult,
       ] = await Promise.all([
         // Active clients
         supabase
@@ -121,6 +123,12 @@ export function useDashboardStats() {
           .eq("status", "pending")
           .gte("due_date", now.toISOString().split("T")[0])
           .lte("due_date", sevenDaysFromNow.toISOString().split("T")[0]),
+        // Total payments for default rate calculation
+        supabase
+          .from("payment_transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .in("status", ["paid", "pending"]),
       ]);
 
       const activeClients = activeClientsResult.count || 0;
@@ -132,6 +140,8 @@ export function useDashboardStats() {
       const overdueAmount = overdueResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const overdueCount = overdueResult.data?.length || 0;
       const upcomingCount = upcomingResult.count || 0;
+      const totalPayments = totalPaymentsResult.count || 0;
+      const defaultRate = totalPayments > 0 ? (overdueCount / totalPayments) * 100 : 0;
 
       return {
         activeClients,
@@ -143,6 +153,7 @@ export function useDashboardStats() {
         clientsTrendValue: activeClients - lastMonthClients,
         vehiclesTrendValue: totalVehicles - lastMonthVehicles,
         revenueTrendValue: monthlyRevenue - lastMonthRevenue,
+        defaultRate,
       };
     },
   });

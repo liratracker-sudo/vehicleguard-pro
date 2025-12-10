@@ -77,12 +77,12 @@ const Index = () => {
               } : undefined}
             />
             <MetricCard
-              title="Em Atraso"
-              value={formatCurrency(stats.overdueAmount)}
+              title="Inadimplência"
+              value={`${stats.defaultRate.toFixed(1)}%`}
               icon={<AlertCircle className="h-5 w-5" />}
-              variant={stats.overdueCount > 0 ? 'danger' : 'default'}
+              variant={stats.defaultRate > 10 ? 'danger' : stats.defaultRate > 5 ? 'warning' : 'default'}
               trend={stats.overdueCount > 0 ? {
-                value: `${stats.overdueCount} cobrança${stats.overdueCount !== 1 ? 's' : ''}`,
+                value: `${formatCurrency(stats.overdueAmount)} em ${stats.overdueCount} cobrança${stats.overdueCount !== 1 ? 's' : ''}`,
                 isPositive: false
               } : undefined}
             />
@@ -95,6 +95,7 @@ const Index = () => {
             overdueCount={stats.overdueCount}
             overdueAmount={stats.overdueAmount}
             upcomingCount={stats.upcomingCount}
+            defaultRate={stats.defaultRate}
           />
         )}
 
