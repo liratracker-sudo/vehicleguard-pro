@@ -99,7 +99,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   if (showDeletePermanently) {
     return (
       <TooltipProvider>
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
@@ -142,7 +142,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
 
   return (
     <TooltipProvider>
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-3">
         {/* Link de pagamento */}
         {payment.payment_url && (
           <Tooltip>
