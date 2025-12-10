@@ -339,7 +339,7 @@ const BillingPage = () => {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs font-medium uppercase">
-                            {payment.contracts?.plans?.name || payment.transaction_type}
+                            {payment.contracts?.plans?.name || (payment as any).description || 'Avulsa'}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-semibold tabular-nums">

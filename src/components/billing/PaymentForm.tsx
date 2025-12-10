@@ -29,6 +29,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
     due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias a partir de hoje
   })
   
+  const [description, setDescription] = useState("")
   const [cpf, setCpf] = useState("")
   const [existingCharges, setExistingCharges] = useState<any[]>([])
   const [showCharges, setShowCharges] = useState(false)
@@ -146,6 +147,15 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
   }, [])
 
   const handleContractChange = (contractId: string) => {
+    // Handle "none" selection for standalone payments
+    if (contractId === "none") {
+      setFormData({
+        ...formData,
+        contract_id: ""
+      })
+      return
+    }
+    
     const contract = contracts.find(c => c.id === contractId)
     if (contract) {
       setFormData({
@@ -154,6 +164,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
         client_id: contract.client_id,
         amount: contract.monthly_value
       })
+      setDescription("") // Clear description when contract is selected
     }
   }
 
@@ -193,11 +204,14 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       console.log('📅 String formatada final:', dueDateStr);
 
       const transactionData = {
-        ...formData,
+        client_id: formData.client_id,
+        contract_id: formData.contract_id || null, // Se vazio, usar null
+        amount: formData.amount,
         company_id: profile.company_id,
         status: 'pending',
-        transaction_type: 'link', // Link de pagamento universal
-        due_date: dueDateStr
+        transaction_type: formData.contract_id ? 'link' : 'avulso', // Tipo diferente para avulsa
+        due_date: dueDateStr,
+        description: !formData.contract_id && description ? description : null
       };
 
       console.log('💾 Creating transaction with data:', transactionData);
@@ -435,9 +449,10 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                 onValueChange={handleContractChange}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o contrato" />
+                  <SelectValue placeholder="Selecione o contrato (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Nenhum (Cobrança Avulsa)</SelectItem>
                   {filteredContracts.map((contract) => (
                     <SelectItem key={contract.id} value={contract.id}>
                       R$ {contract.monthly_value.toFixed(2)} - {contract.clients?.name}
@@ -445,8 +460,27 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Deixe em branco para cobrança avulsa (sem vínculo com contrato)
+              </p>
             </div>
           </div>
+
+          {/* Description field for standalone payments */}
+          {(!formData.contract_id || formData.contract_id === "none") && (
+            <div>
+              <Label htmlFor="description">Descrição da Cobrança</Label>
+              <Input
+                id="description"
+                placeholder="Ex: Taxa de instalação, Multa, Serviço avulso..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Opcional - identifica o motivo da cobrança avulsa
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
