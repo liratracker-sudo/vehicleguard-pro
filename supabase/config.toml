@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.assinafy-webhook]
 verify_jwt = false
+
+[functions.process-retroactive-charges]
+verify_jwt = false
