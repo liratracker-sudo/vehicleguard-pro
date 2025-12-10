@@ -188,7 +188,7 @@ const BillingPage = () => {
                 Nova Cobrança
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-lg">
               <PaymentForm
                 onSuccess={() => {
                   setIsDialogOpen(false)
