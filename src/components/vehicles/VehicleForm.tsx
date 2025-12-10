@@ -98,6 +98,7 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
         .select('id, name')
         .eq('status', 'active')
         .eq('company_id', profile.company_id)
+        .order('name')
         
       if (data) setClients(data)
     } catch (error) {

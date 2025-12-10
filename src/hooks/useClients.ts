@@ -43,7 +43,7 @@ export function useClients() {
         .from('clients')
         .select('*')
         .eq('company_id', profile.company_id)
-        .order('created_at', { ascending: false });
+        .order('name');
 
       if (error) {
         throw error;

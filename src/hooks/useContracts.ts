@@ -83,7 +83,8 @@ export function useContracts() {
         supabase
           .from('clients')
           .select('id, name, phone, email, document')
-          .eq('company_id', profile.company_id),
+          .eq('company_id', profile.company_id)
+          .order('name'),
         supabase
           .from('plans')
           .select('id, name, description, price')
