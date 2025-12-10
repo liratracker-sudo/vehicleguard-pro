@@ -30,6 +30,7 @@ export interface PaymentTransaction {
     id: string;
     start_date: string;
     plans?: {
+      name: string | null;
       billing_cycle: string | null;
     } | null;
   } | null;
@@ -72,6 +73,7 @@ export function usePayments() {
             id,
             start_date,
             plans (
+              name,
               billing_cycle
             )
           )
