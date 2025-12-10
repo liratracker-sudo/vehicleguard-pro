@@ -39,5 +39,8 @@ verify_jwt = false
 [functions.payment-confirmed-notification]
 verify_jwt = false
 
+[functions.generate-next-charge]
+verify_jwt = false
+
 [functions.assinafy-webhook]
 verify_jwt = false
