@@ -83,6 +83,34 @@ const BillingPage = () => {
     return true
   })
 
+  // Função para calcular prioridade de ordenação
+  const getPaymentPriority = (payment: any): number => {
+    if (payment.status === 'paid') return 6; // Pagos no final
+    
+    if (payment.due_date) {
+      const days = daysUntil(payment.due_date);
+      if (days < 0) return 1;   // Vencido (atrasado)
+      if (days === 0) return 2; // Vence Hoje
+      if (days <= 3) return 3;  // Esgotando (1-3 dias)
+      if (days <= 7) return 4;  // Próximo (4-7 dias)
+    }
+    
+    return 5; // Pendente normal (> 7 dias)
+  };
+
+  // Ordenar pagamentos por prioridade (urgentes primeiro, pagos no final)
+  const sortedPayments = [...filteredPayments].sort((a, b) => {
+    const priorityA = getPaymentPriority(a);
+    const priorityB = getPaymentPriority(b);
+    
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    
+    // Mesma prioridade: ordenar por data (mais próximo primeiro)
+    const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
+    const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
+    return dateA - dateB;
+  });
+
   const totalReceived = companyBalance?.total_received ?? payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
   const totalPending = companyBalance?.total_pending ?? payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0)
   const totalOverdue = companyBalance?.total_overdue ?? payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0)
@@ -297,14 +325,14 @@ const BillingPage = () => {
                         Carregando...
                       </TableCell>
                     </TableRow>
-                  ) : filteredPayments.length === 0 ? (
+                  ) : sortedPayments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhuma cobrança encontrada
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPayments.map((payment) => (
+                    sortedPayments.map((payment) => (
                       <TableRow key={payment.id} className="hover:bg-muted/30">
                         <TableCell className="font-medium">
                           {payment.clients?.name || 'Sistema'}
