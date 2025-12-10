@@ -1,13 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,19 +9,24 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
-  MoreHorizontal, 
   CheckCircle, 
   XCircle, 
-  Send, 
-  FileText, 
+  MessageSquare, 
+  Trash2,
   Copy,
   ExternalLink 
 } from "lucide-react";
 import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
+import { useToast } from "@/hooks/use-toast";
 
 interface BillingActionsProps {
   payment: PaymentTransaction;
@@ -39,18 +36,20 @@ interface BillingActionsProps {
 
 export function BillingActions({ payment, onUpdate, showDeletePermanently = false }: BillingActionsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPaidDialog, setShowPaidDialog] = useState(false);
+  const { toast } = useToast();
   const { 
     loading,
     updatePaymentStatus,
     deletePayment,
     deletePermanently,
     resendNotification,
-    generateSecondCopy
   } = useBillingManagement();
 
-  const handleStatusUpdate = async (newStatus: string) => {
+  const handleMarkAsPaid = async () => {
     try {
-      await updatePaymentStatus(payment.id, newStatus, newStatus === 'paid' ? new Date().toISOString() : undefined);
+      await updatePaymentStatus(payment.id, 'paid', new Date().toISOString());
+      setShowPaidDialog(false);
       onUpdate();
     } catch (error) {
       console.error('Error updating payment status:', error);
@@ -60,10 +59,8 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   const handleDelete = async () => {
     try {
       if (showDeletePermanently) {
-        // For permanent deletion, we need a new function
         await deletePermanently(payment.id);
       } else {
-        // For cancelling, use existing function
         await deletePayment(payment.id);
       }
       setShowDeleteDialog(false);
@@ -75,7 +72,11 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
 
   const handleResendNotification = async () => {
     if (!payment.clients?.phone) {
-      alert('Cliente não possui telefone cadastrado');
+      toast({
+        title: "Erro",
+        description: "Cliente não possui telefone cadastrado",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -86,174 +87,196 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     }
   };
 
-  const handleGenerateSecondCopy = async () => {
-    try {
-      const result = await generateSecondCopy(payment.id);
-      
-      if (result?.data?.payment_url) {
-        window.open(result.data.payment_url, '_blank');
-      } else if (result?.data?.pix_code) {
-        navigator.clipboard.writeText(result.data.pix_code);
-        alert('Código PIX copiado para a área de transferência');
-      } else {
-        onUpdate(); // Refresh to get updated data
-      }
-    } catch (error) {
-      console.error('Error generating second copy:', error);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge className="bg-success/20 text-success border-success/30">Pago</Badge>;
-      case 'pending':
-        return <Badge className="bg-warning/20 text-warning border-warning/30">Pendente</Badge>;
-      case 'overdue':
-        return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Vencido</Badge>;
-      case 'cancelled':
-        return <Badge variant="outline">Cancelado</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    alert(`${label} copiado para a área de transferência`);
+    toast({
+      title: "Copiado!",
+      description: `${label} copiado para a área de transferência`
+    });
   };
 
-  return (
-    <div className="flex items-center gap-2">
-      {getStatusBadge(payment.status)}
-      
-      {/* Quick actions for common payment methods */}
-      {payment.payment_url && (
-        <Button 
-          size="sm" 
-          variant="outline"
-          onClick={() => window.open(payment.payment_url!, '_blank')}
-          className="h-8"
-        >
-          <ExternalLink className="w-3 h-3 mr-1" />
-          Link
-        </Button>
-      )}
-      
-      {payment.pix_code && (
-        <Button 
-          size="sm" 
-          variant="outline"
-          onClick={() => copyToClipboard(payment.pix_code!, 'Código PIX')}
-          className="h-8"
-        >
-          <Copy className="w-3 h-3 mr-1" />
-          PIX
-        </Button>
-      )}
+  // Para cobranças canceladas, mostrar apenas excluir permanentemente
+  if (showDeletePermanently) {
+    return (
+      <TooltipProvider>
+        <div className="flex items-center justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={loading}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Excluir permanentemente</TooltipContent>
+          </Tooltip>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          {payment.status === 'pending' && (
-            <DropdownMenuItem 
-              onClick={() => handleStatusUpdate('paid')}
-              disabled={loading}
-            >
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Marcar como Pago
-            </DropdownMenuItem>
-          )}
-          
-          {payment.status !== 'cancelled' && payment.status !== 'paid' && (
-            <>
-              <DropdownMenuItem 
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir Permanentemente</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. A cobrança será removida completamente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDelete}
+                  disabled={loading}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center justify-end gap-1">
+        {/* Link de pagamento */}
+        {payment.payment_url && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                onClick={() => window.open(payment.payment_url!, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Abrir link</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Copiar PIX */}
+        {payment.pix_code && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900/30"
+                onClick={() => copyToClipboard(payment.pix_code!, 'Código PIX')}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copiar PIX</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Marcar como pago - apenas se não estiver pago */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
+                onClick={() => setShowPaidDialog(true)}
+                disabled={loading}
+              >
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Marcar como pago</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Reenviar notificação - apenas se pendente/vencido */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-sky-600 hover:text-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/30"
                 onClick={handleResendNotification}
                 disabled={loading || !payment.clients?.phone}
               >
-                <Send className="mr-2 h-4 w-4" />
-                Reenviar Notificação
-              </DropdownMenuItem>
-              
-              <DropdownMenuItem 
-                onClick={handleGenerateSecondCopy}
+                <MessageSquare className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {payment.clients?.phone ? 'Enviar notificação' : 'Sem telefone'}
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Cancelar cobrança - apenas se não estiver pago/cancelado */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDeleteDialog(true)}
                 disabled={loading}
               >
-                <FileText className="mr-2 h-4 w-4" />
-                Gerar 2ª Via
-              </DropdownMenuItem>
-            </>
-          )}
-          
-          <DropdownMenuSeparator />
-          
-          {showDeletePermanently ? (
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem 
-                  onSelect={(e) => e.preventDefault()}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Excluir Permanentemente
-                </DropdownMenuItem>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Excluir Cobrança Permanentemente</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Tem certeza que deseja excluir permanentemente esta cobrança? Esta ação não pode ser desfeita e a cobrança será removida completamente do sistema.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Voltar</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={handleDelete}
-                    disabled={loading}
-                    className="bg-destructive hover:bg-destructive/90"
-                  >
-                    Confirmar Exclusão
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem 
-                  onSelect={(e) => e.preventDefault()}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Cancelar Cobrança
-                </DropdownMenuItem>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Cancelar Cobrança</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Voltar</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={handleDelete}
-                    disabled={loading}
-                    className="bg-destructive hover:bg-destructive/90"
-                  >
-                    Confirmar Cancelamento
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Cancelar cobrança</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Dialog de confirmação - Marcar como pago */}
+        <AlertDialog open={showPaidDialog} onOpenChange={setShowPaidDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Pagamento</AlertDialogTitle>
+              <AlertDialogDescription>
+                Marcar esta cobrança de R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} como paga?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleMarkAsPaid}
+                disabled={loading}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Confirmar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog de confirmação - Cancelar */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancelar Cobrança</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDelete}
+                disabled={loading}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Cancelar Cobrança
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </TooltipProvider>
   );
 }
