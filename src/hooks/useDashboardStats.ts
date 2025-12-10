@@ -4,17 +4,15 @@ import { startOfMonth, subMonths, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export interface DashboardStats {
-  totalClients: number;
   activeClients: number;
   totalVehicles: number;
-  activeContracts: number;
   monthlyRevenue: number;
-  delinquencyRate: number;
-  growthRate: number;
-  clientsTrend: { value: string; isPositive: boolean };
-  vehiclesTrend: { value: string; isPositive: boolean };
-  revenueTrend: { value: string; isPositive: boolean };
-  contractsTrend: { value: string; isPositive: boolean };
+  overdueAmount: number;
+  overdueCount: number;
+  upcomingCount: number;
+  clientsTrendValue: number;
+  vehiclesTrendValue: number;
+  revenueTrendValue: number;
 }
 
 export interface RecentClient {
@@ -41,6 +39,8 @@ export function useDashboardStats() {
       const currentMonthStart = startOfMonth(now);
       const lastMonthStart = startOfMonth(subMonths(now, 1));
       const lastMonthEnd = startOfMonth(now);
+      const sevenDaysFromNow = new Date(now);
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
       // Get user's company_id
       const { data: profile } = await supabase
@@ -56,51 +56,40 @@ export function useDashboardStats() {
 
       // Fetch all stats in parallel
       const [
-        clientsResult,
+        activeClientsResult,
         lastMonthClientsResult,
         vehiclesResult,
         lastMonthVehiclesResult,
-        contractsResult,
-        lastMonthContractsResult,
         currentRevenueResult,
         lastMonthRevenueResult,
-        overduePaymentsResult,
-        totalPendingResult,
+        overdueResult,
+        upcomingResult,
       ] = await Promise.all([
-        // Current clients
+        // Active clients
         supabase
           .from("clients")
-          .select("id, status", { count: "exact" })
-          .eq("company_id", companyId),
-        // Last month clients (created before current month)
-        supabase
-          .from("clients")
-          .select("id", { count: "exact" })
+          .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
+          .eq("status", "active"),
+        // Last month active clients
+        supabase
+          .from("clients")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("status", "active")
           .lt("created_at", currentMonthStart.toISOString()),
-        // Current vehicles
+        // Active vehicles
         supabase
           .from("vehicles")
-          .select("id, is_active", { count: "exact" })
-          .eq("company_id", companyId),
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("is_active", true),
         // Last month vehicles
         supabase
           .from("vehicles")
-          .select("id", { count: "exact" })
+          .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
-          .lt("created_at", currentMonthStart.toISOString()),
-        // Current contracts
-        supabase
-          .from("contracts")
-          .select("id, status", { count: "exact" })
-          .eq("company_id", companyId)
-          .eq("status", "active"),
-        // Last month contracts
-        supabase
-          .from("contracts")
-          .select("id", { count: "exact" })
-          .eq("company_id", companyId)
-          .eq("status", "active")
+          .eq("is_active", true)
           .lt("created_at", currentMonthStart.toISOString()),
         // Current month revenue
         supabase
@@ -120,66 +109,40 @@ export function useDashboardStats() {
         // Overdue payments
         supabase
           .from("payment_transactions")
-          .select("id", { count: "exact" })
+          .select("amount")
           .eq("company_id", companyId)
           .eq("status", "pending")
           .lt("due_date", now.toISOString().split("T")[0]),
-        // Total pending payments
+        // Upcoming payments (next 7 days)
         supabase
           .from("payment_transactions")
-          .select("id", { count: "exact" })
+          .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
-          .eq("status", "pending"),
+          .eq("status", "pending")
+          .gte("due_date", now.toISOString().split("T")[0])
+          .lte("due_date", sevenDaysFromNow.toISOString().split("T")[0]),
       ]);
 
-      // Calculate stats
-      const totalClients = clientsResult.count || 0;
-      const activeClients = clientsResult.data?.filter(c => c.status === "active").length || 0;
+      const activeClients = activeClientsResult.count || 0;
       const lastMonthClients = lastMonthClientsResult.count || 0;
-
-      const totalVehicles = vehiclesResult.data?.filter(v => v.is_active).length || 0;
+      const totalVehicles = vehiclesResult.count || 0;
       const lastMonthVehicles = lastMonthVehiclesResult.count || 0;
-
-      const activeContracts = contractsResult.count || 0;
-      const lastMonthContracts = lastMonthContractsResult.count || 0;
-
       const monthlyRevenue = currentRevenueResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const lastMonthRevenue = lastMonthRevenueResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
-      const overdueCount = overduePaymentsResult.count || 0;
-      const totalPending = totalPendingResult.count || 0;
-      const delinquencyRate = totalPending > 0 ? (overdueCount / totalPending) * 100 : 0;
-
-      // Calculate trends
-      const calcTrend = (current: number, previous: number) => {
-        if (previous === 0) return { value: current > 0 ? "100%" : "0%", isPositive: current >= 0 };
-        const change = ((current - previous) / previous) * 100;
-        return {
-          value: `${Math.abs(change).toFixed(1)}%`,
-          isPositive: change >= 0,
-        };
-      };
-
-      const clientsTrend = calcTrend(totalClients, lastMonthClients);
-      const vehiclesTrend = calcTrend(totalVehicles, lastMonthVehicles);
-      const revenueTrend = calcTrend(monthlyRevenue, lastMonthRevenue);
-      const contractsTrend = calcTrend(activeContracts, lastMonthContracts);
-
-      // Growth rate (clients growth over last 6 months)
-      const growthRate = clientsTrend.isPositive ? parseFloat(clientsTrend.value) : -parseFloat(clientsTrend.value);
+      const overdueAmount = overdueResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const overdueCount = overdueResult.data?.length || 0;
+      const upcomingCount = upcomingResult.count || 0;
 
       return {
-        totalClients,
         activeClients,
         totalVehicles,
-        activeContracts,
         monthlyRevenue,
-        delinquencyRate,
-        growthRate,
-        clientsTrend,
-        vehiclesTrend,
-        revenueTrend,
-        contractsTrend,
+        overdueAmount,
+        overdueCount,
+        upcomingCount,
+        clientsTrendValue: activeClients - lastMonthClients,
+        vehiclesTrendValue: totalVehicles - lastMonthVehicles,
+        revenueTrendValue: monthlyRevenue - lastMonthRevenue,
       };
     },
   });

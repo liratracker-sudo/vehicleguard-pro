@@ -1,5 +1,5 @@
 import { ReactNode } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 interface MetricCardProps {
@@ -10,7 +10,7 @@ interface MetricCardProps {
     value: string
     isPositive?: boolean
   }
-  description?: string
+  variant?: 'default' | 'danger'
   className?: string
 }
 
@@ -18,42 +18,46 @@ export function MetricCard({
   title, 
   value, 
   icon, 
-  trend, 
-  description, 
+  trend,
+  variant = 'default',
   className 
 }: MetricCardProps) {
   return (
-    <Card className={cn("transition-fast hover:shadow-md", className)}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className="text-primary">
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-foreground mb-1">
-          {value}
-        </div>
-        {trend && (
-          <div className="flex items-center text-xs">
-            <span 
-              className={cn(
-                "font-medium",
-                trend.isPositive ? "text-success" : "text-destructive"
-              )}
-            >
-              {trend.isPositive ? "+" : ""}{trend.value}
-            </span>
-            <span className="text-muted-foreground ml-1">vs mês anterior</span>
+    <Card className={cn(
+      "transition-all hover:shadow-lg",
+      variant === 'danger' && "border-destructive/50 bg-destructive/5",
+      className
+    )}>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">
+              {title}
+            </p>
+            <p className={cn(
+              "text-3xl font-bold",
+              variant === 'danger' ? "text-destructive" : "text-foreground"
+            )}>
+              {value}
+            </p>
+            {trend && (
+              <p className={cn(
+                "text-sm font-medium",
+                trend.isPositive ? "text-emerald-600" : "text-muted-foreground"
+              )}>
+                {trend.value}
+              </p>
+            )}
           </div>
-        )}
-        {description && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {description}
-          </p>
-        )}
+          <div className={cn(
+            "p-3 rounded-full",
+            variant === 'danger' 
+              ? "bg-destructive/10 text-destructive" 
+              : "bg-primary/10 text-primary"
+          )}>
+            {icon}
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
