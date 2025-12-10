@@ -11,6 +11,82 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+interface LateFeeSettings {
+  is_active: boolean;
+  fine_enabled: boolean;
+  fine_type: string;
+  fine_value: number;
+  interest_enabled: boolean;
+  interest_type: string;
+  interest_value: number;
+  grace_days: number;
+}
+
+interface LateFeeCalculation {
+  originalAmount: number;
+  fineAmount: number;
+  interestAmount: number;
+  totalAmount: number;
+  daysOverdue: number;
+  isOverdue: boolean;
+}
+
+function calculateLateFees(
+  amount: number,
+  dueDate: string,
+  settings: LateFeeSettings | null
+): LateFeeCalculation {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  
+  const diffTime = today.getTime() - due.getTime();
+  const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  const result: LateFeeCalculation = {
+    originalAmount: amount,
+    fineAmount: 0,
+    interestAmount: 0,
+    totalAmount: amount,
+    daysOverdue: Math.max(0, daysOverdue),
+    isOverdue: daysOverdue > 0
+  };
+  
+  // Se não está vencido ou não tem configuração ativa, retornar sem multa
+  if (!result.isOverdue || !settings?.is_active) {
+    return result;
+  }
+  
+  const effectiveDaysOverdue = Math.max(0, daysOverdue - (settings.grace_days || 0));
+  
+  // Calcular multa (aplicada uma vez após período de carência)
+  if (settings.fine_enabled && effectiveDaysOverdue > 0) {
+    if (settings.fine_type === 'PERCENTAGE') {
+      result.fineAmount = amount * (settings.fine_value / 100);
+    } else {
+      result.fineAmount = settings.fine_value;
+    }
+  }
+  
+  // Calcular juros (por dia de atraso após carência)
+  if (settings.interest_enabled && effectiveDaysOverdue > 0) {
+    if (settings.interest_type === 'PERCENTAGE') {
+      result.interestAmount = amount * (settings.interest_value / 100) * effectiveDaysOverdue;
+    } else {
+      result.interestAmount = settings.interest_value * effectiveDaysOverdue;
+    }
+  }
+  
+  // Arredondar para 2 casas decimais
+  result.fineAmount = Math.round(result.fineAmount * 100) / 100;
+  result.interestAmount = Math.round(result.interestAmount * 100) / 100;
+  result.totalAmount = Math.round((amount + result.fineAmount + result.interestAmount) * 100) / 100;
+  
+  return result;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -82,6 +158,25 @@ serve(async (req) => {
       );
     }
 
+    // Buscar configurações de multa/juros
+    console.log('Fetching late fee settings for company:', payment.company_id);
+    const { data: feeSettings } = await supabase
+      .from('company_late_fee_settings')
+      .select('*')
+      .eq('company_id', payment.company_id)
+      .maybeSingle();
+
+    console.log('Late fee settings:', feeSettings);
+
+    // Calcular multa e juros se aplicável
+    const feeCalculation = calculateLateFees(
+      payment.amount,
+      payment.due_date,
+      feeSettings
+    );
+
+    console.log('Fee calculation:', feeCalculation);
+
     // Determinar qual gateway usar baseado na configuração
     console.log('Looking for gateway config:', { 
       company_id: payment.company_id, 
@@ -124,6 +219,9 @@ serve(async (req) => {
     const billingType = getBillingType(payment_method);
     let chargeData: any;
 
+    // Usar o valor total com multa/juros
+    const chargeValue = feeCalculation.totalAmount;
+
     // Para Asaas, precisamos criar cliente primeiro e usar customerId
     if (gateway === 'asaas') {
       console.log('Creating customer in Asaas first...');
@@ -152,17 +250,25 @@ serve(async (req) => {
 
       console.log('Customer created with ID:', customerId);
 
+      // Preparar dados da cobrança com multa/juros nativos do Asaas (para cobranças futuras)
+      const asaasChargeData: any = {
+        customerId: customerId,
+        billingType: billingType,
+        value: chargeValue,
+        dueDate: payment.due_date,
+        description: `Pagamento - ${payment.companies.name}`,
+        externalReference: payment.id
+      };
+
+      // Se a cobrança está vencida e tem multa, adicionar na descrição
+      if (feeCalculation.isOverdue && feeCalculation.fineAmount > 0) {
+        asaasChargeData.description = `Pagamento - ${payment.companies.name} (inclui multa/juros por atraso)`;
+      }
+
       chargeData = {
         action: 'create_charge',
         company_id: payment.company_id,
-        data: {
-          customerId: customerId,
-          billingType: billingType,
-          value: payment.amount,
-          dueDate: payment.due_date,
-          description: `Pagamento - ${payment.companies.name}`,
-          externalReference: payment.id
-        }
+        data: asaasChargeData
       };
     } else {
       // Para outros gateways (MercadoPago, Inter, Gerencianet), passar dados do cliente diretamente
@@ -171,9 +277,11 @@ serve(async (req) => {
         company_id: payment.company_id,
         data: {
           billingType: billingType,
-          value: payment.amount,
+          value: chargeValue,
           dueDate: payment.due_date,
-          description: `Pagamento - ${payment.companies.name}`,
+          description: feeCalculation.isOverdue && feeCalculation.fineAmount > 0
+            ? `Pagamento - ${payment.companies.name} (inclui multa/juros por atraso)`
+            : `Pagamento - ${payment.companies.name}`,
           externalReference: payment.id,
           customer: clientData
         }
@@ -212,7 +320,7 @@ serve(async (req) => {
     console.log('charge.invoiceUrl:', charge.invoiceUrl);
     console.log('=================================');
 
-    const updateData = {
+    const updateData: any = {
       external_id: charge.id?.toString(),
       payment_url: charge.invoiceUrl || charge.invoice_url || charge.ticket_url,
       barcode: charge.bankSlipUrl || charge.bankslip_url,
@@ -221,6 +329,15 @@ serve(async (req) => {
       transaction_type: payment_method,
       updated_at: new Date().toISOString()
     };
+
+    // Adicionar campos de multa/juros se aplicável
+    if (feeCalculation.isOverdue) {
+      updateData.original_amount = feeCalculation.originalAmount;
+      updateData.fine_amount = feeCalculation.fineAmount;
+      updateData.interest_amount = feeCalculation.interestAmount;
+      updateData.days_overdue = feeCalculation.daysOverdue;
+      updateData.amount = feeCalculation.totalAmount;
+    }
     
     console.log('=== UPDATE DATA ===');
     console.log(JSON.stringify(updateData, null, 2));
@@ -243,7 +360,15 @@ serve(async (req) => {
       payment_url: charge.invoiceUrl || charge.invoice_url || charge.ticket_url,
       pix_code: charge.pix_code || charge.pixCode || charge.pixQrCodeId || charge.qr_code,
       barcode: charge.bankSlipUrl || charge.bankslip_url,
-      external_id: charge.id
+      external_id: charge.id,
+      // Dados de multa/juros para exibição no checkout
+      late_fees: feeCalculation.isOverdue ? {
+        original_amount: feeCalculation.originalAmount,
+        fine_amount: feeCalculation.fineAmount,
+        interest_amount: feeCalculation.interestAmount,
+        total_amount: feeCalculation.totalAmount,
+        days_overdue: feeCalculation.daysOverdue
+      } : null
     };
     
     console.log('=== RESPONSE DATA ===');

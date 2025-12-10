@@ -879,6 +879,59 @@ export type Database = {
           },
         ]
       }
+      company_late_fee_settings: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          fine_enabled: boolean | null
+          fine_type: string | null
+          fine_value: number | null
+          grace_days: number | null
+          id: string
+          interest_enabled: boolean | null
+          interest_type: string | null
+          interest_value: number | null
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          fine_enabled?: boolean | null
+          fine_type?: string | null
+          fine_value?: number | null
+          grace_days?: number | null
+          id?: string
+          interest_enabled?: boolean | null
+          interest_type?: string | null
+          interest_value?: number | null
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          fine_enabled?: boolean | null
+          fine_type?: string | null
+          fine_value?: number | null
+          grace_days?: number | null
+          id?: string
+          interest_enabled?: boolean | null
+          interest_type?: string | null
+          interest_value?: number | null
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_late_fee_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_limits: {
         Row: {
           company_id: string
@@ -1873,11 +1926,15 @@ export type Database = {
           company_id: string
           contract_id: string | null
           created_at: string
+          days_overdue: number | null
           description: string | null
           due_date: string | null
           external_id: string | null
+          fine_amount: number | null
           id: string
+          interest_amount: number | null
           invoice_id: string | null
+          original_amount: number | null
           paid_at: string | null
           payment_gateway: string | null
           payment_url: string | null
@@ -1893,11 +1950,15 @@ export type Database = {
           company_id: string
           contract_id?: string | null
           created_at?: string
+          days_overdue?: number | null
           description?: string | null
           due_date?: string | null
           external_id?: string | null
+          fine_amount?: number | null
           id?: string
+          interest_amount?: number | null
           invoice_id?: string | null
+          original_amount?: number | null
           paid_at?: string | null
           payment_gateway?: string | null
           payment_url?: string | null
@@ -1913,11 +1974,15 @@ export type Database = {
           company_id?: string
           contract_id?: string | null
           created_at?: string
+          days_overdue?: number | null
           description?: string | null
           due_date?: string | null
           external_id?: string | null
+          fine_amount?: number | null
           id?: string
+          interest_amount?: number | null
           invoice_id?: string | null
+          original_amount?: number | null
           paid_at?: string | null
           payment_gateway?: string | null
           payment_url?: string | null

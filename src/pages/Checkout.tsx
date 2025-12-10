@@ -19,6 +19,11 @@ interface PaymentData {
   due_date: string;
   status: string;
   company_id: string;
+  original_amount?: number;
+  fine_amount?: number;
+  interest_amount?: number;
+  days_overdue?: number;
+  isOverdue?: boolean;
   client: {
     name: string;
     email?: string;
@@ -38,6 +43,14 @@ interface PaymentMethod {
   gateway: string;
 }
 
+interface LateFeeData {
+  original_amount: number;
+  fine_amount: number;
+  interest_amount: number;
+  total_amount: number;
+  days_overdue: number;
+}
+
 export default function Checkout() {
   const { payment_id } = useParams();
   const navigate = useNavigate();
@@ -51,12 +64,14 @@ export default function Checkout() {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [cpfInput, setCpfInput] = useState('');
   const [cpfError, setCpfError] = useState('');
+  const [lateFees, setLateFees] = useState<LateFeeData | null>(null);
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
     payment_url?: string;
     pix_code?: string;
     barcode?: string;
     error?: string;
+    late_fees?: LateFeeData;
   } | null>(null);
 
   useEffect(() => {
@@ -101,6 +116,10 @@ export default function Checkout() {
           payment_url,
           pix_code,
           barcode,
+          original_amount,
+          fine_amount,
+          interest_amount,
+          days_overdue,
           clients!inner(name, email, phone, document),
           companies!inner(name, logo_url)
         `)
@@ -147,12 +166,25 @@ export default function Checkout() {
         return;
       }
 
+      // Check if payment is overdue
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDate = new Date(paymentData.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      const isOverdue = today > dueDate;
+      const daysOverdue = isOverdue ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
       setPayment({
         id: paymentData.id,
         amount: paymentData.amount,
         due_date: paymentData.due_date,
         status: paymentData.status,
         company_id: paymentData.company_id,
+        original_amount: paymentData.original_amount,
+        fine_amount: paymentData.fine_amount,
+        interest_amount: paymentData.interest_amount,
+        days_overdue: daysOverdue,
+        isOverdue,
         client: {
           name: paymentData.clients.name,
           email: paymentData.clients.email,
@@ -352,8 +384,14 @@ export default function Checkout() {
         success: true,
         payment_url: data.payment_url,
         pix_code: data.pix_code,
-        barcode: data.barcode
+        barcode: data.barcode,
+        late_fees: data.late_fees
       };
+      
+      // Se tem late fees, salvar no state
+      if (data.late_fees) {
+        setLateFees(data.late_fees);
+      }
       
       console.log('Setting payment result:', result);
       setPaymentResult(result);
@@ -587,17 +625,64 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status:</span>
-                <Badge variant={payment.status === 'overdue' ? 'destructive' : 'secondary'} className="text-xs">
-                  {payment.status === 'pending' ? 'Pendente' : 'Vencido'}
+                <Badge variant={payment.isOverdue ? 'destructive' : 'secondary'} className="text-xs">
+                  {payment.isOverdue ? 'Vencido' : 'Pendente'}
                 </Badge>
               </div>
+              
               <Separator className="my-2" />
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-base font-semibold">Valor:</span>
-                <span className="text-xl font-bold text-primary">
-                  R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+              
+              {/* Late fee breakdown - shown when there are late fees after payment processing */}
+              {lateFees && lateFees.fine_amount + lateFees.interest_amount > 0 ? (
+                <div className="space-y-1.5 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Valor original:</span>
+                    <span>R$ {lateFees.original_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  {lateFees.fine_amount > 0 && (
+                    <div className="flex justify-between items-center text-sm text-orange-600 dark:text-orange-400">
+                      <span>Multa por atraso:</span>
+                      <span>+ R$ {lateFees.fine_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {lateFees.interest_amount > 0 && (
+                    <div className="flex justify-between items-center text-sm text-orange-600 dark:text-orange-400">
+                      <span>Juros ({lateFees.days_overdue} dias):</span>
+                      <span>+ R$ {lateFees.interest_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <Separator className="my-1" />
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-base font-semibold">Total a pagar:</span>
+                    <span className="text-xl font-bold text-primary">
+                      R$ {lateFees.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              ) : payment.isOverdue ? (
+                // Show warning that late fees may apply
+                <div className="space-y-1.5">
+                  <div className="p-2 bg-orange-50 dark:bg-orange-950/30 rounded border border-orange-200 dark:border-orange-800 mb-2">
+                    <p className="text-xs text-orange-700 dark:text-orange-300 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Cobrança vencida há {payment.days_overdue} dia(s). Multa e juros podem ser aplicados.
+                    </p>
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-base font-semibold">Valor:</span>
+                    <span className="text-xl font-bold text-primary">
+                      R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-base font-semibold">Valor:</span>
+                  <span className="text-xl font-bold text-primary">
+                    R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Separator className="my-2" />
