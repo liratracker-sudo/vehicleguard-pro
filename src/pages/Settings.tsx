@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Users, Shield, Plug, MessageSquare, FileText, CreditCard, Bot } from "lucide-react"
 import { PaymentGatewayConfig } from "@/components/settings/PaymentGatewayConfig"
 import { IntegrationsGrid } from "@/components/settings/IntegrationsGrid"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
+import { LateFeeSettings } from "@/components/settings/LateFeeSettings"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -53,6 +51,7 @@ const SettingsPage = () => {
 
           <TabsContent value="billing" className="space-y-6">
             <BillingNotifications />
+            <LateFeeSettings />
           </TabsContent>
 
           <TabsContent value="ai" className="space-y-6">
