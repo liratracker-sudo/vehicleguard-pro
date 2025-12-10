@@ -422,7 +422,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="client_id">Cliente *</Label>
               <Select 
@@ -482,18 +482,16 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="amount">Valor (R$) *</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})}
-                required
-              />
-            </div>
+          <div>
+            <Label htmlFor="amount">Valor (R$) *</Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              value={formData.amount}
+              onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})}
+              required
+            />
           </div>
 
           <div>
@@ -534,7 +532,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
             </Popover>
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-3 pt-4 pb-2">
             <Button onClick={generatePayment} disabled={loading}>
               {loading ? "Gerando..." : "Gerar Cobrança"}
             </Button>
