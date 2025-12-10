@@ -87,7 +87,7 @@ export function ContractForm({ onSuccess, onCancel, contractId }: ContractFormPr
 
       // Carregar dados em paralelo (incluindo dados da empresa)
       const [clientsRes, vehiclesRes, plansRes, companyRes, ownerRes] = await Promise.all([
-        supabase.from('clients').select('id, name, phone, email, document').eq('company_id', profile.company_id).eq('status', 'active'),
+        supabase.from('clients').select('id, name, phone, email, document').eq('company_id', profile.company_id).eq('status', 'active').order('name'),
         supabase.from('vehicles').select('id, license_plate, model, brand, client_id').eq('company_id', profile.company_id).eq('is_active', true),
         supabase.from('plans').select('id, name, price').eq('company_id', profile.company_id).eq('is_active', true),
         supabase.from('companies').select('name, cnpj, address').eq('id', profile.company_id).maybeSingle(),
