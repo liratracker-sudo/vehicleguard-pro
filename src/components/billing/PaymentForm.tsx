@@ -53,7 +53,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
       if (!profile) return
 
       const [clientsRes, contractsRes] = await Promise.all([
-        supabase.from('clients').select('id, name, phone, email, document').eq('company_id', profile.company_id),
+        supabase.from('clients').select('id, name, phone, email, document').eq('company_id', profile.company_id).order('name'),
         supabase.from('contracts').select('id, monthly_value, client_id, clients(name)').eq('company_id', profile.company_id).eq('status', 'active')
       ])
 
