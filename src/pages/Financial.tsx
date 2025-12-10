@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateBR } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -329,7 +330,7 @@ const FinancialPage = () => {
                               <Badge variant="outline">{transaction.category}</Badge>
                             </TableCell>
                             <TableCell>
-                              {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                              {formatDateBR(transaction.date)}
                             </TableCell>
                             <TableCell className={`text-right font-medium ${
                               transaction.type === 'receita' ? 'text-success' : 'text-destructive'

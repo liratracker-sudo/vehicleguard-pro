@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateBR } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCompanyAdmin } from "@/hooks/useCompanyAdmin"
@@ -129,7 +130,7 @@ const AdminPage = () => {
                         <div className="text-right">
                           <Badge variant="outline">{activity.activity_type}</Badge>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(activity.created_at).toLocaleDateString('pt-BR')}
+                            {formatDateBR(activity.created_at)}
                           </p>
                         </div>
                       </div>

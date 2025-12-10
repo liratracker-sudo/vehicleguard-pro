@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { formatDateBR } from "@/lib/timezone"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -256,7 +257,7 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
               <ReadOnlyField label="Nome Completo" value={formData.name} />
             </div>
             <ReadOnlyField label="CPF/CNPJ" value={formData.document} />
-            <ReadOnlyField label="Data de Nascimento" value={formData.birth_date ? new Date(formData.birth_date + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
+            <ReadOnlyField label="Data de Nascimento" value={formData.birth_date ? formatDateBR(formData.birth_date) : ''} />
           </div>
 
           {/* Contato */}

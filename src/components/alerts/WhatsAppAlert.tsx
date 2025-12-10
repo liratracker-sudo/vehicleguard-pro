@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { formatDateTimeBR } from '@/lib/timezone';
 import { AlertTriangle, X, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -198,7 +199,7 @@ export const WhatsAppAlert: React.FC = () => {
                   <strong>WhatsApp:</strong> {alert.message}
                 </AlertDescription>
                 <div className="text-xs opacity-70 mt-1">
-                  {new Date(alert.created_at).toLocaleString()}
+                  {formatDateTimeBR(alert.created_at)}
                 </div>
               </div>
               <Button

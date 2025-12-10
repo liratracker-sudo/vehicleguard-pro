@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { formatDateTimeBR } from "@/lib/timezone";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -299,7 +300,7 @@ export function BillingDiagnostics() {
                       R$ {notification.payment.amount} - Vencimento: {notification.payment.due_date}
                     </div>
                     <div className="text-xs text-gray-500">
-                      Agendado: {new Date(notification.scheduled_for).toLocaleString()}
+                      Agendado: {formatDateTimeBR(notification.scheduled_for)}
                     </div>
                     {notification.last_error && (
                       <div className="text-xs text-red-600 mt-1 bg-red-50 p-1 rounded">
