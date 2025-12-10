@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, RefreshCw } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -42,7 +42,6 @@ const BillingPage = () => {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showStats, setShowStats] = useState(false)
-  const [isProcessingRetroactive, setIsProcessingRetroactive] = useState(false)
   const { toast } = useToast()
   
   const { payments, loading, loadPayments } = usePayments()
@@ -69,46 +68,7 @@ const BillingPage = () => {
     setSearchParams({})
   }
 
-  const processRetroactiveCharges = async () => {
-    setIsProcessingRetroactive(true)
-    try {
-      const { data: profile } = await supabase.auth.getUser()
-      if (!profile?.user?.id) throw new Error('Usuário não autenticado')
-
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', profile.user.id)
-        .single()
-
-      if (!userProfile?.company_id) throw new Error('Empresa não encontrada')
-
-      const { data, error } = await supabase.functions.invoke('process-retroactive-charges', {
-        body: { company_id: userProfile.company_id }
-      })
-
-      if (error) throw error
-
-      const results = data?.results
-      toast({
-        title: "Processamento concluído",
-        description: `${results?.generated || 0} cobranças geradas de ${results?.processed || 0} processadas. ${results?.already_exists || 0} já existiam.`,
-      })
-
-      loadPayments()
-      loadCompanyBalance()
-    } catch (error: any) {
-      toast({
-        title: "Erro ao processar",
-        description: error.message,
-        variant: "destructive"
-      })
-    } finally {
-      setIsProcessingRetroactive(false)
-    }
-  }
-
-  const filteredClientName = clientIdFilter 
+  const filteredClientName = clientIdFilter
     ? payments.find(p => p.client_id === clientIdFilter)?.clients?.name 
     : null
 
@@ -221,36 +181,24 @@ const BillingPage = () => {
               {filteredPayments.length} cobranças ativas
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={processRetroactiveCharges}
-              disabled={isProcessingRetroactive}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isProcessingRetroactive ? 'animate-spin' : ''}`} />
-              {isProcessingRetroactive ? 'Processando...' : 'Gerar retroativas'}
-            </Button>
-            
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nova Cobrança
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl">
-                <PaymentForm
-                  onSuccess={() => {
-                    setIsDialogOpen(false)
-                    loadPayments()
-                    loadCompanyBalance()
-                  }}
-                  onCancel={() => setIsDialogOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Cobrança
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <PaymentForm
+                onSuccess={() => {
+                  setIsDialogOpen(false)
+                  loadPayments()
+                  loadCompanyBalance()
+                }}
+                onCancel={() => setIsDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Stats Colapsável */}
