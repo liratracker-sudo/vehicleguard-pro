@@ -229,7 +229,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 <XCircle className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Cancelar cobrança</TooltipContent>
+            <TooltipContent side="left">Cancelar cobrança</TooltipContent>
           </Tooltip>
         )}
 
