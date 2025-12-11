@@ -35,7 +35,7 @@ const AuthPage = () => {
         
         if (session?.user) {
           // Redirect authenticated users to dashboard
-          navigate("/")
+          navigate("/dashboard")
         }
       }
     )
@@ -46,7 +46,7 @@ const AuthPage = () => {
       setUser(session?.user ?? null)
       
       if (session?.user) {
-        navigate("/")
+        navigate("/dashboard")
       }
     })
 
@@ -106,7 +106,7 @@ const AuthPage = () => {
       email: formData.email,
       password: formData.password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}/dashboard`,
         data: {
           full_name: formData.fullName
         }
@@ -140,7 +140,7 @@ const AuthPage = () => {
 
   // If user is already authenticated, redirect
   if (user) {
-    navigate("/")
+    navigate("/dashboard")
     return null
   }
 
