@@ -34,7 +34,7 @@ import { useClientRegistrations } from "@/hooks/useClientRegistrations"
 const navigation = [
   {
     title: "Dashboard",
-    url: "/",
+    url: "/dashboard",
     icon: LayoutDashboard,
     group: "principal"
   },
