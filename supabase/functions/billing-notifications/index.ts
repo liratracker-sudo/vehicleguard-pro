@@ -572,7 +572,20 @@ function generateRecommendations(debugInfo: any): string[] {
 async function sendPendingNotifications(force = false) {
   console.log('Sending pending notifications...', { force });
   
-  const results = { sent: 0, failed: 0, skipped: 0 };
+  const results = { sent: 0, failed: 0, skipped: 0, blocked_by_time: false };
+  
+  // VALIDAÇÃO DE JANELA DE HORÁRIO: Só enviar entre 8h e 11h Brasil
+  const now = new Date();
+  const brazilHour = (now.getUTCHours() - 3 + 24) % 24; // UTC-3
+  
+  if (!force && (brazilHour < 8 || brazilHour > 11)) {
+    console.log(`⏰ BLOQUEADO: Fora da janela de envio (${brazilHour}h Brasil). Envio permitido apenas entre 8h-11h Brasil.`);
+    console.log(`⏰ Horário atual UTC: ${now.getUTCHours()}h, Brasil: ${brazilHour}h`);
+    results.blocked_by_time = true;
+    return results;
+  }
+  
+  console.log(`✅ Dentro da janela de envio (${brazilHour}h Brasil). Processando notificações...`);
   
   // First, cleanup notifications for cancelled/paid payments BEFORE querying
   await cleanupInvalidNotifications();

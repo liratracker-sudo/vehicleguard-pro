@@ -181,7 +181,10 @@ ${toneInstruction}
 
 **RESTRIÇÕES E REGRAS:**
 * A mensagem deve ser iniciada com a saudação personalizada e a menção direta ao SaaS (${companyName}).
-* **Proibido** usar a palavra "dívida". Use termos como "pendência", "pagamento pendente", "saldo em aberto" ou "fatura".
+* **Proibido** usar a palavra "dívida" em qualquer situação.
+${!isOverdue 
+  ? `* **REGRA CRÍTICA PARA PRÉ-VENCIMENTO:** Esta fatura AINDA NÃO VENCEU! **PROIBIDO ABSOLUTAMENTE** usar: "pendência", "pendente", "atraso", "atrasado", "em aberto", "débito". Use APENAS: "fatura", "cobrança", "mensalidade", "pagamento" (sem "pendente"). O tom deve ser de LEMBRETE AMIGÁVEL, não de cobrança.`
+  : `* Para cobranças VENCIDAS: Use termos como "pendência", "pagamento em atraso", "fatura vencida" ou "saldo em aberto".`}
 * Inclua o valor (R$${payment.amount.toFixed(2)}) no corpo da mensagem de forma clara.
 * ${isOverdue 
     ? `Mencione claramente que está VENCIDA há ${daysOverdue} dia(s).` 
