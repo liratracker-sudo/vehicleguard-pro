@@ -131,8 +131,9 @@ serve(async (req) => {
 
       const instanceName = webhookData.instance;
       const remoteJid = message.key?.remoteJid || '';
-      // IMPORTANTE: remoteJidAlt contém o número real quando o formato é LID
       const remoteJidAlt = message.key?.remoteJidAlt || '';
+      const participantAlt = message.key?.participantAlt || '';
+      const sender = webhookData.sender || '';
       const isGroup = remoteJid.includes('@g.us');
       
       // Ignorar mensagens de grupos
@@ -143,14 +144,54 @@ serve(async (req) => {
         });
       }
       
-      // Usar remoteJidAlt (formato real) quando disponível, senão usar remoteJid
-      const jidToUse = remoteJidAlt || remoteJid;
-      // Extrair apenas o número, removendo sufixos @s.whatsapp.net, @lid, etc.
-      const phoneNumber = jidToUse.split('@')[0];
+      // ===========================================
+      // PRIORIDADE de extração do número real:
+      // 1. webhookData.sender (formato tradicional @s.whatsapp.net)
+      // 2. message.key.participantAlt (quando disponível)
+      // 3. message.key.remoteJidAlt (se não for formato LID)
+      // 4. message.key.remoteJid (fallback)
+      // ===========================================
       
-      console.log('JID original:', remoteJid);
-      console.log('JID alternativo:', remoteJidAlt);
-      console.log('Número extraído:', phoneNumber);
+      console.log('=== DEBUG EXTRAÇÃO NÚMERO ===');
+      console.log('webhookData.sender:', sender);
+      console.log('message.key.remoteJid:', remoteJid);
+      console.log('message.key.remoteJidAlt:', remoteJidAlt);
+      console.log('message.key.participantAlt:', participantAlt);
+      
+      let phoneNumber = '';
+      
+      // Opção 1: Campo sender no webhook data (mais confiável quando @s.whatsapp.net)
+      if (sender && sender.includes('@s.whatsapp.net')) {
+        phoneNumber = sender.split('@')[0];
+        console.log('Número extraído do sender:', phoneNumber);
+      }
+      
+      // Opção 2: participantAlt (para chats com LID)
+      if (!phoneNumber && participantAlt && participantAlt.includes('@s.whatsapp.net')) {
+        phoneNumber = participantAlt.split('@')[0];
+        console.log('Número extraído do participantAlt:', phoneNumber);
+      }
+      
+      // Opção 3: remoteJidAlt (se não for formato LID)
+      if (!phoneNumber && remoteJidAlt && !remoteJidAlt.includes('@lid') && remoteJidAlt.includes('@s.whatsapp.net')) {
+        phoneNumber = remoteJidAlt.split('@')[0];
+        console.log('Número extraído do remoteJidAlt:', phoneNumber);
+      }
+      
+      // Opção 4: remoteJid tradicional (se for @s.whatsapp.net)
+      if (!phoneNumber && remoteJid.includes('@s.whatsapp.net')) {
+        phoneNumber = remoteJid.split('@')[0];
+        console.log('Número extraído do remoteJid tradicional:', phoneNumber);
+      }
+      
+      // Opção 5: Fallback - usar qualquer formato disponível (pode ser LID)
+      if (!phoneNumber) {
+        const jidToUse = remoteJidAlt || remoteJid;
+        phoneNumber = jidToUse.split('@')[0];
+        console.log('Número extraído do fallback (pode ser LID):', phoneNumber);
+      }
+      
+      console.log('Número FINAL extraído:', phoneNumber);
       
       const messageText = message.message?.conversation || 
                          message.message?.extendedTextMessage?.text || '';
@@ -188,7 +229,20 @@ serve(async (req) => {
         .eq('is_active', true)
         .single();
 
-      const isManager = managerSettings?.manager_phones?.includes(phoneNumber) || false;
+      const managerPhones = managerSettings?.manager_phones || [];
+      const isManager = managerPhones.some((phone: string) => {
+        // Comparar removendo caracteres não numéricos
+        const normalizedPhone = phone.replace(/\D/g, '');
+        const normalizedExtracted = phoneNumber.replace(/\D/g, '');
+        return normalizedPhone === normalizedExtracted || 
+               normalizedPhone.endsWith(normalizedExtracted) || 
+               normalizedExtracted.endsWith(normalizedPhone);
+      });
+
+      console.log('=== DEBUG VERIFICAÇÃO GESTOR ===');
+      console.log('manager_phones cadastrados:', managerPhones);
+      console.log('phoneNumber extraído:', phoneNumber);
+      console.log('É gestor?:', isManager);
 
       // Registrar log da mensagem recebida
       await supabase.from('whatsapp_logs').insert({
