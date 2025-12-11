@@ -78,7 +78,7 @@ const EXAMPLE_PLANS = [
     features: [
       "Dashboard completo",
       "Cobrança com IA",
-      "📊 Relatórios WhatsApp para Gestor",
+      "📊 Gerentes de Contas Virtual via WhatsApp para o Gestor",
       "Todas integrações de pagamento",
       "Contratos digitais",
       "API completa",
@@ -98,7 +98,7 @@ const EXAMPLE_PLANS = [
     max_storage_mb: 5000,
     features: [
       "Todas funcionalidades do Profissional",
-      "📊 Relatórios WhatsApp para Gestor",
+      "📊 Gerentes de Contas Virtual via WhatsApp para o Gestor",
       "White-label básico",
       "Relatórios personalizados",
       "Múltiplas contas bancárias",
@@ -118,7 +118,7 @@ const EXAMPLE_PLANS = [
     max_storage_mb: 10000,
     features: [
       "Todas funcionalidades do Empresarial",
-      "📊 Relatórios WhatsApp para Gestor",
+      "📊 Gerentes de Contas Virtual via WhatsApp para o Gestor",
       "White-label completo",
       "Domínio personalizado",
       "SLA garantido 99.9%",
@@ -138,7 +138,7 @@ const EXAMPLE_PLANS = [
     max_storage_mb: 100000,
     features: [
       "Todas funcionalidades sem limites",
-      "📊 Relatórios WhatsApp para Gestor",
+      "📊 Gerentes de Contas Virtual via WhatsApp para o Gestor",
       "Infraestrutura dedicada",
       "Customizações exclusivas",
       "Treinamento da equipe",
@@ -402,7 +402,7 @@ export function SubscriptionPlansManagement() {
   }
 
   const hasWhatsAppReports = (features: string[]) => {
-    return features.some(f => f.includes('Relatórios WhatsApp para Gestor'))
+    return features.some(f => f.includes('Gerentes de Contas Virtual via WhatsApp para o Gestor'))
   }
 
   if (loading) {
@@ -608,13 +608,13 @@ export function SubscriptionPlansManagement() {
                     <div>
                       <Label htmlFor="features">Funcionalidades (uma por linha)</Label>
                       <p className="text-xs text-muted-foreground mb-1">
-                        Use "📊 Relatórios WhatsApp para Gestor" apenas para planos Profissional ou superior
+                        Use "📊 Gerentes de Contas Virtual via WhatsApp para o Gestor" apenas para planos Profissional ou superior
                       </p>
                       <Textarea
                         id="features"
                         value={featuresText}
                         onChange={(e) => setFeaturesText(e.target.value)}
-                        placeholder="Dashboard completo&#10;Relatórios avançados&#10;📊 Relatórios WhatsApp para Gestor&#10;Suporte prioritário"
+                        placeholder="Dashboard completo&#10;Relatórios avançados&#10;📊 Gerentes de Contas Virtual via WhatsApp para o Gestor&#10;Suporte prioritário"
                         rows={5}
                       />
                     </div>
@@ -642,7 +642,7 @@ export function SubscriptionPlansManagement() {
             <MessageSquare className="w-3 h-3 mr-1" />
             PRO+
           </Badge>
-          <span className="text-muted-foreground">Relatórios WhatsApp para Gestor (Profissional ou superior)</span>
+          <span className="text-muted-foreground">Gerentes de Contas Virtual via WhatsApp para o Gestor (Profissional ou superior)</span>
         </div>
       </div>
 
@@ -762,7 +762,7 @@ export function SubscriptionPlansManagement() {
                   {/* Features */}
                   <div className="space-y-1">
                     {plan.features.slice(0, 5).map((feature, index) => {
-                      const isWhatsAppReport = feature.includes('Relatórios WhatsApp para Gestor')
+                      const isWhatsAppReport = feature.includes('Gerentes de Contas Virtual via WhatsApp para o Gestor')
                       return (
                         <div 
                           key={index} 
