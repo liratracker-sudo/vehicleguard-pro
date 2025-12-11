@@ -35,19 +35,28 @@ export const LandingCTA = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="xl"
-              variant="hero"
-              className="group text-lg"
-              onClick={() => window.open(whatsappLink, "_blank")}
+              variant="default"
+              className="group text-lg bg-primary hover:bg-primary/90"
+              asChild
             >
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Implante Agora
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="w-5 h-5 mr-2" />
+                Implante Agora
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </a>
             </Button>
           </div>
 
-          <p className="text-sm text-muted-foreground mt-6">
-            WhatsApp: (21) 99208-1803 • Atendimento de Seg a Sex, 9h às 18h
-          </p>
+          <div className="mt-6 text-muted-foreground">
+            <p className="text-sm mb-2">Ou entre em contato diretamente:</p>
+            <a 
+              href="tel:+5521992081803" 
+              className="text-lg font-semibold text-primary hover:underline"
+            >
+              (21) 99208-1803
+            </a>
+            <p className="text-xs mt-2">Atendimento de Seg a Sex, 9h às 18h</p>
+          </div>
         </motion.div>
       </div>
     </section>
