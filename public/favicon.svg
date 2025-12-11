@@ -1,0 +1,58 @@
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pin de localização - corpo principal -->
+  <path
+    d="M24 4C16.268 4 10 10.268 10 18C10 28 24 44 24 44C24 44 38 28 38 18C38 10.268 31.732 4 24 4Z"
+    fill="#3B82F6"
+  />
+  
+  <!-- Círculo interno do pin -->
+  <circle
+    cx="24"
+    cy="18"
+    r="10"
+    fill="white"
+  />
+  
+  <!-- Gráfico de barras (gestão financeira) dentro do pin -->
+  <rect
+    x="17"
+    y="18"
+    width="3"
+    height="6"
+    rx="0.5"
+    fill="#3B82F6"
+  />
+  <rect
+    x="22"
+    y="14"
+    width="3"
+    height="10"
+    rx="0.5"
+    fill="#3B82F6"
+  />
+  <rect
+    x="27"
+    y="16"
+    width="3"
+    height="8"
+    rx="0.5"
+    fill="#3B82F6"
+  />
+  
+  <!-- Linha de tendência ascendente -->
+  <path
+    d="M17 20L22 15L28 17"
+    stroke="#3B82F6"
+    stroke-width="1.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  
+  <!-- Ponto do gráfico -->
+  <circle
+    cx="28"
+    cy="17"
+    r="1.5"
+    fill="#3B82F6"
+  />
+</svg>
