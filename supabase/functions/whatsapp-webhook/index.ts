@@ -145,50 +145,48 @@ serve(async (req) => {
       }
       
       // ===========================================
-      // PRIORIDADE de extração do número real:
-      // 1. webhookData.sender (formato tradicional @s.whatsapp.net)
-      // 2. message.key.participantAlt (quando disponível)
-      // 3. message.key.remoteJidAlt (se não for formato LID)
-      // 4. message.key.remoteJid (fallback)
+      // PRIORIDADE de extração do número real do REMETENTE:
+      // IMPORTANTE: "sender" é o número da INSTÂNCIA (bot), NÃO do remetente!
+      // 
+      // Para chat privado:
+      // 1. remoteJidAlt (número real quando formato LID)
+      // 2. remoteJid (formato tradicional @s.whatsapp.net)
       // ===========================================
       
       console.log('=== DEBUG EXTRAÇÃO NÚMERO ===');
-      console.log('webhookData.sender:', sender);
+      console.log('Dados completos:', JSON.stringify(webhookData, null, 2));
+      console.log('webhookData.sender (IGNORAR - é o bot):', sender);
       console.log('message.key.remoteJid:', remoteJid);
       console.log('message.key.remoteJidAlt:', remoteJidAlt);
       console.log('message.key.participantAlt:', participantAlt);
       
       let phoneNumber = '';
       
-      // Opção 1: Campo sender no webhook data (mais confiável quando @s.whatsapp.net)
-      if (sender && sender.includes('@s.whatsapp.net')) {
-        phoneNumber = sender.split('@')[0];
-        console.log('Número extraído do sender:', phoneNumber);
-      }
-      
-      // Opção 2: participantAlt (para chats com LID)
-      if (!phoneNumber && participantAlt && participantAlt.includes('@s.whatsapp.net')) {
-        phoneNumber = participantAlt.split('@')[0];
-        console.log('Número extraído do participantAlt:', phoneNumber);
-      }
-      
-      // Opção 3: remoteJidAlt (se não for formato LID)
-      if (!phoneNumber && remoteJidAlt && !remoteJidAlt.includes('@lid') && remoteJidAlt.includes('@s.whatsapp.net')) {
+      // Opção 1: remoteJidAlt - contém o número real quando o formato é LID
+      if (remoteJidAlt && remoteJidAlt.includes('@s.whatsapp.net')) {
         phoneNumber = remoteJidAlt.split('@')[0];
         console.log('Número extraído do remoteJidAlt:', phoneNumber);
       }
       
-      // Opção 4: remoteJid tradicional (se for @s.whatsapp.net)
+      // Opção 2: remoteJid tradicional (formato @s.whatsapp.net)
       if (!phoneNumber && remoteJid.includes('@s.whatsapp.net')) {
         phoneNumber = remoteJid.split('@')[0];
         console.log('Número extraído do remoteJid tradicional:', phoneNumber);
       }
       
-      // Opção 5: Fallback - usar qualquer formato disponível (pode ser LID)
+      // Opção 3: Fallback para formato LID (menos ideal, mas registra)
+      if (!phoneNumber && remoteJid.includes('@lid')) {
+        // Quando é LID puro sem remoteJidAlt, temos um problema
+        // Vamos usar o LID mesmo para registro, mas alertar nos logs
+        phoneNumber = remoteJid.split('@')[0];
+        console.log('ALERTA: Usando LID como fallback (não é número real):', phoneNumber);
+        console.log('remoteJidAlt não disponível para resolver o número real');
+      }
+      
+      // Opção 4: Último fallback
       if (!phoneNumber) {
-        const jidToUse = remoteJidAlt || remoteJid;
-        phoneNumber = jidToUse.split('@')[0];
-        console.log('Número extraído do fallback (pode ser LID):', phoneNumber);
+        phoneNumber = (remoteJidAlt || remoteJid).split('@')[0];
+        console.log('Número extraído do último fallback:', phoneNumber);
       }
       
       console.log('Número FINAL extraído:', phoneNumber);
