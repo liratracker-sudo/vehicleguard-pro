@@ -202,6 +202,30 @@ const WhiteLabelPage = () => {
     try {
       setSaving(true)
 
+      // Gerar novo slug baseado no nome da empresa
+      const newSlug = branding.companyName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/[^a-z0-9]+/g, '-')     // Substitui caracteres especiais por -
+        .replace(/^-|-$/g, '');           // Remove - do início e fim
+
+      // Verificar se o slug já existe (exceto para a própria empresa)
+      let finalSlug = newSlug;
+      if (newSlug !== companySlug) {
+        const { data: existingCompany } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('slug', newSlug)
+          .neq('id', currentCompanyId)
+          .maybeSingle();
+
+        // Se slug já existe, adicionar sufixo numérico
+        if (existingCompany) {
+          finalSlug = `${newSlug}-${Date.now().toString().slice(-4)}`;
+        }
+      }
+
       // Save to company_branding table
       const { error } = await supabase
         .from('company_branding')
@@ -216,17 +240,25 @@ const WhiteLabelPage = () => {
 
       if (error) throw error
 
-      // Update company name and logo if changed
+      // Update company name, logo and slug
       const { error: companyError } = await supabase
         .from('companies')
         .update({ 
           name: branding.companyName,
           domain: branding.domain,
-          logo_url: branding.logo
+          logo_url: branding.logo,
+          slug: finalSlug
         })
         .eq('id', currentCompanyId)
 
       if (companyError) throw companyError
+
+      // Atualizar estado do slug e regenerar QR Code
+      if (finalSlug !== companySlug) {
+        setCompanySlug(finalSlug);
+        const registrationUrl = `${window.location.origin}/cadastro/${finalSlug}`;
+        generateQRCode(registrationUrl);
+      }
 
       toast({
         title: "Sucesso",
