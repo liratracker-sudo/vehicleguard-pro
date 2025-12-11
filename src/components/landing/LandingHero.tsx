@@ -59,13 +59,15 @@ export const LandingHero = () => {
           >
             <Button
               size="xl"
-              variant="hero"
-              className="group"
-              onClick={() => window.open(whatsappLink, "_blank")}
+              variant="default"
+              className="group bg-primary hover:bg-primary/90"
+              asChild
             >
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Implante Agora
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="w-5 h-5 mr-2" />
+                Implante Agora
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </a>
             </Button>
             <Button
               size="lg"
@@ -75,6 +77,18 @@ export const LandingHero = () => {
               Ver Demonstração
             </Button>
           </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="mt-4 text-muted-foreground"
+          >
+            Ou ligue agora:{" "}
+            <a href="tel:+5521992081803" className="text-primary hover:underline font-medium">
+              (21) 99208-1803
+            </a>
+          </motion.p>
 
           {/* Stats */}
           <motion.div
