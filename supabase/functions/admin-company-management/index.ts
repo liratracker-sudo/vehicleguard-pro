@@ -76,20 +76,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if user is super admin
-    const { data: profile } = await supabase
-      .from('profiles')
+    // Check if user is super admin (verificar na tabela user_roles)
+    const { data: userRole } = await supabaseAdmin
+      .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .single()
+      .eq('role', 'super_admin')
+      .maybeSingle()
 
-    if (!profile || profile.role !== 'super_admin') {
-      console.error('User is not super admin:', profile)
+    if (!userRole) {
+      console.error('User is not super admin. User ID:', user.id)
       return new Response(
         JSON.stringify({ error: 'Super admin access required' }),
         { status: 403, headers: corsHeaders }
       )
     }
+    
+    console.log('Super admin verified:', user.id)
 
     const { method } = req
     const body = await req.json()
