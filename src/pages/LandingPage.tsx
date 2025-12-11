@@ -6,6 +6,7 @@ import { LandingTestimonials } from "@/components/landing/LandingTestimonials";
 import { LandingFAQ } from "@/components/landing/LandingFAQ";
 import { LandingCTA } from "@/components/landing/LandingCTA";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/ui/Logo";
 import { LogIn } from "lucide-react";
 
 const LandingPage = () => {
@@ -14,12 +15,7 @@ const LandingPage = () => {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">GR</span>
-            </div>
-            <span className="font-bold text-foreground">GestãoRastreio</span>
-          </div>
+          <Logo size="md" />
           
           <div className="flex items-center gap-4">
             <Button
