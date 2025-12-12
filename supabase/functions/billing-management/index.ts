@@ -119,12 +119,12 @@ serve(async (req) => {
           return `${day}/${month}/${year}`;
         };
 
-        // Helper function to format currency in Brazilian format (R$ X.XXX,XX)
+        // Helper function to format currency in Brazilian format (sem R$ - template já inclui)
         const formatCurrencyBR = (value: number): string => {
           const formatted = value.toFixed(2).replace('.', ',');
           const parts = formatted.split(',');
           parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-          return `R$ ${parts.join(',')}`;
+          return parts.join(',');
         };
 
         // Helper function to calculate days difference correctly (considering Brasília timezone)
@@ -175,7 +175,7 @@ serve(async (req) => {
         // Get notification settings and company name
         const { data: notifSettings } = await supabase
           .from('payment_notification_settings')
-          .select('template_pre_due')
+          .select('template_pre_due, template_post_due, template_on_due')
           .eq('company_id', userCompanyId)
           .single();
 
@@ -185,6 +185,14 @@ serve(async (req) => {
           .eq('id', userCompanyId)
           .single();
 
+        // ✅ NOVO: Verificar se IA está ativa
+        const { data: aiSettings } = await supabase
+          .from('ai_collection_settings')
+          .select('*')
+          .eq('company_id', userCompanyId)
+          .eq('is_active', true)
+          .maybeSingle();
+
         // Use company domain if configured, otherwise fallback
         const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
         const baseUrl = company?.domain 
@@ -192,41 +200,89 @@ serve(async (req) => {
           : appUrl;
         const paymentLink = `${baseUrl}/checkout/${payment.id}`;
 
-        // Use template from settings or default (without link - will be sent separately)
-        const template = notifSettings?.template_pre_due || `📋 *Lembrete de Pagamento*
+        let finalMessage: string;
+        let usedAI = false;
 
-Olá *{{cliente}}*!
+        // ✅ Se IA ativa, usar ai-collection para gerar mensagem personalizada
+        if (aiSettings) {
+          console.log(`[resend_notification] AI is active for company ${userCompanyId}, generating personalized message...`);
+          
+          try {
+            const aiResponse = await supabaseService.functions.invoke('ai-collection', {
+              body: {
+                action: 'process_specific_payment',
+                company_id: userCompanyId,
+                payment_id: payment.id
+              }
+            });
 
-Sua fatura de *{{valor}}* vence em *{{vencimento}}*.
+            console.log(`[resend_notification] AI response:`, JSON.stringify(aiResponse.data));
 
-_{{empresa}}_`;
+            if (aiResponse.data?.generated_message) {
+              finalMessage = `${aiResponse.data.generated_message}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
+              usedAI = true;
+              console.log(`[resend_notification] AI message generated successfully`);
+            } else {
+              console.log(`[resend_notification] AI did not return message, falling back to template`);
+              finalMessage = buildTemplateMessage();
+            }
+          } catch (aiError) {
+            console.error(`[resend_notification] AI error, falling back to template:`, aiError);
+            finalMessage = buildTemplateMessage();
+          }
+        } else {
+          console.log(`[resend_notification] AI not active, using template`);
+          finalMessage = buildTemplateMessage();
+        }
 
-        const dueDate = new Date(payment.due_date);
-        const daysDiff = calculateDaysDiff(dueDate);
-        const daysText = formatDaysText(daysDiff);
+        // Helper function to build template message
+        function buildTemplateMessage(): string {
+          const dueDate = new Date(payment.due_date);
+          const daysDiff = calculateDaysDiff(dueDate);
+          const daysText = formatDaysText(daysDiff);
 
-        // Build message using template (link será incluído no final)
-        const messageWithoutLink = template
-          .replace(/\{\{cliente\}\}/g, payment.clients?.name || 'Cliente')
-          .replace(/\{\{valor\}\}/g, formatCurrencyBR(Number(payment.amount)))
-          .replace(/\{\{vencimento\}\}/g, formatDateBR(dueDate))
-          .replace(/\{\{dias\}\}/g, daysText) // Now uses "hoje", "amanhã", "em X dias", etc.
-          .replace(/\{\{link_pagamento\}\}/g, '')
-          .replace(/\{\{empresa\}\}/g, company?.name || 'Sistema')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim();
+          // Escolher template baseado no status do pagamento
+          let template: string;
+          if (daysDiff < 0) {
+            // Vencido
+            template = notifSettings?.template_post_due || `Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} (vencido em {{vencimento}}).
 
-        // Unificar mensagem: texto + link em uma só mensagem
-        const fullMessage = `${messageWithoutLink}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
+Regularize: {{link_pagamento}}`;
+          } else if (daysDiff === 0) {
+            // Vence hoje
+            template = notifSettings?.template_on_due || `Olá {{cliente}}, seu pagamento de R$ {{valor}} vence hoje ({{vencimento}}).
 
-        // Send notification via WhatsApp - UMA única mensagem com linkPreview: false
+Pague aqui: {{link_pagamento}}`;
+          } else {
+            // Antes do vencimento
+            template = notifSettings?.template_pre_due || `Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}).
+
+Pague aqui: {{link_pagamento}}`;
+          }
+
+          const messageWithoutLink = template
+            .replace(/\{\{cliente\}\}/g, payment.clients?.name || 'Cliente')
+            .replace(/\{\{valor\}\}/g, formatCurrencyBR(Number(payment.amount)))
+            .replace(/\{\{vencimento\}\}/g, formatDateBR(dueDate))
+            .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
+            .replace(/\{\{link_pagamento\}\}/g, '')
+            .replace(/\{\{empresa\}\}/g, company?.name || 'Sistema')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+          return `${messageWithoutLink}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
+        }
+
+        // Send notification via WhatsApp
+        console.log(`[resend_notification] Sending message (usedAI: ${usedAI}) to ${payment.clients?.phone}`);
+        
         const notificationResponse = await supabase.functions.invoke('notify-whatsapp', {
           body: {
             client_id: payment.client_id,
-            message: fullMessage,
+            message: finalMessage,
             payment_id: payment_id,
             phone: payment.clients?.phone,
-            linkPreview: false  // Desabilita preview do link
+            linkPreview: false
           }
         });
 
@@ -241,7 +297,11 @@ _{{empresa}}_`;
         }
 
         return new Response(
-          JSON.stringify({ success, message: success ? 'Notification sent successfully' : errMsg }),
+          JSON.stringify({ 
+            success, 
+            message: success ? 'Notification sent successfully' : errMsg,
+            used_ai: usedAI
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
