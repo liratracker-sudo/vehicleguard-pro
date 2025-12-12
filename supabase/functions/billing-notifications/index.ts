@@ -1018,12 +1018,12 @@ function formatDateBR(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-// Helper function to format currency in Brazilian format (R$ X.XXX,XX)
+// Helper function to format currency in Brazilian format (X.XXX,XX - sem R$ pois templates já incluem)
 function formatCurrencyBR(value: number): string {
   const formatted = value.toFixed(2).replace('.', ',');
   const parts = formatted.split(',');
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `R$ ${parts.join(',')}`;
+  return parts.join(','); // Retorna "53,90" - template já tem "R$"
 }
 
 // Helper function to calculate days difference correctly (considering Brasília timezone)
@@ -1050,13 +1050,10 @@ function calculateDaysDiff(dueDate: Date): number {
   return Math.round(diffMs / (1000 * 60 * 60 * 24));
 }
 
-// Helper function to format days text dynamically
+// Helper function to format days text - retorna apenas o número para uso com "dia(s)" nos templates
 function formatDaysText(daysDiff: number): string {
-  if (daysDiff === 0) return 'hoje';
-  if (daysDiff === 1) return 'amanhã';
-  if (daysDiff === -1) return 'ontem';
-  if (daysDiff > 0) return `em ${daysDiff} dias`;
-  return `há ${Math.abs(daysDiff)} dias`;
+  // Para templates com "{{dias}} dia(s)" - retorna apenas o número absoluto
+  return Math.abs(daysDiff).toString();
 }
 
 async function renderTemplate(notification: any, payment: any, client: any, settings: any): Promise<string> {
