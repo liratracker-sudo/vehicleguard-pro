@@ -111,53 +111,12 @@ serve(async (req) => {
           throw new Error('Payment ID is required');
         }
 
-        // Helper function to format date in Brazilian format (DD/MM/YYYY)
-        const formatDateBR = (date: Date): string => {
-          const day = date.getDate().toString().padStart(2, '0');
-          const month = (date.getMonth() + 1).toString().padStart(2, '0');
-          const year = date.getFullYear();
-          return `${day}/${month}/${year}`;
-        };
-
-        // Helper function to format currency in Brazilian format (sem R$ - template já inclui)
+        // Helper function to format currency in Brazilian format (sem R$ - usado no alerta)
         const formatCurrencyBR = (value: number): string => {
           const formatted = value.toFixed(2).replace('.', ',');
           const parts = formatted.split(',');
           parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
           return parts.join(',');
-        };
-
-        // Helper function to calculate days difference correctly (considering Brasília timezone)
-        const calculateDaysDiff = (dueDate: Date): number => {
-          const now = new Date();
-          
-          // Normalize due_date to midnight UTC
-          const dueDateOnly = new Date(Date.UTC(
-            dueDate.getUTCFullYear(), 
-            dueDate.getUTCMonth(), 
-            dueDate.getUTCDate()
-          ));
-          
-          // Get current date in Brasília (UTC-3)
-          const brazilOffset = -3 * 60 * 60 * 1000;
-          const nowInBrazil = new Date(now.getTime() + brazilOffset);
-          const todayOnly = new Date(Date.UTC(
-            nowInBrazil.getUTCFullYear(), 
-            nowInBrazil.getUTCMonth(), 
-            nowInBrazil.getUTCDate()
-          ));
-          
-          const diffMs = dueDateOnly.getTime() - todayOnly.getTime();
-          return Math.round(diffMs / (1000 * 60 * 60 * 24));
-        };
-
-        // Helper function to format days text dynamically
-        const formatDaysText = (daysDiff: number): string => {
-          if (daysDiff === 0) return 'hoje';
-          if (daysDiff === 1) return 'amanhã';
-          if (daysDiff === -1) return 'ontem';
-          if (daysDiff > 0) return `em ${daysDiff} dias`;
-          return `há ${Math.abs(daysDiff)} dias`;
         };
 
         // Get payment details
@@ -193,9 +152,8 @@ serve(async (req) => {
         const paymentLink = `${baseUrl}/checkout/${payment.id}`;
 
         let finalMessage: string;
-        let usedAI = false;
 
-        // 🤖 SEMPRE usar IA para gerar mensagens personalizadas (templates apenas como fallback de emergência)
+        // 🤖 SEMPRE usar IA para gerar mensagens - NÃO enviar se IA falhar
         console.log(`[resend_notification] 🤖 Generating AI message for company ${userCompanyId}...`);
         
         try {
@@ -211,57 +169,52 @@ serve(async (req) => {
 
           if (aiResponse.data?.generated_message) {
             finalMessage = `${aiResponse.data.generated_message}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
-            usedAI = true;
             console.log(`[resend_notification] ✅ AI message generated successfully`);
           } else {
-            console.log(`[resend_notification] ⚠️ AI did not return message, using fallback template`);
-            finalMessage = buildTemplateMessage();
+            const errorMsg = 'IA não retornou mensagem';
+            console.error(`[resend_notification] ❌ AI failed:`, errorMsg);
+            
+            // Criar alerta para a empresa
+            await supabaseService.from('system_alerts').insert({
+              company_id: userCompanyId,
+              type: 'ai_failure',
+              message: `❌ Falha no sistema de IA: A cobrança para ${payment.clients?.name || 'Cliente'} (R$ ${formatCurrencyBR(Number(payment.amount))}) NÃO foi enviada. Erro: ${errorMsg}`,
+              severity: 'error',
+              created_at: new Date().toISOString()
+            });
+            
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: `Falha no sistema de IA: ${errorMsg}. Cobrança NÃO foi enviada. Um alerta foi criado.`
+              }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           }
         } catch (aiError) {
-          console.error(`[resend_notification] ⚠️ AI error, using fallback template:`, aiError);
-          finalMessage = buildTemplateMessage();
-        }
-
-        // Helper function to build template message
-        function buildTemplateMessage(): string {
-          const dueDate = new Date(payment.due_date);
-          const daysDiff = calculateDaysDiff(dueDate);
-          const daysText = formatDaysText(daysDiff);
-
-          // Escolher template baseado no status do pagamento
-          let template: string;
-          if (daysDiff < 0) {
-            // Vencido
-            template = notifSettings?.template_post_due || `Olá {{cliente}}, identificamos atraso de {{dias}} dia(s) no pagamento de R$ {{valor}} (vencido em {{vencimento}}).
-
-Regularize: {{link_pagamento}}`;
-          } else if (daysDiff === 0) {
-            // Vence hoje
-            template = notifSettings?.template_on_due || `Olá {{cliente}}, seu pagamento de R$ {{valor}} vence hoje ({{vencimento}}).
-
-Pague aqui: {{link_pagamento}}`;
-          } else {
-            // Antes do vencimento
-            template = notifSettings?.template_pre_due || `Olá {{cliente}}, lembramos que seu pagamento de R$ {{valor}} vence em {{dias}} dia(s) ({{vencimento}}).
-
-Pague aqui: {{link_pagamento}}`;
-          }
-
-          const messageWithoutLink = template
-            .replace(/\{\{cliente\}\}/g, payment.clients?.name || 'Cliente')
-            .replace(/\{\{valor\}\}/g, formatCurrencyBR(Number(payment.amount)))
-            .replace(/\{\{vencimento\}\}/g, formatDateBR(dueDate))
-            .replace(/\{\{dias\}\}/g, Math.abs(daysDiff).toString())
-            .replace(/\{\{link_pagamento\}\}/g, '')
-            .replace(/\{\{empresa\}\}/g, company?.name || 'Sistema')
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-
-          return `${messageWithoutLink}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
+          const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);
+          console.error(`[resend_notification] ❌ AI error:`, errorMsg);
+          
+          // Criar alerta para a empresa
+          await supabaseService.from('system_alerts').insert({
+            company_id: userCompanyId,
+            type: 'ai_failure',
+            message: `❌ Falha no sistema de IA: A cobrança para ${payment.clients?.name || 'Cliente'} (R$ ${formatCurrencyBR(Number(payment.amount))}) NÃO foi enviada. Erro: ${errorMsg}`,
+            severity: 'error',
+            created_at: new Date().toISOString()
+          });
+          
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Falha no sistema de IA: ${errorMsg}. Cobrança NÃO foi enviada. Um alerta foi criado.`
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
 
         // Send notification via WhatsApp
-        console.log(`[resend_notification] Sending message (usedAI: ${usedAI}) to ${payment.clients?.phone}`);
+        console.log(`[resend_notification] Sending AI-generated message to ${payment.clients?.phone}`);
         
         const notificationResponse = await supabase.functions.invoke('notify-whatsapp', {
           body: {
@@ -286,8 +239,7 @@ Pague aqui: {{link_pagamento}}`;
         return new Response(
           JSON.stringify({ 
             success, 
-            message: success ? 'Notification sent successfully' : errMsg,
-            used_ai: usedAI
+            message: success ? 'Notification sent successfully' : errMsg
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
