@@ -220,6 +220,34 @@ serve(async (req) => {
       .order('due_date', { ascending: true })
       .limit(50);
 
+    // ====== BUSCAR DESPESAS/CONTAS A PAGAR ======
+    const { data: allExpenses } = await supabase
+      .from('expenses')
+      .select(`
+        *,
+        expense_categories:category_id(name)
+      `)
+      .eq('company_id', company_id)
+      .order('due_date', { ascending: true });
+
+    // Separar despesas por status
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    
+    const pendingExpenses = allExpenses?.filter((e: any) => e.status === 'pending') || [];
+    const overdueExpenses = pendingExpenses.filter((e: any) => new Date(e.due_date) < todayDate);
+    const upcomingExpenses = pendingExpenses.filter((e: any) => {
+      const dueDate = new Date(e.due_date);
+      return dueDate >= todayDate;
+    });
+    // Despesas vencendo nos próximos 7 dias
+    const sevenDaysFromNow = new Date(todayDate);
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const expensesDueSoon = upcomingExpenses.filter((e: any) => {
+      const dueDate = new Date(e.due_date);
+      return dueDate <= sevenDaysFromNow;
+    });
+
     // Buscar últimos pagamentos recebidos (com nome do cliente)
     const { data: paidPayments } = await supabase
       .from('payment_transactions')
@@ -262,6 +290,34 @@ serve(async (req) => {
       id: p.id
     })) || [];
 
+    // ====== CALCULAR TOTAIS DE DESPESAS ======
+    const totalExpensesOverdue = overdueExpenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+    const totalExpensesPending = upcomingExpenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+    const totalExpensesDueSoon = expensesDueSoon.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+
+    // Formatar detalhes de despesas
+    const overdueExpenseDetails = overdueExpenses.map((e: any, i: number) => ({
+      index: i + 1,
+      description: e.description,
+      supplier: e.supplier_name || 'Não informado',
+      category: e.expense_categories?.name || 'Não categorizado',
+      amount: Number(e.amount),
+      due_date: e.due_date,
+      days_overdue: Math.floor((Date.now() - new Date(e.due_date).getTime()) / (1000 * 60 * 60 * 24)),
+      id: e.id
+    }));
+
+    const upcomingExpenseDetails = expensesDueSoon.map((e: any, i: number) => ({
+      index: i + 1,
+      description: e.description,
+      supplier: e.supplier_name || 'Não informado',
+      category: e.expense_categories?.name || 'Não categorizado',
+      amount: Number(e.amount),
+      due_date: e.due_date,
+      days_until_due: Math.ceil((new Date(e.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+      id: e.id
+    }));
+
     // Informações dos clientes
     const clientsInfo = allClients?.map(c => ({
       id: c.id,
@@ -285,19 +341,49 @@ Use SEMPRE esta data/hora como referência para interpretar comandos como "amanh
 Suas capacidades:
 1. Fornecer informações completas sobre clientes, cobranças, pagamentos e situação financeira
 2. Acessar dados cadastrais de todos os clientes (nome, telefone, email, documento, endereço)
-3. Executar ações quando solicitado pelo gestor:
+3. **CONTAS A PAGAR**: Informar sobre despesas, fornecedores e pagamentos pendentes
+4. Executar ações quando solicitado pelo gestor:
    - Forçar cobrança de clientes inadimplentes (enviar mensagem de cobrança via IA)
-   - Gerar relatórios financeiros
+   - Gerar relatórios financeiros (contas a receber E a pagar)
    - Listar clientes com pagamentos em atraso
+   - **Listar contas a pagar vencidas e próximas do vencimento**
    - Fornecer informações detalhadas sobre qualquer cliente
    - **AGENDAR LEMBRETES**: Criar lembretes para horários específicos
    - **AGENDAR COBRANÇAS**: Programar cobranças automáticas para datas/horários específicos
+   - **AGENDAR LEMBRETES DE PAGAMENTO A FORNECEDORES**: Lembrar de pagar contas
 
-Contexto financeiro atual:
+======== CONTAS A RECEBER (CLIENTES) ========
 - Total em atraso: R$ ${totalOverdue.toFixed(2)} (${overduePayments?.length || 0} cobranças)
 - Total pendente: R$ ${totalPending.toFixed(2)} (${pendingPayments?.length || 0} cobranças)
 - Total recebido (últimos 30): R$ ${totalPaid.toFixed(2)}
 - Total de clientes cadastrados: ${allClients?.length || 0}
+
+======== CONTAS A PAGAR (DESPESAS/FORNECEDORES) ========
+- Total VENCIDO: R$ ${totalExpensesOverdue.toFixed(2)} (${overdueExpenses.length} contas)
+- Total a vencer (próx. 7 dias): R$ ${totalExpensesDueSoon.toFixed(2)} (${expensesDueSoon.length} contas)
+- Total pendente (todas): R$ ${totalExpensesPending.toFixed(2)} (${upcomingExpenses.length} contas)
+
+CONTAS A PAGAR - VENCIDAS:
+${overdueExpenseDetails.length > 0 
+  ? overdueExpenseDetails.map((e: any) => `${e.index}. ${e.description}
+   - Fornecedor: ${e.supplier}
+   - Categoria: ${e.category}
+   - Valor: R$ ${e.amount.toFixed(2)}
+   - Vencimento: ${e.due_date}
+   - Dias em atraso: ${e.days_overdue}
+   - ID: ${e.id}`).join('\n\n')
+  : 'Nenhuma conta a pagar vencida'}
+
+CONTAS A PAGAR - PRÓXIMAS (7 dias):
+${upcomingExpenseDetails.length > 0 
+  ? upcomingExpenseDetails.map((e: any) => `${e.index}. ${e.description}
+   - Fornecedor: ${e.supplier}
+   - Categoria: ${e.category}
+   - Valor: R$ ${e.amount.toFixed(2)}
+   - Vencimento: ${e.due_date}
+   - Dias até vencer: ${e.days_until_due}
+   - ID: ${e.id}`).join('\n\n')
+  : 'Nenhuma conta a pagar nos próximos 7 dias'}
 
 PAGAMENTOS RECEBIDOS HOJE (${today}):
 ${todayPayments.length > 0 
@@ -363,6 +449,7 @@ COMANDOS ESPECIAIS:
 - Para gerar relatório: "EXECUTAR_RELATORIO"
 - Para agendar lembrete: "AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM" (exemplo: "AGENDAR_LEMBRETE:2025-10-09 09:00:Atualizar base de dados")
 - Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_REAL_DO_PAGAMENTO" - use sempre o ID real do pagamento, não o placeholder
+- Para agendar lembrete de pagamento a fornecedor: "AGENDAR_LEMBRETE_FORNECEDOR:YYYY-MM-DD HH:MM:DESCRICAO_DA_DESPESA:VALOR" (exemplo: "AGENDAR_LEMBRETE_FORNECEDOR:2025-12-10 09:00:CHIP VOXTER:740.00")
 - Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural
 
 REGRA DE CONFIRMAÇÃO:
@@ -373,7 +460,13 @@ IMPORTANTE SOBRE DATAS:
 - Ao interpretar "amanhã", adicione 1 dia à data atual
 - Ao interpretar "hoje", use a data atual
 - SEMPRE use o horário de Brasília (UTC-3) nas datas agendadas
-- Quando o gestor solicitar lembretes ou cobranças futuras, SEMPRE use os comandos de agendamento acima`;
+- Quando o gestor solicitar lembretes ou cobranças futuras, SEMPRE use os comandos de agendamento acima
+
+EXEMPLOS DE PERGUNTAS SOBRE CONTAS A PAGAR:
+- "Quais contas a pagar eu tenho?" → Liste as despesas pendentes e vencidas
+- "O que vence essa semana?" → Mostre as despesas dos próximos 7 dias
+- "Quanto tenho a pagar para fornecedores?" → Informe o total pendente
+- "Me lembra de pagar a VOXTER amanhã às 9h" → Use AGENDAR_LEMBRETE_FORNECEDOR`;
 
     // Detectar se é um pedido de lembrete para não oferecer web_search
     const isReminderRequest = /\b(lembra|lembre|avisa|alerta|notifica|agenda)\b/i.test(message);
@@ -405,12 +498,19 @@ Analise a solicitação e responda adequadamente:
    - Verifique se há alguma cobrança que foi identificada recentemente
    - Se houver, execute EXECUTAR_COBRANCA com o ID do pagamento identificado anteriormente
 
+6. Se for pergunta sobre CONTAS A PAGAR, DESPESAS ou FORNECEDORES:
+   - Liste as contas a pagar vencidas e/ou próximas do vencimento
+   - Informe fornecedor, valor, vencimento e categoria
+   - Para agendar lembrete de pagamento a fornecedor, use:
+     AGENDAR_LEMBRETE_FORNECEDOR:YYYY-MM-DD HH:MM:DESCRICAO:VALOR
+     Exemplo: AGENDAR_LEMBRETE_FORNECEDOR:2025-12-15 09:00:CHIP VOXTER:740.00
+
 CRÍTICO: 
 - Quando usar comandos como EXECUTAR_COBRANCA, AGENDAR_COBRANCA ou AGUARDANDO_CONFIRMACAO, SEMPRE extraia e use o ID REAL do pagamento do contexto fornecido
 - NUNCA deixe "ID_DO_PAGAMENTO" como placeholder
 - SEMPRE peça confirmação antes de enviar uma cobrança, a menos que o gestor já tenha confirmado
 
-Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atual é: ${currentDateTime}`;
+Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atual é: \${currentDateTime}`;
 
     // Chamar OpenAI API com function calling
     const messages = [
@@ -747,6 +847,35 @@ Responda *SIM* para confirmar ou *NÃO* para cancelar.`;
       } catch (error) {
         console.error('Erro ao agendar lembrete:', error);
         finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE:[^\n]+/, '❌ Erro ao agendar lembrete.');
+      }
+    }
+
+    // Detectar comando de agendar lembrete de pagamento a fornecedor
+    const supplierReminderMatch = aiResponse.match(/AGENDAR_LEMBRETE_FORNECEDOR:(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):([^:]+):([0-9.]+)/);
+    if (supplierReminderMatch) {
+      const [, scheduledTime, expenseDescription, amount] = supplierReminderMatch;
+      console.log('Agendando lembrete de pagamento a fornecedor:', { scheduledTime, expenseDescription, amount });
+      
+      try {
+        // Converter horário de Brasília para UTC para armazenar no banco
+        const brasiliaDateStr = scheduledTime + ':00-03:00';
+        const brasiliaDate = new Date(brasiliaDateStr);
+        
+        await supabase
+          .from('scheduled_reminders')
+          .insert({
+            company_id,
+            manager_phone,
+            reminder_text: `💰 Lembrete de pagamento:\n📋 ${expenseDescription.trim()}\n💵 Valor: R$ ${parseFloat(amount).toFixed(2)}`,
+            scheduled_for: brasiliaDate.toISOString(),
+            action_type: 'supplier_payment',
+            metadata: { expense_description: expenseDescription.trim(), amount: parseFloat(amount) }
+          });
+        
+        finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE_FORNECEDOR:[^\n]+/, `✅ Lembrete de pagamento agendado para ${scheduledTime}!\n📋 ${expenseDescription.trim()} - R$ ${parseFloat(amount).toFixed(2)}`);
+      } catch (error) {
+        console.error('Erro ao agendar lembrete de fornecedor:', error);
+        finalResponse = aiResponse.replace(/AGENDAR_LEMBRETE_FORNECEDOR:[^\n]+/, '❌ Erro ao agendar lembrete de pagamento.');
       }
     }
 
