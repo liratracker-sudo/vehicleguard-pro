@@ -13,6 +13,10 @@ export interface Client {
   created_at: string;
   updated_at: string;
   company_id: string;
+  whatsapp_opt_out: boolean | null;
+  whatsapp_blocked: boolean | null;
+  whatsapp_block_reason: string | null;
+  whatsapp_failures: number | null;
 }
 
 export function useClients() {
@@ -168,12 +172,70 @@ export function useClients() {
     loadClients();
   }, []);
 
+  const toggleWhatsApp = async (clientId: string, currentOptOut: boolean | null) => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update({ whatsapp_opt_out: !currentOptOut })
+        .eq('id', clientId);
+
+      if (error) throw error;
+
+      toast({
+        title: currentOptOut ? "WhatsApp habilitado" : "WhatsApp desabilitado",
+        description: currentOptOut 
+          ? "O cliente voltará a receber mensagens automáticas"
+          : "O cliente não receberá mais mensagens automáticas"
+      });
+
+      await loadClients();
+    } catch (error: any) {
+      console.error('Erro ao alterar WhatsApp:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao alterar configuração de WhatsApp",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const unblockWhatsApp = async (clientId: string) => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update({ 
+          whatsapp_blocked: false, 
+          whatsapp_block_reason: null,
+          whatsapp_failures: 0
+        })
+        .eq('id', clientId);
+
+      if (error) throw error;
+
+      toast({
+        title: "WhatsApp desbloqueado",
+        description: "O cliente foi desbloqueado e voltará a receber mensagens"
+      });
+
+      await loadClients();
+    } catch (error: any) {
+      console.error('Erro ao desbloquear WhatsApp:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao desbloquear WhatsApp",
+        variant: "destructive"
+      });
+    }
+  };
+
   return {
     clients,
     loading,
     loadClients,
     createClient,
     updateClient,
-    deleteClient
+    deleteClient,
+    toggleWhatsApp,
+    unblockWhatsApp
   };
 }
