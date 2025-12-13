@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Upload, CheckCircle2, Plus, Trash2, Car } from "lucide-react"
+import { CheckCircle2, Plus, Trash2, Car } from "lucide-react"
 
 interface Vehicle {
   id: string
@@ -59,8 +59,6 @@ export default function PublicClientRegistration() {
   })
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([createEmptyVehicle()])
-  const [documentFront, setDocumentFront] = useState<File | null>(null)
-  const [documentBack, setDocumentBack] = useState<File | null>(null)
 
   const MAX_VEHICLES = 5
 
@@ -177,8 +175,6 @@ export default function PublicClientRegistration() {
       formDataToSend.append('vehicles', JSON.stringify(normalizedVehicles))
       
       formDataToSend.append('company_id', companyInfo.id)
-      if (documentFront) formDataToSend.append('document_front', documentFront)
-      if (documentBack) formDataToSend.append('document_back', documentBack)
 
       const response = await supabase.functions.invoke('process-client-registration', {
         body: formDataToSend
@@ -257,32 +253,6 @@ export default function PublicClientRegistration() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Documentos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Documentos</CardTitle>
-              <CardDescription>Envie fotos da CNH ou RG (frente e verso) - Opcional</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>CNH/RG - Frente</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setDocumentFront(e.target.files?.[0] || null)}
-                />
-              </div>
-              <div>
-                <Label>CNH/RG - Verso</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setDocumentBack(e.target.files?.[0] || null)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Dados Pessoais */}
           <Card>
             <CardHeader>
@@ -339,11 +309,12 @@ export default function PublicClientRegistration() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>E-mail</Label>
+                  <Label>E-mail *</Label>
                   <Input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
                   />
                 </div>
                 <div>
