@@ -53,7 +53,7 @@ export function UserNav() {
     sessionStorage.clear()
     
     // Force reload to clear all React state and caches
-    window.location.href = "/auth"
+    window.location.href = "/"
   }
 
   if (!displayUser) {
