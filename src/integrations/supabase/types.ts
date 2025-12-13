@@ -618,6 +618,10 @@ export type Database = {
           status: string | null
           street: string | null
           updated_at: string
+          whatsapp_block_reason: string | null
+          whatsapp_blocked: boolean | null
+          whatsapp_failures: number | null
+          whatsapp_opt_out: boolean | null
         }
         Insert: {
           address?: string | null
@@ -641,6 +645,10 @@ export type Database = {
           status?: string | null
           street?: string | null
           updated_at?: string
+          whatsapp_block_reason?: string | null
+          whatsapp_blocked?: boolean | null
+          whatsapp_failures?: number | null
+          whatsapp_opt_out?: boolean | null
         }
         Update: {
           address?: string | null
@@ -664,6 +672,10 @@ export type Database = {
           status?: string | null
           street?: string | null
           updated_at?: string
+          whatsapp_block_reason?: string | null
+          whatsapp_blocked?: boolean | null
+          whatsapp_failures?: number | null
+          whatsapp_opt_out?: boolean | null
         }
         Relationships: [
           {

@@ -85,16 +85,36 @@ serve(async (req) => {
 
     const company_id = profile.company_id as string;
 
-    // Fetch client for phone when not provided
+    // Fetch client for phone when not provided AND check whatsapp status
     let targetPhone = phone ?? null as string | null;
+    let clientId = client_id;
+    
+    // 🛡️ VERIFICAÇÃO ANTI-SPAM: Checar opt-out e bloqueio do cliente
+    const { data: clientData } = await supabase
+      .from('clients')
+      .select('phone, whatsapp_opt_out, whatsapp_blocked, whatsapp_block_reason, whatsapp_failures')
+      .eq('id', client_id)
+      .eq('company_id', company_id)
+      .maybeSingle();
+
+    if (clientData?.whatsapp_opt_out) {
+      console.log(`⛔ Cliente ${client_id} optou por não receber WhatsApp (opt-out)`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Cliente optou por não receber WhatsApp', opt_out: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (clientData?.whatsapp_blocked) {
+      console.log(`🚫 Cliente ${client_id} está bloqueado: ${clientData.whatsapp_block_reason}`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Número bloqueado por falhas consecutivas', blocked: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!targetPhone) {
-      const { data: client } = await supabase
-        .from('clients')
-        .select('phone')
-        .eq('id', client_id)
-        .eq('company_id', company_id)
-        .maybeSingle();
-      targetPhone = client?.phone ?? null;
+      targetPhone = clientData?.phone ?? null;
     }
 
     if (!targetPhone) {
@@ -175,11 +195,37 @@ serve(async (req) => {
     const ok = !sendRes.error && (sendRes.data?.success ?? true);
     const errMsg = ok ? null : (sendRes.error?.message || (sendRes.data && (sendRes.data.error || (typeof sendRes.data === 'string' ? sendRes.data : JSON.stringify(sendRes.data)))) || 'Falha ao enviar via Evolution API');
 
+    // 🛡️ ANTI-SPAM: Atualizar contador de falhas do cliente
+    const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    
+    if (!ok && clientData) {
+      const newFailures = (clientData.whatsapp_failures || 0) + 1;
+      console.log(`📊 Cliente ${client_id}: falha #${newFailures}`);
+      
+      const updateData: Record<string, any> = { whatsapp_failures: newFailures };
+      
+      // Bloquear após 3 falhas consecutivas
+      if (newFailures >= 3) {
+        updateData.whatsapp_blocked = true;
+        updateData.whatsapp_block_reason = `Bloqueado automaticamente após ${newFailures} falhas: ${errMsg}`;
+        console.log(`🚫 Bloqueando cliente ${client_id} após ${newFailures} falhas consecutivas`);
+      }
+      
+      await supabaseService
+        .from('clients')
+        .update(updateData)
+        .eq('id', client_id);
+    } else if (ok && clientData && clientData.whatsapp_failures > 0) {
+      // Sucesso: resetar contador de falhas
+      console.log(`✅ Cliente ${client_id}: mensagem enviada, resetando contador de falhas`);
+      await supabaseService
+        .from('clients')
+        .update({ whatsapp_failures: 0 })
+        .eq('id', client_id);
+    }
+
     // Record into payment_notifications when tied to a payment
     if (payment_id) {
-      // Use service role to bypass RLS for notifications
-      const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      
       await supabaseService.from('payment_notifications').insert({
         company_id,
         client_id,

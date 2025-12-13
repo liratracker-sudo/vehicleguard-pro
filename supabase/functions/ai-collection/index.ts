@@ -162,10 +162,23 @@ serve(async (req) => {
         console.log('📝 Instrução de tom aplicada:', toneInstruction);
       }
 
+      // Instruções ANTI-SPAM para variação natural das mensagens
+      const antiSpamInstructions = `
+**🛡️ REGRAS ANTI-SPAM (CRÍTICO - EVITAR BANIMENTO DO WHATSAPP):**
+1. **Varie a saudação ALEATORIAMENTE:** Escolha UMA destas opções de forma aleatória: "Olá", "Oi", "Bom dia", "Boa tarde", "Prezado(a)", "Caro(a)", "Ei". NUNCA use a mesma saudação duas vezes seguidas.
+2. **Estruture de forma DIFERENTE:** Alterne a ordem das informações - às vezes valor primeiro depois vencimento, às vezes vencimento primeiro depois valor.
+3. **Varie expressões:** Use sinônimos diferentes a cada mensagem: "favor realizar", "solicitamos gentilmente", "pedimos a gentileza", "lembramos sobre", "passando para lembrar", "um lembrete rápido sobre", etc.
+4. **Humanize com naturalidade:** Adicione pequenas variações naturais como "espero que esteja bem", "passando rapidamente", "um lembrete amigável", "aproveitando para lembrar".
+5. **NUNCA repita** exatamente o mesmo texto ou estrutura de mensagens anteriores - cada mensagem deve ser ÚNICA.
+6. **Evite padrões detectáveis:** Não use sempre a mesma estrutura de parágrafos. Varie entre 2-4 parágrafos.
+`;
+
       // Preparar prompt estruturado para a IA (SEM incluir link - será enviado separadamente)
       const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
 
 **IMPORTANTE:** NÃO inclua nenhum link na mensagem. O link de pagamento será enviado em uma mensagem separada logo após esta.
+
+${antiSpamInstructions}
 
 **CONTEXTO CRÍTICO DA COBRANÇA:**
 ${contextDescription}
@@ -361,10 +374,22 @@ ${!isOverdue
         }
 
         try {
+          // Instruções ANTI-SPAM para variação natural das mensagens
+          const antiSpamInstructions = `
+**🛡️ REGRAS ANTI-SPAM (CRÍTICO - EVITAR BANIMENTO DO WHATSAPP):**
+1. **Varie a saudação ALEATORIAMENTE:** Escolha UMA destas opções de forma aleatória: "Olá", "Oi", "Bom dia", "Boa tarde", "Prezado(a)", "Caro(a)", "Ei". NUNCA use a mesma saudação duas vezes seguidas.
+2. **Estruture de forma DIFERENTE:** Alterne a ordem das informações.
+3. **Varie expressões:** Use sinônimos diferentes a cada mensagem.
+4. **Humanize com naturalidade:** Adicione pequenas variações naturais.
+5. **NUNCA repita** exatamente o mesmo texto ou estrutura.
+`;
+
           // Preparar prompt estruturado para a IA (SEM link - será enviado separadamente)
           const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
 
 **IMPORTANTE:** NÃO inclua nenhum link na mensagem. O link de pagamento será enviado em uma mensagem separada logo após esta.
+
+${antiSpamInstructions}
 
 **DADOS DO CLIENTE E CONTEXTO:**
 1. Nome do Cliente: ${client.name}

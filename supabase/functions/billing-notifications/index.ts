@@ -27,8 +27,8 @@ function toBrazilTime(date: Date): Date {
   return brazilDate;
 }
 
-// Helper function to set time in Brazil timezone
-function setBrazilTime(date: Date, hour: number, minute: number): Date {
+// Helper function to set time in Brazil timezone with optional randomization for anti-spam
+function setBrazilTime(date: Date, hour: number, minute: number, randomize: boolean = false): Date {
   // Get date components in UTC
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
@@ -37,12 +37,24 @@ function setBrazilTime(date: Date, hour: number, minute: number): Date {
   // Create a date at midnight UTC for the given date
   const utcDate = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
   
+  let finalHour = hour;
+  let finalMinute = minute;
+  
+  // Randomização anti-spam: variar horário entre 8h-11h Brasil para evitar padrões detectáveis
+  if (randomize) {
+    // Janela de 8h-10h59 (3 horas = 180 minutos)
+    const randomMinutes = Math.floor(Math.random() * 180);
+    finalHour = 8 + Math.floor(randomMinutes / 60);
+    finalMinute = randomMinutes % 60;
+    console.log(`🎲 Randomized time: ${finalHour}:${String(finalMinute).padStart(2, '0')} Brazil (anti-spam)`);
+  }
+  
   // Brazil is UTC-3, so to set 9h Brazil time, we need 12h UTC (9 + 3)
   // Add the desired Brazil time + 3 hours to get UTC time
-  const utcHour = hour + 3;
-  utcDate.setUTCHours(utcHour, minute, 0, 0);
+  const utcHour = finalHour + 3;
+  utcDate.setUTCHours(utcHour, finalMinute, 0, 0);
   
-  console.log(`🕐 Setting time: ${hour}:${String(minute).padStart(2, '0')} Brazil = ${utcDate.toISOString()} UTC (${utcHour}:${String(minute).padStart(2, '0')} UTC)`);
+  console.log(`🕐 Setting time: ${finalHour}:${String(finalMinute).padStart(2, '0')} Brazil = ${utcDate.toISOString()} UTC (${utcHour}:${String(finalMinute).padStart(2, '0')} UTC)`);
   
   return utcDate;
 }
@@ -814,6 +826,23 @@ async function sendSingleNotification(notification: any) {
     throw new Error('Cliente não possui telefone cadastrado');
   }
 
+  // 🛡️ VERIFICAÇÃO ANTI-SPAM: Checar opt-out e bloqueio do cliente
+  const { data: clientStatus } = await supabase
+    .from('clients')
+    .select('whatsapp_opt_out, whatsapp_blocked, whatsapp_block_reason, whatsapp_failures')
+    .eq('id', notification.client_id)
+    .single();
+
+  if (clientStatus?.whatsapp_opt_out) {
+    console.log(`⛔ Cliente ${notification.client_id} optou por não receber WhatsApp (opt-out)`);
+    throw new Error('Cliente optou por não receber mensagens WhatsApp (opt-out)');
+  }
+
+  if (clientStatus?.whatsapp_blocked) {
+    console.log(`🚫 Cliente ${notification.client_id} está bloqueado: ${clientStatus.whatsapp_block_reason}`);
+    throw new Error(`Número bloqueado: ${clientStatus.whatsapp_block_reason || 'Falhas consecutivas'}`);
+  }
+
   // Get WhatsApp settings for company
   const { data: whatsappSettings } = await supabase
     .from('whatsapp_settings')
@@ -1276,8 +1305,8 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         const hour = parseInt(timeParts[0]) || 9;
         const minute = parseInt(timeParts[1]) || 0;
         
-        // Use Brazil timezone (UTC-3) for scheduling
-        scheduledDate = setBrazilTime(scheduledDate, hour, minute);
+        // Use Brazil timezone (UTC-3) for scheduling with randomization for anti-spam
+        scheduledDate = setBrazilTime(scheduledDate, hour, minute, true);
         
         // Only create if the scheduled date is not too far in the past (allow up to 3 days)
         const hoursAgo = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
@@ -1317,8 +1346,8 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         const hour = parseInt(timeParts[0]) || 9;
         const minute = parseInt(timeParts[1]) || 0;
         
-        // Use Brazil timezone (UTC-3) for scheduling
-        scheduledDate = setBrazilTime(scheduledDate, hour, minute);
+        // Use Brazil timezone (UTC-3) for scheduling with randomization for anti-spam
+        scheduledDate = setBrazilTime(scheduledDate, hour, minute, true);
         
         // Adicionar intervalo para disparos subsequentes
         if (i > 0) {
