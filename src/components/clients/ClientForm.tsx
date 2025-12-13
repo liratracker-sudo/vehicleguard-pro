@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, MessageSquare, MessageSquareOff, Ban } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -54,7 +57,11 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
     emergency_contact_name: "",
     emergency_contact_phone: "",
     emergency_contact_relationship: "",
-    status: "active"
+    status: "active",
+    whatsapp_opt_out: false,
+    whatsapp_blocked: false,
+    whatsapp_block_reason: "",
+    whatsapp_failures: 0
   })
   
   const [loading, setLoading] = useState(false)
@@ -97,7 +104,11 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
         emergency_contact_name: data.emergency_contact_name || "",
         emergency_contact_phone: data.emergency_contact_phone || "",
         emergency_contact_relationship: data.emergency_contact_relationship || "",
-        status: data.status || "active"
+        status: data.status || "active",
+        whatsapp_opt_out: data.whatsapp_opt_out || false,
+        whatsapp_blocked: data.whatsapp_blocked || false,
+        whatsapp_block_reason: data.whatsapp_block_reason || "",
+        whatsapp_failures: data.whatsapp_failures || 0
       })
     } catch (error: any) {
       console.error('Erro ao carregar cliente:', error)
@@ -213,7 +224,8 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
         emergency_contact_relationship: formData.emergency_contact_relationship || null,
         address: formattedAddress,
         status: formData.status,
-        company_id: profile.company_id
+        company_id: profile.company_id,
+        whatsapp_opt_out: formData.whatsapp_opt_out
       }
 
       const { error } = clientId 
@@ -526,6 +538,47 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
               </div>
             </div>
           </div>
+
+          {/* Seção WhatsApp */}
+          {clientId && (
+            <div className="pt-3 border-t border-border">
+              <h3 className="text-sm font-medium mb-3 text-muted-foreground flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Notificações WhatsApp
+              </h3>
+              
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="space-y-0.5">
+                  <Label htmlFor="whatsapp_enabled" className="text-sm font-medium">
+                    Receber cobranças via WhatsApp
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.whatsapp_opt_out 
+                      ? "Cliente não receberá mensagens automáticas" 
+                      : "Cliente receberá lembretes e cobranças"}
+                  </p>
+                </div>
+                <Switch 
+                  id="whatsapp_enabled"
+                  checked={!formData.whatsapp_opt_out} 
+                  onCheckedChange={(checked) => setFormData({...formData, whatsapp_opt_out: !checked})}
+                />
+              </div>
+              
+              {formData.whatsapp_blocked && (
+                <Alert variant="destructive" className="mt-3">
+                  <Ban className="h-4 w-4" />
+                  <AlertTitle>Bloqueado automaticamente</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    {formData.whatsapp_block_reason || 'Múltiplas falhas de envio detectadas'}
+                    <p className="mt-1 text-muted-foreground">
+                      Para desbloquear, acesse a listagem e use a opção no menu de ações.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 pt-2">
             <Button type="submit" disabled={loading} size="sm">

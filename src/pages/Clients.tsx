@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, FileText, History, Eye } from "lucide-react"
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Edit, Trash2, FileText, History, Eye, MessageSquare, MessageSquareOff, Ban } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ClientForm } from "@/components/clients/ClientForm"
 import { useClients } from "@/hooks/useClients"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 
 const ClientsPage = () => {
   const navigate = useNavigate()
@@ -34,7 +35,7 @@ const ClientsPage = () => {
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
-  const { clients, loading, deleteClient, loadClients } = useClients()
+  const { clients, loading, deleteClient, loadClients, toggleWhatsApp } = useClients()
 
   const handleViewContracts = (clientId: string) => {
     navigate(`/contracts?client_id=${clientId}`)
@@ -262,9 +263,37 @@ const ClientsPage = () => {
                               <Mail className="w-3 h-3 mr-1 text-muted-foreground shrink-0" />
                               <span className="truncate">{client.email || 'Não informado'}</span>
                             </div>
-                            <div className="flex items-center text-sm">
-                              <Phone className="w-3 h-3 mr-1 text-muted-foreground shrink-0" />
+                            <div className="flex items-center text-sm gap-1">
+                              <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
                               {client.phone}
+                              <TooltipProvider>
+                                {client.whatsapp_opt_out && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <MessageSquareOff className="w-3.5 h-3.5 text-destructive" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>WhatsApp desabilitado manualmente</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {client.whatsapp_blocked && !client.whatsapp_opt_out && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Ban className="w-3.5 h-3.5 text-warning" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Bloqueado: {client.whatsapp_block_reason || 'Múltiplas falhas'}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {!client.whatsapp_opt_out && !client.whatsapp_blocked && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <MessageSquare className="w-3.5 h-3.5 text-success" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>WhatsApp ativo</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </TooltipProvider>
                             </div>
                           </div>
                         </TableCell>
@@ -293,6 +322,19 @@ const ClientsPage = () => {
                               <DropdownMenuItem onSelect={() => handleViewPaymentHistory(client.id)}>
                                 <History className="w-4 h-4 mr-2" />
                                 Histórico de pagamentos
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => toggleWhatsApp(client.id, client.whatsapp_opt_out)}>
+                                {client.whatsapp_opt_out ? (
+                                  <>
+                                    <MessageSquare className="w-4 h-4 mr-2" />
+                                    Habilitar WhatsApp
+                                  </>
+                                ) : (
+                                  <>
+                                    <MessageSquareOff className="w-4 h-4 mr-2" />
+                                    Desabilitar WhatsApp
+                                  </>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
