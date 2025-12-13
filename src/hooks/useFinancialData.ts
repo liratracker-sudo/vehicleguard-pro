@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format, startOfDay, endOfDay, subDays } from "date-fns";
 
 export interface FinancialAccount {
   id: string;
@@ -35,88 +35,160 @@ export interface DailyCashFlow {
   saldo: number;
 }
 
+// Helper para obter company_id - evita repetição de queries de autenticação
+async function getCompanyId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("User not authenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!profile?.company_id) throw new Error("Company not found");
+  return profile.company_id;
+}
+
 export function useFinancialData() {
-  const { data: summary, isLoading: loadingSummary } = useQuery({
-    queryKey: ["financial-summary"],
+  // Query única que busca todos os dados de uma vez
+  const { data: allData, isLoading } = useQuery({
+    queryKey: ["financial-data-optimized"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error("Company not found");
-
+      const companyId = await getCompanyId();
       const now = new Date();
-      const startMonth = startOfMonth(now);
-      const endMonth = endOfMonth(now);
+      
+      // Definir ranges de data
+      const currentMonthStart = startOfMonth(now);
+      const currentMonthEnd = endOfMonth(now);
+      const sixMonthsAgo = startOfMonth(subMonths(now, 5));
+      const thirtyDaysAgo = startOfDay(subDays(now, 29));
 
-      // Receitas do mês (pagamentos confirmados)
-      const { data: payments } = await supabase
-        .from("payment_transactions")
-        .select("amount, paid_at")
-        .eq("company_id", profile.company_id)
-        .eq("status", "paid")
-        .gte("paid_at", startMonth.toISOString())
-        .lte("paid_at", endMonth.toISOString());
+      // Executar TODAS as queries em paralelo (10 queries ao invés de 80+)
+      const [
+        // Summary data
+        currentMonthPayments,
+        currentMonthExpenses,
+        allPaidPayments,
+        // Accounts by gateway - reutiliza allPaidPayments
+        // Transactions
+        recentPayments,
+        recentExpenses,
+        // Monthly data (6 meses em 2 queries)
+        sixMonthPayments,
+        sixMonthExpenses,
+        // Cash flow (30 dias em 2 queries)
+        thirtyDaysPayments,
+        thirtyDaysExpenses,
+      ] = await Promise.all([
+        // Current month payments
+        supabase
+          .from("payment_transactions")
+          .select("amount, paid_at")
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .gte("paid_at", currentMonthStart.toISOString())
+          .lte("paid_at", currentMonthEnd.toISOString()),
+        
+        // Current month expenses
+        supabase
+          .from("expenses")
+          .select("amount, paid_at")
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .gte("paid_at", currentMonthStart.toISOString())
+          .lte("paid_at", currentMonthEnd.toISOString()),
+        
+        // All paid payments (for total balance and accounts by gateway)
+        supabase
+          .from("payment_transactions")
+          .select("amount, payment_gateway, status")
+          .eq("company_id", companyId)
+          .eq("status", "paid"),
+        
+        // Recent payments for transactions
+        supabase
+          .from("payment_transactions")
+          .select(`
+            id,
+            amount,
+            paid_at,
+            payment_gateway,
+            status,
+            clients!payment_transactions_client_id_fkey(name)
+          `)
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .order("paid_at", { ascending: false })
+          .limit(50),
+        
+        // Recent expenses for transactions
+        supabase
+          .from("expenses")
+          .select(`
+            id,
+            amount,
+            paid_at,
+            description,
+            status,
+            payment_method,
+            expense_categories(name)
+          `)
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .order("paid_at", { ascending: false })
+          .limit(50),
+        
+        // 6 months payments (single query)
+        supabase
+          .from("payment_transactions")
+          .select("amount, paid_at")
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .gte("paid_at", sixMonthsAgo.toISOString())
+          .lte("paid_at", currentMonthEnd.toISOString()),
+        
+        // 6 months expenses (single query)
+        supabase
+          .from("expenses")
+          .select("amount, paid_at")
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .gte("paid_at", sixMonthsAgo.toISOString())
+          .lte("paid_at", currentMonthEnd.toISOString()),
+        
+        // 30 days payments (single query)
+        supabase
+          .from("payment_transactions")
+          .select("amount, paid_at")
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .gte("paid_at", thirtyDaysAgo.toISOString()),
+        
+        // 30 days expenses (single query)
+        supabase
+          .from("expenses")
+          .select("amount, paid_at")
+          .eq("company_id", companyId)
+          .eq("status", "paid")
+          .gte("paid_at", thirtyDaysAgo.toISOString()),
+      ]);
 
-      // Despesas do mês
-      const { data: expenses } = await supabase
-        .from("expenses")
-        .select("amount, paid_at")
-        .eq("company_id", profile.company_id)
-        .eq("status", "paid")
-        .gte("paid_at", startMonth.toISOString())
-        .lte("paid_at", endMonth.toISOString());
+      // ========== PROCESSAR SUMMARY ==========
+      const monthlyRevenue = currentMonthPayments.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const monthlyExpenses = currentMonthExpenses.data?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+      const totalBalance = allPaidPayments.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
-      // Total recebido (todos os tempos)
-      const { data: allPayments } = await supabase
-        .from("payment_transactions")
-        .select("amount")
-        .eq("company_id", profile.company_id)
-        .eq("status", "paid");
-
-      const monthlyRevenue = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-      const monthlyExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
-      const totalBalance = allPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
-      return {
+      const summary = {
         totalBalance,
         monthlyRevenue,
         monthlyExpenses,
         netProfit: monthlyRevenue - monthlyExpenses,
       };
-    },
-  });
 
-  const { data: accountsByGateway, isLoading: loadingAccounts } = useQuery({
-    queryKey: ["accounts-by-gateway"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error("Company not found");
-
-      // Buscar pagamentos agrupados por gateway
-      const { data: payments } = await supabase
-        .from("payment_transactions")
-        .select("payment_gateway, amount, status")
-        .eq("company_id", profile.company_id)
-        .eq("status", "paid");
-
-      // Agrupar por gateway
+      // ========== PROCESSAR ACCOUNTS BY GATEWAY ==========
       const gatewayMap = new Map<string, { balance: number; transactions: number }>();
-      
-      payments?.forEach((payment) => {
+      allPaidPayments.data?.forEach((payment) => {
         const gateway = payment.payment_gateway || "Outros";
         const current = gatewayMap.get(gateway) || { balance: 0, transactions: 0 };
         gatewayMap.set(gateway, {
@@ -125,8 +197,7 @@ export function useFinancialData() {
         });
       });
 
-      // Converter para array de contas
-      const accounts: FinancialAccount[] = Array.from(gatewayMap.entries()).map(([gateway, data]) => ({
+      const accountsByGateway: FinancialAccount[] = Array.from(gatewayMap.entries()).map(([gateway, data]) => ({
         id: gateway,
         name: gateway,
         bank: getGatewayDisplayName(gateway),
@@ -134,59 +205,8 @@ export function useFinancialData() {
         type: `${data.transactions} transações`,
       }));
 
-      return accounts;
-    },
-  });
-
-  const { data: transactions, isLoading: loadingTransactions } = useQuery({
-    queryKey: ["financial-transactions"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error("Company not found");
-
-      // Buscar receitas
-      const { data: payments } = await supabase
-        .from("payment_transactions")
-        .select(`
-          id,
-          amount,
-          paid_at,
-          payment_gateway,
-          status,
-          clients!payment_transactions_client_id_fkey(name)
-        `)
-        .eq("company_id", profile.company_id)
-        .eq("status", "paid")
-        .order("paid_at", { ascending: false })
-        .limit(50);
-
-      // Buscar despesas
-      const { data: expenses } = await supabase
-        .from("expenses")
-        .select(`
-          id,
-          amount,
-          paid_at,
-          description,
-          status,
-          payment_method,
-          expense_categories(name)
-        `)
-        .eq("company_id", profile.company_id)
-        .eq("status", "paid")
-        .order("paid_at", { ascending: false })
-        .limit(50);
-
-      // Combinar em transações
-      const receitas: Transaction[] = (payments || []).map((p) => ({
+      // ========== PROCESSAR TRANSACTIONS ==========
+      const receitas: Transaction[] = (recentPayments.data || []).map((p) => ({
         id: p.id,
         type: "receita" as const,
         description: `Pagamento - ${p.clients?.name || "Cliente"}`,
@@ -197,7 +217,7 @@ export function useFinancialData() {
         gateway: p.payment_gateway || undefined,
       }));
 
-      const despesas: Transaction[] = (expenses || []).map((e) => ({
+      const despesas: Transaction[] = (recentExpenses.data || []).map((e) => ({
         id: e.id,
         type: "despesa" as const,
         description: e.description,
@@ -207,130 +227,89 @@ export function useFinancialData() {
         status: e.status,
       }));
 
-      // Combinar e ordenar por data
-      const allTransactions = [...receitas, ...despesas].sort(
+      const transactions = [...receitas, ...despesas].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
-      return allTransactions;
-    },
-  });
-
-  const { data: monthlyData, isLoading: loadingMonthly } = useQuery({
-    queryKey: ["monthly-financial-data"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error("Company not found");
-
-      // Últimos 6 meses
-      const months: MonthlyData[] = [];
+      // ========== PROCESSAR MONTHLY DATA (agrupamento em JS) ==========
+      const monthlyData: MonthlyData[] = [];
       for (let i = 5; i >= 0; i--) {
-        const date = subMonths(new Date(), i);
-        const start = startOfMonth(date);
-        const end = endOfMonth(date);
+        const date = subMonths(now, i);
+        const monthStart = startOfMonth(date);
+        const monthEnd = endOfMonth(date);
+        const monthKey = format(date, "MMM");
 
-        const { data: payments } = await supabase
-          .from("payment_transactions")
-          .select("amount")
-          .eq("company_id", profile.company_id)
-          .eq("status", "paid")
-          .gte("paid_at", start.toISOString())
-          .lte("paid_at", end.toISOString());
+        const monthPayments = sixMonthPayments.data?.filter((p) => {
+          const paidAt = new Date(p.paid_at!);
+          return paidAt >= monthStart && paidAt <= monthEnd;
+        }) || [];
 
-        const { data: expenses } = await supabase
-          .from("expenses")
-          .select("amount")
-          .eq("company_id", profile.company_id)
-          .eq("status", "paid")
-          .gte("paid_at", start.toISOString())
-          .lte("paid_at", end.toISOString());
+        const monthExpenses = sixMonthExpenses.data?.filter((e) => {
+          const paidAt = new Date(e.paid_at!);
+          return paidAt >= monthStart && paidAt <= monthEnd;
+        }) || [];
 
-        const receita = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-        const despesa = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+        const receita = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const despesa = monthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
-        months.push({
-          month: format(date, "MMM"),
+        monthlyData.push({
+          month: monthKey,
           receita,
           despesa,
           lucro: receita - despesa,
         });
       }
 
-      return months;
-    },
-  });
-
-  const { data: cashFlowData, isLoading: loadingCashFlow } = useQuery({
-    queryKey: ["cash-flow-data"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error("Company not found");
-
-      // Últimos 30 dias
-      const days: DailyCashFlow[] = [];
+      // ========== PROCESSAR CASH FLOW DATA (agrupamento em JS) ==========
+      const cashFlowData: DailyCashFlow[] = [];
       let runningBalance = 0;
 
       for (let i = 29; i >= 0; i--) {
-        const date = subMonths(new Date(), 0);
-        date.setDate(date.getDate() - i);
-        const start = startOfDay(date);
-        const end = endOfDay(date);
+        const date = subDays(now, i);
+        const dayStart = startOfDay(date);
+        const dayEnd = endOfDay(date);
+        const dayKey = format(date, "dd/MM");
 
-        const { data: payments } = await supabase
-          .from("payment_transactions")
-          .select("amount")
-          .eq("company_id", profile.company_id)
-          .eq("status", "paid")
-          .gte("paid_at", start.toISOString())
-          .lte("paid_at", end.toISOString());
+        const dayPayments = thirtyDaysPayments.data?.filter((p) => {
+          const paidAt = new Date(p.paid_at!);
+          return paidAt >= dayStart && paidAt <= dayEnd;
+        }) || [];
 
-        const { data: expenses } = await supabase
-          .from("expenses")
-          .select("amount")
-          .eq("company_id", profile.company_id)
-          .eq("status", "paid")
-          .gte("paid_at", start.toISOString())
-          .lte("paid_at", end.toISOString());
+        const dayExpenses = thirtyDaysExpenses.data?.filter((e) => {
+          const paidAt = new Date(e.paid_at!);
+          return paidAt >= dayStart && paidAt <= dayEnd;
+        }) || [];
 
-        const entradas = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-        const saidas = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
+        const entradas = dayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const saidas = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
         runningBalance += entradas - saidas;
 
-        days.push({
-          date: format(date, "dd/MM"),
+        cashFlowData.push({
+          date: dayKey,
           entradas,
           saidas,
           saldo: runningBalance,
         });
       }
 
-      return days;
+      return {
+        summary,
+        accountsByGateway,
+        transactions,
+        monthlyData,
+        cashFlowData,
+      };
     },
+    staleTime: 1000 * 60 * 2, // Cache por 2 minutos
   });
 
   return {
-    summary: summary || { totalBalance: 0, monthlyRevenue: 0, monthlyExpenses: 0, netProfit: 0 },
-    accountsByGateway: accountsByGateway || [],
-    transactions: transactions || [],
-    monthlyData: monthlyData || [],
-    cashFlowData: cashFlowData || [],
-    isLoading: loadingSummary || loadingAccounts || loadingTransactions || loadingMonthly || loadingCashFlow,
+    summary: allData?.summary || { totalBalance: 0, monthlyRevenue: 0, monthlyExpenses: 0, netProfit: 0 },
+    accountsByGateway: allData?.accountsByGateway || [],
+    transactions: allData?.transactions || [],
+    monthlyData: allData?.monthlyData || [],
+    cashFlowData: allData?.cashFlowData || [],
+    isLoading,
   };
 }
 
