@@ -48,7 +48,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   }
 
   if (!authenticated) {
-    return <Navigate to="/auth" replace />
+    return <Navigate to="/" replace />
   }
 
   return <>{children}</>
