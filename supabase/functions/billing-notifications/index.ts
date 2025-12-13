@@ -878,44 +878,31 @@ async function sendSingleNotification(notification: any) {
     throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
   }
 
-  // Check if AI Collection is active for this company
-  const { data: aiSettings } = await supabase
-    .from('ai_collection_settings')
-    .select('*')
-    .eq('company_id', notification.company_id)
-    .eq('is_active', true)
-    .single();
-
+  // 🤖 SEMPRE usar IA para gerar mensagens personalizadas (templates apenas como fallback de emergência)
   let message: string;
   
-  if (aiSettings) {
-    // Use AI to generate personalized message
-    console.log(`Using AI to generate message for notification ${notification.id}...`);
-    
-    try {
-      const aiResponse = await supabase.functions.invoke('ai-collection', {
-        body: {
-          action: 'process_specific_payment',
-          company_id: notification.company_id,
-          payment_id: payment.id
-        }
-      });
-
-      if (aiResponse.error || !aiResponse.data?.generated_message) {
-        console.error('AI generation failed, falling back to template:', aiResponse.error);
-        // Fallback to template if AI fails
-        message = await renderTemplate(notification, payment, client, settings);
-      } else {
-        message = aiResponse.data.generated_message;
-        console.log('AI message generated successfully');
+  console.log(`🤖 Generating AI message for notification ${notification.id}...`);
+  
+  try {
+    const aiResponse = await supabase.functions.invoke('ai-collection', {
+      body: {
+        action: 'process_specific_payment',
+        company_id: notification.company_id,
+        payment_id: payment.id
       }
-    } catch (error) {
-      console.error('Error calling AI collection:', error);
-      // Fallback to template if AI fails
+    });
+
+    if (aiResponse.error || !aiResponse.data?.generated_message) {
+      console.error('⚠️ AI generation failed, using fallback template:', aiResponse.error);
+      // Fallback to template only if AI fails
       message = await renderTemplate(notification, payment, client, settings);
+    } else {
+      message = aiResponse.data.generated_message;
+      console.log('✅ AI message generated successfully');
     }
-  } else {
-    // Use traditional template
+  } catch (error) {
+    console.error('⚠️ Error calling AI collection, using fallback template:', error);
+    // Fallback to template only if AI fails
     message = await renderTemplate(notification, payment, client, settings);
   }
   

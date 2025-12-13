@@ -185,14 +185,6 @@ serve(async (req) => {
           .eq('id', userCompanyId)
           .single();
 
-        // ✅ NOVO: Verificar se IA está ativa
-        const { data: aiSettings } = await supabase
-          .from('ai_collection_settings')
-          .select('*')
-          .eq('company_id', userCompanyId)
-          .eq('is_active', true)
-          .maybeSingle();
-
         // Use company domain if configured, otherwise fallback
         const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
         const baseUrl = company?.domain 
@@ -203,35 +195,30 @@ serve(async (req) => {
         let finalMessage: string;
         let usedAI = false;
 
-        // ✅ Se IA ativa, usar ai-collection para gerar mensagem personalizada
-        if (aiSettings) {
-          console.log(`[resend_notification] AI is active for company ${userCompanyId}, generating personalized message...`);
-          
-          try {
-            const aiResponse = await supabaseService.functions.invoke('ai-collection', {
-              body: {
-                action: 'process_specific_payment',
-                company_id: userCompanyId,
-                payment_id: payment.id
-              }
-            });
-
-            console.log(`[resend_notification] AI response:`, JSON.stringify(aiResponse.data));
-
-            if (aiResponse.data?.generated_message) {
-              finalMessage = `${aiResponse.data.generated_message}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
-              usedAI = true;
-              console.log(`[resend_notification] AI message generated successfully`);
-            } else {
-              console.log(`[resend_notification] AI did not return message, falling back to template`);
-              finalMessage = buildTemplateMessage();
+        // 🤖 SEMPRE usar IA para gerar mensagens personalizadas (templates apenas como fallback de emergência)
+        console.log(`[resend_notification] 🤖 Generating AI message for company ${userCompanyId}...`);
+        
+        try {
+          const aiResponse = await supabaseService.functions.invoke('ai-collection', {
+            body: {
+              action: 'process_specific_payment',
+              company_id: userCompanyId,
+              payment_id: payment.id
             }
-          } catch (aiError) {
-            console.error(`[resend_notification] AI error, falling back to template:`, aiError);
+          });
+
+          console.log(`[resend_notification] AI response:`, JSON.stringify(aiResponse.data));
+
+          if (aiResponse.data?.generated_message) {
+            finalMessage = `${aiResponse.data.generated_message}\n\n🔗 Acesse seu boleto: ${paymentLink}`;
+            usedAI = true;
+            console.log(`[resend_notification] ✅ AI message generated successfully`);
+          } else {
+            console.log(`[resend_notification] ⚠️ AI did not return message, using fallback template`);
             finalMessage = buildTemplateMessage();
           }
-        } else {
-          console.log(`[resend_notification] AI not active, using template`);
+        } catch (aiError) {
+          console.error(`[resend_notification] ⚠️ AI error, using fallback template:`, aiError);
           finalMessage = buildTemplateMessage();
         }
 
