@@ -4,15 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Settings, MessageSquare, Plus, X, Clock, Play, Eye } from "lucide-react";
+import { Settings, Plus, X, Clock, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface NotificationSettings {
   id: string;
@@ -40,30 +37,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
   const [newPreDay, setNewPreDay] = useState('');
   const [newPostDay, setNewPostDay] = useState('');
   const [triggering, setTriggering] = useState(false);
-  const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config');
   const { toast } = useToast();
-
-  // Preview helper function
-  const renderPreview = (template: string) => {
-    const sampleData = {
-      cliente: 'João Silva',
-      valor: 'R$ 150,00',
-      dias: '3',
-      vencimento: '15/12/2025',
-      link_pagamento: 'https://exemplo.com/pagar/abc123',
-      empresa: 'Sua Empresa'
-    };
-    
-    return template
-      .replace(/\{\{cliente\}\}/g, sampleData.cliente)
-      .replace(/\{\{valor\}\}/g, sampleData.valor)
-      .replace(/\{\{dias\}\}/g, sampleData.dias)
-      .replace(/\{\{vencimento\}\}/g, sampleData.vencimento)
-      .replace(/\{\{link_pagamento\}\}/g, sampleData.link_pagamento)
-      .replace(/\{\{empresa\}\}/g, sampleData.empresa);
-  };
-
-  // Sync settings when modal opens
   React.useEffect(() => {
     console.log('🔄 Sincronizando configurações:', settings);
     setLocalSettings(settings);
@@ -390,132 +364,6 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Templates de Mensagem
-              </CardTitle>
-              <CardDescription>
-                Personalize as mensagens que serão enviadas aos clientes. Use *texto* para negrito no WhatsApp.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'config' | 'preview')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="config" className="flex items-center gap-2">
-                    <Settings className="h-4 w-4" />
-                    Editar
-                  </TabsTrigger>
-                  <TabsTrigger value="preview" className="flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Preview
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="config" className="space-y-6 mt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="template_pre_due">📋 Mensagem antes do vencimento</Label>
-                    <Textarea
-                      id="template_pre_due"
-                      value={localSettings.template_pre_due}
-                      onChange={(e) => setLocalSettings({ ...localSettings, template_pre_due: e.target.value })}
-                      rows={6}
-                      className="font-mono text-sm"
-                    />
-                    <div className="flex flex-wrap gap-1">
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{cliente}}' })}>{"{{cliente}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{valor}}' })}>{"{{valor}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{dias}}' })}>{"{{dias}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{vencimento}}' })}>{"{{vencimento}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{link_pagamento}}' })}>{"{{link_pagamento}}"}</Badge>
-                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/20 border-green-500 text-green-600" onClick={() => setLocalSettings({ ...localSettings, template_pre_due: localSettings.template_pre_due + '{{empresa}}' })}>{"{{empresa}}"}</Badge>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label htmlFor="template_on_due">⚠️ Mensagem no vencimento</Label>
-                    <Textarea
-                      id="template_on_due"
-                      value={localSettings.template_on_due}
-                      onChange={(e) => setLocalSettings({ ...localSettings, template_on_due: e.target.value })}
-                      rows={6}
-                      className="font-mono text-sm"
-                    />
-                    <div className="flex flex-wrap gap-1">
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{cliente}}' })}>{"{{cliente}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{valor}}' })}>{"{{valor}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{vencimento}}' })}>{"{{vencimento}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{link_pagamento}}' })}>{"{{link_pagamento}}"}</Badge>
-                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/20 border-green-500 text-green-600" onClick={() => setLocalSettings({ ...localSettings, template_on_due: localSettings.template_on_due + '{{empresa}}' })}>{"{{empresa}}"}</Badge>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label htmlFor="template_post_due">🔴 Mensagem após vencimento</Label>
-                    <Textarea
-                      id="template_post_due"
-                      value={localSettings.template_post_due}
-                      onChange={(e) => setLocalSettings({ ...localSettings, template_post_due: e.target.value })}
-                      rows={6}
-                      className="font-mono text-sm"
-                    />
-                    <div className="flex flex-wrap gap-1">
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{cliente}}' })}>{"{{cliente}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{valor}}' })}>{"{{valor}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{dias}}' })}>{"{{dias}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{vencimento}}' })}>{"{{vencimento}}"}</Badge>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{link_pagamento}}' })}>{"{{link_pagamento}}"}</Badge>
-                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/20 border-green-500 text-green-600" onClick={() => setLocalSettings({ ...localSettings, template_post_due: localSettings.template_post_due + '{{empresa}}' })}>{"{{empresa}}"}</Badge>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="preview" className="space-y-6 mt-4">
-                  <div className="grid gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        📋 Preview: Antes do Vencimento
-                      </Label>
-                      <div className="bg-[#dcf8c6] rounded-lg p-3 text-sm whitespace-pre-wrap shadow-sm border border-green-200 max-w-md">
-                        {renderPreview(localSettings.template_pre_due)}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        ⚠️ Preview: No Vencimento
-                      </Label>
-                      <div className="bg-[#dcf8c6] rounded-lg p-3 text-sm whitespace-pre-wrap shadow-sm border border-green-200 max-w-md">
-                        {renderPreview(localSettings.template_on_due)}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        🔴 Preview: Após Vencimento
-                      </Label>
-                      <div className="bg-[#dcf8c6] rounded-lg p-3 text-sm whitespace-pre-wrap shadow-sm border border-green-200 max-w-md">
-                        {renderPreview(localSettings.template_post_due)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-xs text-muted-foreground">
-                      💡 <strong>Dica:</strong> Use *texto* para negrito e _texto_ para itálico no WhatsApp.
-                      O preview mostra como a mensagem ficará com dados de exemplo.
-                    </p>
-                  </div>
-                </TabsContent>
-              </Tabs>
             </CardContent>
           </Card>
 
