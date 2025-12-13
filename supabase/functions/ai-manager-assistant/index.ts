@@ -37,6 +37,149 @@ serve(async (req) => {
     
     console.log('Processando comando do gestor:', { company_id, message, manager_phone });
 
+    // ====== VERIFICAR SE É UMA CONFIRMAÇÃO DE COBRANÇA PENDENTE ======
+    const isConfirmation = /^(sim|confirma|confirmo|vai|ok|pode|pode enviar|envia|manda|s|yes|positivo)$/i.test(message.trim());
+    const isNegation = /^(n[aã]o|cancela|cancelar|n|nope|negativo)$/i.test(message.trim());
+    
+    if (isConfirmation || isNegation) {
+      // Buscar confirmação pendente mais recente
+      const { data: pendingConfirmation } = await supabase
+        .from('scheduled_reminders')
+        .select('*')
+        .eq('company_id', company_id)
+        .eq('manager_phone', manager_phone)
+        .eq('action_type', 'pending_confirmation')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (pendingConfirmation) {
+        const metadata = pendingConfirmation.metadata as any;
+        
+        if (isConfirmation) {
+          console.log('Confirmação recebida para cobrança:', metadata);
+          
+          // Marcar como processada
+          await supabase
+            .from('scheduled_reminders')
+            .update({ status: 'completed', sent_at: new Date().toISOString() })
+            .eq('id', pendingConfirmation.id);
+          
+          // Executar a cobrança diretamente
+          const collectionResult = await supabase.functions.invoke('ai-collection', {
+            body: {
+              action: 'process_specific_payment',
+              company_id,
+              payment_id: metadata.payment_id,
+              custom_tone: metadata.tone
+            }
+          });
+          
+          console.log('Resultado da cobrança confirmada:', collectionResult);
+          
+          let responseMessage = '';
+          
+          if (collectionResult.error || !collectionResult.data?.success) {
+            const errorMsg = collectionResult.error?.message || collectionResult.data?.error || 'Erro desconhecido';
+            responseMessage = `❌ Erro ao enviar cobrança para ${metadata.client_name}: ${errorMsg}`;
+          } else {
+            // Enviar mensagem via WhatsApp para o cliente
+            const generatedMessage = collectionResult.data.generated_message;
+            const clientPhone = collectionResult.data.client_phone;
+            const clientName = collectionResult.data.client_name || metadata.client_name;
+            
+            const { data: whatsappSettings } = await supabase
+              .from('whatsapp_settings')
+              .select('*')
+              .eq('company_id', company_id)
+              .eq('is_active', true)
+              .single();
+            
+            if (whatsappSettings && clientPhone) {
+              const { data: companyDomain } = await supabase
+                .from('companies')
+                .select('domain')
+                .eq('id', company_id)
+                .single();
+              
+              const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+              const baseUrl = companyDomain?.domain 
+                ? `https://${companyDomain.domain.replace(/^https?:\/\//, '')}` 
+                : defaultAppUrl;
+              const paymentLink = `${baseUrl}/checkout/${metadata.payment_id}`;
+              
+              const fullMessage = `${generatedMessage}\n\n🔗 Acesse aqui: ${paymentLink}`;
+              
+              const sendResult = await supabase.functions.invoke('whatsapp-evolution', {
+                body: {
+                  action: 'sendText',
+                  instance_url: whatsappSettings.instance_url,
+                  api_token: whatsappSettings.api_token,
+                  instance_name: whatsappSettings.instance_name,
+                  number: clientPhone,
+                  message: fullMessage,
+                  company_id,
+                  linkPreview: false
+                }
+              });
+              
+              if (sendResult.data?.success) {
+                responseMessage = `✅ Cobrança enviada com sucesso para ${clientName}!`;
+              } else {
+                responseMessage = `⚠️ Mensagem gerada mas erro ao enviar: ${sendResult.error?.message || 'Falha no envio'}`;
+              }
+            } else {
+              responseMessage = '⚠️ Mensagem gerada mas WhatsApp não configurado ou cliente sem telefone';
+            }
+          }
+          
+          // Enviar resposta ao gestor
+          await supabase.functions.invoke('whatsapp-evolution', {
+            body: {
+              action: 'sendText',
+              instance_url,
+              api_token,
+              instance_name,
+              number: manager_phone,
+              message: responseMessage,
+              company_id
+            }
+          });
+          
+          return new Response(
+            JSON.stringify({ success: true, response: responseMessage }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          // Cancelar confirmação
+          await supabase
+            .from('scheduled_reminders')
+            .update({ status: 'cancelled' })
+            .eq('id', pendingConfirmation.id);
+          
+          const cancelMessage = `❌ Cobrança para ${metadata.client_name} cancelada.`;
+          
+          await supabase.functions.invoke('whatsapp-evolution', {
+            body: {
+              action: 'sendText',
+              instance_url,
+              api_token,
+              instance_name,
+              number: manager_phone,
+              message: cancelMessage,
+              company_id
+            }
+          });
+          
+          return new Response(
+            JSON.stringify({ success: true, response: cancelMessage }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     // Buscar dados da empresa
     const { data: companyInfo } = await supabase
       .from('companies')
@@ -201,17 +344,29 @@ REGRAS IMPORTANTES:
 - Exemplo ERRADO: "\\frac{20}{40} \\times 100 = 50%"
 - VOCÊ PRECISA SEMPRE RESPONDER, NUNCA FIQUE SILENCIOSO
 
+FLUXO DE COBRANÇA COM CONFIRMAÇÃO:
+1. Quando o gestor pedir para cobrar um cliente, PRIMEIRO identifique o cliente e mostre os dados
+2. Use o comando AGUARDANDO_CONFIRMACAO para pedir confirmação antes de enviar
+3. Só execute EXECUTAR_COBRANCA quando o gestor confirmar com "sim", "confirma", "vai", "ok", "pode enviar", etc.
+
 COMANDOS ESPECIAIS:
-- Para forçar cobrança IMEDIATA: Use "EXECUTAR_COBRANCA:ID:TOM" onde:
+- Para SOLICITAR CONFIRMAÇÃO antes de cobrar: Use "AGUARDANDO_CONFIRMACAO:ID:NOME_CLIENTE:VALOR:TOM"
+  * Isso vai mostrar os dados do cliente e perguntar "Confirma o envio?"
+  * Exemplo: AGUARDANDO_CONFIRMACAO:550e8400-e29b-41d4-a716-446655440000:João Silva:150.00:agressivo
+  * Se não houver tom específico, omita: AGUARDANDO_CONFIRMACAO:550e8400-e29b-41d4-a716-446655440000:João Silva:150.00
+
+- Para forçar cobrança IMEDIATA (após confirmação): Use "EXECUTAR_COBRANCA:ID:TOM" onde:
   * ID = o ID REAL do pagamento (UUID) listado acima
   * TOM = tom solicitado pelo gestor (agressivo, amigavel, formal, urgente, firme, muito_agressivo) - OPCIONAL
-  * Se o gestor NÃO especificar tom: "EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  * Se o gestor ESPECIFICAR tom (ex: "use tom agressivo"): "EXECUTAR_COBRANCA:a1b2c3d4-e5f6-7890-abcd-ef1234567890:agressivo"
   * ATENÇÃO: SEMPRE use o ID REAL do pagamento, NUNCA use "ID_DO_PAGAMENTO" como placeholder
+
 - Para gerar relatório: "EXECUTAR_RELATORIO"
 - Para agendar lembrete: "AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM" (exemplo: "AGENDAR_LEMBRETE:2025-10-09 09:00:Atualizar base de dados")
 - Para agendar cobrança: "AGENDAR_COBRANCA:YYYY-MM-DD HH:MM:ID_REAL_DO_PAGAMENTO" - use sempre o ID real do pagamento, não o placeholder
 - Para outras perguntas, responda normalmente com TODAS as informações disponíveis em linguagem natural
+
+REGRA DE CONFIRMAÇÃO:
+- Se o gestor disser "sim", "confirma", "vai", "ok", "pode enviar", "envia", "manda", "confirmo" E houver uma cobrança pendente de confirmação no contexto recente, execute EXECUTAR_COBRANCA diretamente
 
 IMPORTANTE SOBRE DATAS:
 - A data/hora atual no Brasil é: ${currentDateTime}
@@ -231,23 +386,29 @@ Analise a solicitação e responda adequadamente:
    AGENDAR_LEMBRETE:YYYY-MM-DD HH:MM:MENSAGEM
    Exemplo: AGENDAR_LEMBRETE:2025-10-09 14:10:Atualizar a base
 
-2. Se for solicitação para DISPARAR/FORÇAR COBRANÇA IMEDIATA:
-   - Identifique qual cobrança o gestor está se referindo (pendente, em atraso, cliente específico, etc.)
-   - Use o ID REAL do pagamento listado no contexto acima
-   - NUNCA use placeholders como "ID_DO_PAGAMENTO"
-   - Se o gestor ESPECIFICAR UM TOM (ex: "use tom agressivo", "seja agressivo", "tom firme"):
-     * Use formato: EXECUTAR_COBRANCA:UUID:TOM
-     * Exemplo: EXECUTAR_COBRANCA:550e8400-e29b-41d4-a716-446655440000:agressivo
-   - Se o gestor NÃO especificar tom:
-     * Use formato simples: EXECUTAR_COBRANCA:UUID
-     * Exemplo: EXECUTAR_COBRANCA:550e8400-e29b-41d4-a716-446655440000
+2. Se for solicitação para DISPARAR/FORÇAR COBRANÇA:
+   a) PRIMEIRO, identifique o cliente e mostre os dados, depois PEÇA CONFIRMAÇÃO usando:
+      AGUARDANDO_CONFIRMACAO:UUID_DO_PAGAMENTO:NOME_DO_CLIENTE:VALOR:TOM_OPCIONAL
+      Exemplo: AGUARDANDO_CONFIRMACAO:550e8400-e29b-41d4-a716-446655440000:João Silva:150.00:agressivo
+      
+   b) EXCEÇÃO: Se o gestor já confirmou anteriormente (disse "sim", "confirma", "vai", "ok", "pode enviar", "envia", "manda", "confirmo", "pode"),
+      então use EXECUTAR_COBRANCA diretamente:
+      EXECUTAR_COBRANCA:UUID:TOM_OPCIONAL
+      
    - Tons disponíveis: agressivo, muito_agressivo, amigavel, formal, urgente, firme
 
 3. Se for uma solicitação de gerar relatório, use: EXECUTAR_RELATORIO
 
 4. Se for pergunta sobre clientes, pagamentos ou finanças da empresa, responda com os dados fornecidos
 
-CRÍTICO: Quando usar comandos como EXECUTAR_COBRANCA ou AGENDAR_COBRANCA, SEMPRE extraia e use o ID REAL do pagamento do contexto fornecido. NUNCA deixe "ID_DO_PAGAMENTO" como placeholder.
+5. Se a mensagem for uma CONFIRMAÇÃO (como "sim", "confirma", "vai", "ok", "pode enviar", "envia", "manda", "confirmo", "pode"):
+   - Verifique se há alguma cobrança que foi identificada recentemente
+   - Se houver, execute EXECUTAR_COBRANCA com o ID do pagamento identificado anteriormente
+
+CRÍTICO: 
+- Quando usar comandos como EXECUTAR_COBRANCA, AGENDAR_COBRANCA ou AGUARDANDO_CONFIRMACAO, SEMPRE extraia e use o ID REAL do pagamento do contexto fornecido
+- NUNCA deixe "ID_DO_PAGAMENTO" como placeholder
+- SEMPRE peça confirmação antes de enviar uma cobrança, a menos que o gestor já tenha confirmado
 
 Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atual é: ${currentDateTime}`;
 
@@ -412,6 +573,47 @@ Importante: Para lembretes, SEMPRE use o horário de Brasília e a data/hora atu
         detectedTone = tone;
         console.log('🎯 Tom detectado na mensagem do gestor:', detectedTone);
         break;
+      }
+    }
+    
+    // ====== DETECTAR COMANDO DE CONFIRMAÇÃO PENDENTE ======
+    const confirmationMatch = aiResponse.match(/AGUARDANDO_CONFIRMACAO:([a-f0-9-]+):([^:]+):([0-9.]+)(?::([^\s]+))?/);
+    if (confirmationMatch) {
+      const [, paymentId, clientName, amount, tone] = confirmationMatch;
+      console.log('Solicitando confirmação para cobrança:', { paymentId, clientName, amount, tone });
+      
+      // Salvar estado de confirmação pendente na tabela scheduled_reminders como metadata
+      try {
+        await supabase
+          .from('scheduled_reminders')
+          .insert({
+            company_id,
+            manager_phone,
+            reminder_text: `Confirmação pendente: ${clientName}`,
+            scheduled_for: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // Expira em 30 min
+            action_type: 'pending_confirmation',
+            status: 'pending',
+            metadata: { 
+              payment_id: paymentId, 
+              client_name: clientName, 
+              amount: parseFloat(amount),
+              tone: tone || detectedTone || null
+            }
+          });
+        
+        // Formatar mensagem de confirmação
+        const toneText = tone || detectedTone ? ` (tom: ${tone || detectedTone})` : '';
+        const confirmationMessage = `📋 *Confirma o envio da cobrança?*
+
+👤 Cliente: ${clientName}
+💰 Valor: R$ ${parseFloat(amount).toFixed(2)}${toneText}
+
+Responda *SIM* para confirmar ou *NÃO* para cancelar.`;
+        
+        finalResponse = aiResponse.replace(/AGUARDANDO_CONFIRMACAO:[^\n]+/, confirmationMessage);
+      } catch (error) {
+        console.error('Erro ao salvar confirmação pendente:', error);
+        finalResponse = aiResponse.replace(/AGUARDANDO_CONFIRMACAO:[^\n]+/, '❌ Erro ao processar solicitação de cobrança.');
       }
     }
     
