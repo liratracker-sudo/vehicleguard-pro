@@ -13,8 +13,7 @@ import {
   PiggyBank,
   BarChart3,
   Download,
-  Filter,
-  Plus
+  Filter
 } from "lucide-react"
 import {
   Table,
@@ -66,16 +65,10 @@ const FinancialPage = () => {
               Fluxo de caixa, contas e análise financeira completa
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar
-            </Button>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Transação
-            </Button>
-          </div>
+          <Button variant="outline">
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
         </div>
 
         {/* Financial Overview */}
