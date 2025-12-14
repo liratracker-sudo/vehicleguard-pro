@@ -1,9 +1,119 @@
+import { useState, useRef } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Download, FileText, BarChart3, Users } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Download, FileText, BarChart3, Users, Loader2, FileSpreadsheet } from "lucide-react"
+import { useClients } from "@/hooks/useClients"
+import { usePayments } from "@/hooks/usePayments"
+import { ClientsReport } from "@/components/reports/ClientsReport"
+import { DelinquencyReport } from "@/components/reports/DelinquencyReport"
+import { toast } from "sonner"
+import html2pdf from "html2pdf.js"
+import { differenceInDays, parseISO } from "date-fns"
 
 const ReportsPage = () => {
+  const { clients, loading: loadingClients } = useClients()
+  const { payments, loading: loadingPayments } = usePayments()
+  
+  const [selectedReport, setSelectedReport] = useState<'clients' | 'financial' | 'delinquency' | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  
+  const clientsReportRef = useRef<HTMLDivElement>(null)
+  const delinquencyReportRef = useRef<HTMLDivElement>(null)
+
+  // Calculate overdue payments
+  const overduePayments = payments
+    .filter(p => p.status === 'pending' && p.due_date && new Date(p.due_date) < new Date())
+    .map(p => ({
+      id: p.id,
+      client_name: p.clients?.name || 'Cliente não identificado',
+      amount: p.amount,
+      due_date: p.due_date!,
+      days_overdue: differenceInDays(new Date(), parseISO(p.due_date!))
+    }))
+
+  const handleExportPDF = async (reportType: 'clients' | 'delinquency') => {
+    const ref = reportType === 'clients' ? clientsReportRef.current : delinquencyReportRef.current
+    if (!ref) return
+
+    setIsExporting(true)
+    try {
+      const opt = {
+        margin: 10,
+        filename: `relatorio-${reportType === 'clients' ? 'clientes' : 'inadimplencia'}-${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      }
+
+      await html2pdf().set(opt).from(ref).save()
+      toast.success('PDF exportado com sucesso!')
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error)
+      toast.error('Erro ao exportar PDF')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportExcel = () => {
+    setIsExporting(true)
+    try {
+      // Create CSV content
+      const headers = ['Data', 'Descrição', 'Cliente', 'Tipo', 'Valor', 'Status', 'Gateway']
+      const rows = payments.map(p => [
+        p.due_date || p.created_at?.split('T')[0] || '',
+        'Cobrança',
+        p.clients?.name || '-',
+        p.transaction_type === 'income' ? 'Receita' : 'Despesa',
+        p.amount.toFixed(2).replace('.', ','),
+        p.status === 'paid' ? 'Pago' : p.status === 'pending' ? 'Pendente' : p.status,
+        p.payment_gateway || '-'
+      ])
+
+      // Add totals
+      const totalReceived = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
+      const totalPending = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0)
+      
+      rows.push([])
+      rows.push(['', '', '', '', '', '', ''])
+      rows.push(['RESUMO', '', '', '', '', '', ''])
+      rows.push(['Total Recebido', '', '', '', totalReceived.toFixed(2).replace('.', ','), '', ''])
+      rows.push(['Total Pendente', '', '', '', totalPending.toFixed(2).replace('.', ','), '', ''])
+
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(';'))
+        .join('\n')
+
+      // Add BOM for Excel to recognize UTF-8
+      const BOM = '\uFEFF'
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `relatorio-financeiro-${new Date().toISOString().split('T')[0]}.csv`
+      link.click()
+      URL.revokeObjectURL(link.href)
+
+      toast.success('Excel exportado com sucesso!')
+    } catch (error) {
+      console.error('Erro ao exportar Excel:', error)
+      toast.error('Erro ao exportar Excel')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const getReportTitle = () => {
+    switch (selectedReport) {
+      case 'clients': return 'Relatório de Clientes'
+      case 'delinquency': return 'Relatório de Inadimplência'
+      default: return ''
+    }
+  }
+
+  const isLoading = loadingClients || loadingPayments
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -14,10 +124,6 @@ const ReportsPage = () => {
               Relatórios gerenciais e exportação de dados
             </p>
           </div>
-          <Button>
-            <Download className="w-4 h-4 mr-2" />
-            Gerar Relatório
-          </Button>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -32,9 +138,18 @@ const ReportsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
-                <Download className="w-4 h-4 mr-2" />
-                Baixar PDF
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setSelectedReport('clients')}
+                disabled={isLoading}
+              >
+                {loadingClients ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                Visualizar PDF
               </Button>
             </CardContent>
           </Card>
@@ -50,8 +165,17 @@ const ReportsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
-                <Download className="w-4 h-4 mr-2" />
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={handleExportExcel}
+                disabled={isLoading || isExporting}
+              >
+                {loadingPayments || isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                )}
                 Baixar Excel
               </Button>
             </CardContent>
@@ -64,18 +188,58 @@ const ReportsPage = () => {
                 Relatório de Inadimplência
               </CardTitle>
               <CardDescription>
-                Análise de inadimplentes e atrasos
+                Análise de inadimplentes e atrasos ({overduePayments.length} em atraso)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
-                <Download className="w-4 h-4 mr-2" />
-                Baixar PDF
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setSelectedReport('delinquency')}
+                disabled={isLoading}
+              >
+                {loadingPayments ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                Visualizar PDF
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Report Dialog */}
+      <Dialog open={selectedReport !== null && selectedReport !== 'financial'} onOpenChange={() => setSelectedReport(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{getReportTitle()}</span>
+              <Button 
+                onClick={() => handleExportPDF(selectedReport as 'clients' | 'delinquency')}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Exportar PDF
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="overflow-auto">
+            {selectedReport === 'clients' && (
+              <ClientsReport ref={clientsReportRef} clients={clients} />
+            )}
+            {selectedReport === 'delinquency' && (
+              <DelinquencyReport ref={delinquencyReportRef} overduePayments={overduePayments} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }
