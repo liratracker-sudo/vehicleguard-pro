@@ -17,8 +17,7 @@ import {
 import { useExpenses } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
 import { ExpenseFilters } from "@/components/expenses/ExpenseFilters";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatDateBR } from "@/lib/timezone";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -232,7 +231,7 @@ export default function Expenses() {
                         ) : "-"}
                       </TableCell>
                       <TableCell>
-                        {format(new Date(expense.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                        {formatDateBR(expense.due_date)}
                       </TableCell>
                       <TableCell className="font-semibold">
                         {Number(expense.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
