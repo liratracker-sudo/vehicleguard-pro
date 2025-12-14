@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -25,17 +26,45 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
 
   const form = useForm({
     defaultValues: {
-      description: expense?.description || "",
-      supplier_name: expense?.supplier_name || "",
-      amount: expense?.amount || 0,
-      due_date: expense?.due_date || new Date().toISOString().split('T')[0],
-      category_id: expense?.category_id || "",
-      bank_account_id: expense?.bank_account_id || "",
-      payment_method: expense?.payment_method || "",
-      recurrence_type: expense?.recurrence_type || "",
-      notes: expense?.notes || "",
+      description: "",
+      supplier_name: "",
+      amount: 0,
+      due_date: new Date().toISOString().split('T')[0],
+      category_id: "",
+      bank_account_id: "",
+      payment_method: "",
+      recurrence_type: "",
+      notes: "",
     },
   });
+
+  useEffect(() => {
+    if (expense) {
+      form.reset({
+        description: expense.description || "",
+        supplier_name: expense.supplier_name || "",
+        amount: expense.amount || 0,
+        due_date: expense.due_date || new Date().toISOString().split('T')[0],
+        category_id: expense.category_id || "",
+        bank_account_id: expense.bank_account_id || "",
+        payment_method: expense.payment_method || "",
+        recurrence_type: expense.recurrence_type || "",
+        notes: expense.notes || "",
+      });
+    } else {
+      form.reset({
+        description: "",
+        supplier_name: "",
+        amount: 0,
+        due_date: new Date().toISOString().split('T')[0],
+        category_id: "",
+        bank_account_id: "",
+        payment_method: "",
+        recurrence_type: "",
+        notes: "",
+      });
+    }
+  }, [expense, form]);
 
   const onSubmit = async (data: any) => {
     // Converter strings vazias para null em campos UUID opcionais
@@ -162,7 +191,7 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Categoria</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
@@ -189,7 +218,7 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Forma de Pagamento</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
@@ -215,7 +244,7 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Recorrência</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Não recorrente" />
