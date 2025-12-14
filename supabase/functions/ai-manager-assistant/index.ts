@@ -363,27 +363,15 @@ Suas capacidades:
 - Total a vencer (próx. 7 dias): R$ ${totalExpensesDueSoon.toFixed(2)} (${expensesDueSoon.length} contas)
 - Total pendente (todas): R$ ${totalExpensesPending.toFixed(2)} (${upcomingExpenses.length} contas)
 
-CONTAS A PAGAR - VENCIDAS:
+CONTAS VENCIDAS:
 ${overdueExpenseDetails.length > 0 
-  ? overdueExpenseDetails.map((e: any) => `${e.index}. ${e.description}
-   - Fornecedor: ${e.supplier}
-   - Categoria: ${e.category}
-   - Valor: R$ ${e.amount.toFixed(2)}
-   - Vencimento: ${e.due_date}
-   - Dias em atraso: ${e.days_overdue}
-   - ID: ${e.id}`).join('\n\n')
-  : 'Nenhuma conta a pagar vencida'}
+  ? overdueExpenseDetails.map((e: any) => `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | Venc: ${e.due_date.split('-').slice(1).reverse().join('/')} | ${e.days_overdue}d atraso [ID:${e.id}]`).join('\n')
+  : 'Nenhuma'}
 
-CONTAS A PAGAR - PRÓXIMAS (7 dias):
+PRÓXIMOS 7 DIAS:
 ${upcomingExpenseDetails.length > 0 
-  ? upcomingExpenseDetails.map((e: any) => `${e.index}. ${e.description}
-   - Fornecedor: ${e.supplier}
-   - Categoria: ${e.category}
-   - Valor: R$ ${e.amount.toFixed(2)}
-   - Vencimento: ${e.due_date}
-   - Dias até vencer: ${e.days_until_due}
-   - ID: ${e.id}`).join('\n\n')
-  : 'Nenhuma conta a pagar nos próximos 7 dias'}
+  ? upcomingExpenseDetails.map((e: any) => `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | Venc: ${e.due_date.split('-').slice(1).reverse().join('/')} | ${e.days_until_due}d [ID:${e.id}]`).join('\n')
+  : 'Nenhuma'}
 
 PAGAMENTOS RECEBIDOS HOJE (${today}):
 ${todayPayments.length > 0 
