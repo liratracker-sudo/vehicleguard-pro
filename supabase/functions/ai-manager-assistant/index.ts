@@ -365,12 +365,22 @@ Suas capacidades:
 
 CONTAS VENCIDAS:
 ${overdueExpenseDetails.length > 0 
-  ? overdueExpenseDetails.map((e: any) => `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | Venc: ${e.due_date.split('-').slice(1).reverse().join('/')} | ${e.days_overdue}d atraso [ID:${e.id}]`).join('\n')
+  ? overdueExpenseDetails.map((e: any) => {
+      const statusDia = e.days_overdue === 0 ? 'venceu hoje' : 
+                        e.days_overdue === 1 ? '1d atraso' : 
+                        `${e.days_overdue}d atraso`;
+      return `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | ${e.due_date.split('-').slice(1).reverse().join('/')} | ${statusDia} [ID:${e.id}]`;
+    }).join('\n')
   : 'Nenhuma'}
 
-PRÓXIMOS 7 DIAS:
+A VENCER (7 dias):
 ${upcomingExpenseDetails.length > 0 
-  ? upcomingExpenseDetails.map((e: any) => `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | Venc: ${e.due_date.split('-').slice(1).reverse().join('/')} | ${e.days_until_due}d [ID:${e.id}]`).join('\n')
+  ? upcomingExpenseDetails.map((e: any) => {
+      const statusDia = e.days_until_due === 0 ? 'vence hoje' :
+                        e.days_until_due === 1 ? 'vence amanhã' :
+                        `vence em ${e.days_until_due}d`;
+      return `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | ${e.due_date.split('-').slice(1).reverse().join('/')} | ${statusDia} [ID:${e.id}]`;
+    }).join('\n')
   : 'Nenhuma'}
 
 PAGAMENTOS RECEBIDOS HOJE (${today}):
@@ -417,6 +427,13 @@ REGRAS IMPORTANTES:
 - Exemplo CORRETO: "A taxa de inadimplência é 50% (20 em atraso de 40 clientes total)"
 - Exemplo ERRADO: "\\frac{20}{40} \\times 100 = 50%"
 - VOCÊ PRECISA SEMPRE RESPONDER, NUNCA FIQUE SILENCIOSO
+
+FORMATAÇÃO DE CONTAS A PAGAR:
+- SEMPRE responda contas a pagar em formato COMPACTO de UMA LINHA por conta
+- Use o formato: "1. DESCRIÇÃO (FORNECEDOR) - R$ VALOR | DD/MM | STATUS"
+- NUNCA expanda para múltiplas linhas com "Fornecedor:", "Valor:", etc.
+- NUNCA mostre o ID das despesas na resposta ao usuário
+- Mantenha a resposta limpa e objetiva
 
 FLUXO DE COBRANÇA COM CONFIRMAÇÃO:
 1. Quando o gestor pedir para cobrar um cliente, PRIMEIRO identifique o cliente e mostre os dados
