@@ -1,9 +1,12 @@
+import { useState, useRef } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDateBR } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   DollarSign, 
   TrendingUp, 
@@ -13,7 +16,9 @@ import {
   PiggyBank,
   BarChart3,
   Download,
-  Filter
+  Filter,
+  FileText,
+  Loader2
 } from "lucide-react"
 import {
   Table,
@@ -25,8 +30,24 @@ import {
 } from "@/components/ui/table"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
 import { useFinancialData } from "@/hooks/useFinancialData"
+import { useReportData } from "@/hooks/useReportData"
+import { DREReport } from "@/components/reports/DREReport"
+import { CashFlowReport } from "@/components/reports/CashFlowReport"
+import { BalanceSheetReport } from "@/components/reports/BalanceSheetReport"
+import { MonthlyReport } from "@/components/reports/MonthlyReport"
+import { format, subMonths } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { toast } from "sonner"
+import html2pdf from "html2pdf.js"
+
+type ReportType = 'dre' | 'cashflow' | 'balance' | 'monthly' | null
 
 const FinancialPage = () => {
+  const [selectedReport, setSelectedReport] = useState<ReportType>(null)
+  const [selectedMonth, setSelectedMonth] = useState(new Date())
+  const [isExporting, setIsExporting] = useState(false)
+  const reportRef = useRef<HTMLDivElement>(null)
+
   const { 
     summary, 
     accountsByGateway, 
@@ -36,12 +57,106 @@ const FinancialPage = () => {
     isLoading 
   } = useFinancialData()
 
+  const { data: reportData, isLoading: isLoadingReport } = useReportData(selectedMonth)
+
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const date = subMonths(new Date(), i)
+    return {
+      value: format(date, 'yyyy-MM'),
+      label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
+      date
+    }
+  })
+
+  const handleMonthChange = (value: string) => {
+    const month = months.find(m => m.value === value)
+    if (month) {
+      setSelectedMonth(month.date)
+    }
+  }
+
+  const handleExportPDF = async () => {
+    if (!reportRef.current) return
+
+    setIsExporting(true)
+    try {
+      const reportTitles: Record<string, string> = {
+        dre: 'DRE',
+        cashflow: 'Fluxo_de_Caixa',
+        balance: 'Balanco_Patrimonial',
+        monthly: 'Relatorio_Mensal'
+      }
+
+      const filename = `${reportTitles[selectedReport!]}_${format(selectedMonth, 'yyyy-MM')}.pdf`
+
+      await html2pdf()
+        .set({
+          margin: 10,
+          filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        })
+        .from(reportRef.current)
+        .save()
+
+      toast.success('PDF exportado com sucesso!')
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+      toast.error('Erro ao exportar PDF')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const openReport = (type: ReportType) => {
+    setSelectedReport(type)
+  }
+
   const getTransactionBadge = (type: string) => {
     return type === 'receita' ? (
       <Badge className="bg-success/20 text-success border-success/30">Receita</Badge>
     ) : (
       <Badge className="bg-destructive/20 text-destructive border-destructive/30">Despesa</Badge>
     )
+  }
+
+  const renderReportContent = () => {
+    if (isLoadingReport || !reportData) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      )
+    }
+
+    switch (selectedReport) {
+      case 'dre':
+        return <DREReport ref={reportRef} data={reportData.dre} selectedDate={selectedMonth} />
+      case 'cashflow':
+        return <CashFlowReport ref={reportRef} data={reportData.cashFlow} selectedDate={selectedMonth} />
+      case 'balance':
+        return <BalanceSheetReport ref={reportRef} data={reportData.balanceSheet} selectedDate={selectedMonth} />
+      case 'monthly':
+        return <MonthlyReport ref={reportRef} data={reportData.monthlyReport} selectedDate={selectedMonth} />
+      default:
+        return null
+    }
+  }
+
+  const getReportTitle = () => {
+    switch (selectedReport) {
+      case 'dre':
+        return 'Demonstrativo de Resultados (DRE)'
+      case 'cashflow':
+        return 'Fluxo de Caixa Detalhado'
+      case 'balance':
+        return 'Balanço Patrimonial'
+      case 'monthly':
+        return 'Relatório Mensal'
+      default:
+        return ''
+    }
   }
 
   if (isLoading) {
@@ -65,10 +180,6 @@ const FinancialPage = () => {
               Fluxo de caixa, contas e análise financeira completa
             </p>
           </div>
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
-          </Button>
         </div>
 
         {/* Financial Overview */}
@@ -285,17 +396,6 @@ const FinancialPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-4 mb-6">
-                  <Button variant="outline">
-                    <Filter className="w-4 h-4 mr-2" />
-                    Filtros
-                  </Button>
-                  <Button variant="outline">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Período
-                  </Button>
-                </div>
-
                 {transactions.length === 0 ? (
                   <div className="py-12 text-center">
                     <p className="text-muted-foreground">
@@ -342,59 +442,104 @@ const FinancialPage = () => {
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Relatórios Disponíveis</CardTitle>
-                  <CardDescription>
-                    Gere relatórios financeiros detalhados
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button variant="outline" className="w-full justify-start">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Demonstrativo de Resultados (DRE)
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    Fluxo de Caixa Detalhado
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <PiggyBank className="w-4 h-4 mr-2" />
-                    Balanço Patrimonial
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Relatório Mensal
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Configurações</CardTitle>
-                  <CardDescription>
-                    Configure integrações bancárias
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button variant="outline" className="w-full justify-start">
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Configurar Open Banking
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <DollarSign className="w-4 h-4 mr-2" />
-                    Sincronizar Contas
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Download className="w-4 h-4 mr-2" />
-                    Backup de Dados
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Relatórios Financeiros</CardTitle>
+                <CardDescription>
+                  Gere relatórios detalhados com exportação em PDF
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Button 
+                  variant="outline" 
+                  className="h-auto py-4 justify-start"
+                  onClick={() => openReport('dre')}
+                >
+                  <BarChart3 className="w-5 h-5 mr-3 text-primary" />
+                  <div className="text-left">
+                    <div className="font-medium">Demonstrativo de Resultados (DRE)</div>
+                    <div className="text-xs text-muted-foreground">Receitas, despesas e lucro</div>
+                  </div>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-auto py-4 justify-start"
+                  onClick={() => openReport('cashflow')}
+                >
+                  <TrendingUp className="w-5 h-5 mr-3 text-success" />
+                  <div className="text-left">
+                    <div className="font-medium">Fluxo de Caixa Detalhado</div>
+                    <div className="text-xs text-muted-foreground">Entradas e saídas por categoria</div>
+                  </div>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-auto py-4 justify-start"
+                  onClick={() => openReport('balance')}
+                >
+                  <PiggyBank className="w-5 h-5 mr-3 text-blue-500" />
+                  <div className="text-left">
+                    <div className="font-medium">Balanço Patrimonial</div>
+                    <div className="text-xs text-muted-foreground">Ativos, passivos e patrimônio</div>
+                  </div>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-auto py-4 justify-start"
+                  onClick={() => openReport('monthly')}
+                >
+                  <FileText className="w-5 h-5 mr-3 text-orange-500" />
+                  <div className="text-left">
+                    <div className="font-medium">Relatório Mensal</div>
+                    <div className="text-xs text-muted-foreground">Resumo e comparativo mensal</div>
+                  </div>
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Report Dialog */}
+        <Dialog open={selectedReport !== null} onOpenChange={() => setSelectedReport(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between">
+                <span>{getReportTitle()}</span>
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="flex items-center justify-between gap-4 py-4 border-b">
+              <Select 
+                value={format(selectedMonth, 'yyyy-MM')} 
+                onValueChange={handleMonthChange}
+              >
+                <SelectTrigger className="w-[240px]">
+                  <SelectValue placeholder="Selecione o período" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button onClick={handleExportPDF} disabled={isExporting || isLoadingReport}>
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Exportar PDF
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              {renderReportContent()}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   )
