@@ -373,7 +373,7 @@ ${overdueExpenseDetails.length > 0
     }).join('\n')
   : 'Nenhuma'}
 
-A VENCER (7 dias):
+A VENCER:
 ${upcomingExpenseDetails.length > 0 
   ? upcomingExpenseDetails.map((e: any) => {
       const statusDia = e.days_until_due === 0 ? 'vence hoje' :
