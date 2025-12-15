@@ -7,6 +7,7 @@ import { IntegrationsGrid } from "@/components/settings/IntegrationsGrid"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { LateFeeSettings } from "@/components/settings/LateFeeSettings"
+import { WhatsAppDiagnostic } from "@/components/settings/WhatsAppDiagnostic"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -61,6 +62,7 @@ const SettingsPage = () => {
           <TabsContent value="integrations" className="space-y-6">
             <PaymentGatewayConfig />
             <IntegrationsGrid />
+            <WhatsAppDiagnostic />
           </TabsContent>
         </Tabs>
       </div>

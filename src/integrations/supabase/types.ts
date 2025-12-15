@@ -2382,6 +2382,7 @@ export type Database = {
           message_type: string
           phone_number: string
           read_at: string | null
+          response_data: Json | null
           sent_at: string
           status: string
           template_name: string | null
@@ -2398,6 +2399,7 @@ export type Database = {
           message_type: string
           phone_number: string
           read_at?: string | null
+          response_data?: Json | null
           sent_at?: string
           status?: string
           template_name?: string | null
@@ -2414,6 +2416,7 @@ export type Database = {
           message_type?: string
           phone_number?: string
           read_at?: string | null
+          response_data?: Json | null
           sent_at?: string
           status?: string
           template_name?: string | null
