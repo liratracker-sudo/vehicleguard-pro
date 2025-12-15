@@ -7,10 +7,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const supabaseUrl = "https://mcdidffxwtnqhawqilln.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jZGlkZmZ4d3RucWhhd3FpbGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQ2ODEsImV4cCI6MjA3MTk5MDY4MX0.v2VSArebudz3nJsblgqlRJB4dOt7VQGTwSEO1M32waw";
+// Usar SERVICE_ROLE_KEY para bypass do RLS e garantir que logs sejam salvos
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || "https://mcdidffxwtnqhawqilln.supabase.co";
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseServiceKey) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY não configurada!');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey || '');
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -294,18 +299,41 @@ async function sendMessage(payload: any) {
     console.error(`Message send failed for ${phone_number}:`, errorMessage);
   }
 
-    // Log no banco de dados
+    // Log no banco de dados com try/catch para diagnóstico
     if (company_id) {
-      await supabase.from('whatsapp_logs').insert({
-        company_id,
-        client_id,
-        message_type: 'text',
-        phone_number: normalizedPhone,
-        message_content: message,
-        status: success ? 'sent' : 'failed',
-        external_message_id: result.key?.id || null,
-        error_message: success ? null : errorMessage
-      });
+      try {
+        const logData = {
+          company_id,
+          client_id,
+          message_type: 'text',
+          phone_number: normalizedPhone,
+          message_content: message,
+          status: success ? 'sent' : 'failed',
+          external_message_id: result.key?.id || null,
+          error_message: success ? null : errorMessage,
+          response_data: result
+        };
+        
+        console.log('Inserindo log de envio:', { 
+          phone: normalizedPhone, 
+          status: success ? 'sent' : 'failed',
+          external_message_id: result.key?.id 
+        });
+        
+        const { data: insertedLog, error: logError } = await supabase
+          .from('whatsapp_logs')
+          .insert(logData)
+          .select('id')
+          .single();
+        
+        if (logError) {
+          console.error('ERRO ao inserir log de WhatsApp:', logError);
+        } else {
+          console.log('Log de WhatsApp inserido com sucesso:', insertedLog?.id);
+        }
+      } catch (logInsertError) {
+        console.error('EXCEÇÃO ao inserir log de WhatsApp:', logInsertError);
+      }
     }
 
     return new Response(
