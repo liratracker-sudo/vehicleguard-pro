@@ -9,7 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { useWhatsAppConnection } from "@/contexts/WhatsAppContext"
-import { MessageCircle, RefreshCw, Phone, AlertCircle, CheckCircle, Settings, QrCode } from "lucide-react"
+import { MessageCircle, RefreshCw, Phone, AlertCircle, CheckCircle, Settings, QrCode, RotateCcw, Loader2, CircleDot, Check, X } from "lucide-react"
+
+type ReconnectStep = {
+  id: string
+  label: string
+  status: 'pending' | 'running' | 'success' | 'error'
+  error?: string
+}
 
 export function WhatsAppIntegration() {
   const { toast } = useToast()
@@ -29,6 +36,12 @@ export function WhatsAppIntegration() {
   const [qrCodeData, setQrCodeData] = useState<string | null>(null)
   const [loadingQR, setLoadingQR] = useState(false)
   const [clearingInstance, setClearingInstance] = useState(false)
+  
+  // Estado para reconexão limpa
+  const [showCleanReconnectDialog, setShowCleanReconnectDialog] = useState(false)
+  const [cleanReconnectSteps, setCleanReconnectSteps] = useState<ReconnectStep[]>([])
+  const [cleanReconnectRunning, setCleanReconnectRunning] = useState(false)
+  const [cleanReconnectQR, setCleanReconnectQR] = useState<string | null>(null)
 
   // Sincronizar com context global e com banco
   useEffect(() => {
@@ -341,6 +354,138 @@ export function WhatsAppIntegration() {
     }
   }
 
+  // Função de Reconexão Limpa
+  const handleCleanReconnect = async () => {
+    if (!config.instanceName) {
+      toast({
+        title: "Configuração incompleta",
+        description: "Preencha o nome da instância antes de reconectar",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const initialSteps: ReconnectStep[] = [
+      { id: 'clear', label: 'Limpando instância antiga', status: 'pending' },
+      { id: 'wait', label: 'Aguardando sincronização', status: 'pending' },
+      { id: 'create', label: 'Criando nova instância', status: 'pending' },
+      { id: 'qr', label: 'Gerando QR Code', status: 'pending' },
+    ]
+
+    setCleanReconnectSteps(initialSteps)
+    setCleanReconnectQR(null)
+    setShowCleanReconnectDialog(true)
+    setCleanReconnectRunning(true)
+
+    const updateStep = (stepId: string, status: ReconnectStep['status'], error?: string) => {
+      setCleanReconnectSteps(prev => prev.map(s => 
+        s.id === stepId ? { ...s, status, error } : s
+      ))
+    }
+
+    try {
+      // Step 1: Limpar instância antiga
+      updateStep('clear', 'running')
+      const clearResponse = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'clear_instance',
+          instance_name: config.instanceName,
+          company_id: companyId
+        }
+      })
+
+      if (clearResponse.error) {
+        throw new Error(`Erro ao limpar: ${clearResponse.error.message}`)
+      }
+      updateStep('clear', 'success')
+
+      // Step 2: Aguardar sincronização
+      updateStep('wait', 'running')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      updateStep('wait', 'success')
+
+      // Step 3 & 4: Criar nova instância e gerar QR Code
+      updateStep('create', 'running')
+      const qrResponse = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'get_qr_code',
+          instance_name: config.instanceName,
+          force_new: true,
+          company_id: companyId
+        }
+      })
+
+      if (qrResponse.error) {
+        throw new Error(`Erro ao criar instância: ${qrResponse.error.message}`)
+      }
+
+      updateStep('create', 'success')
+      updateStep('qr', 'running')
+
+      if (qrResponse.data?.success && qrResponse.data?.qrCode) {
+        setCleanReconnectQR(qrResponse.data.qrCode)
+        updateStep('qr', 'success')
+        
+        toast({
+          title: "Reconexão iniciada!",
+          description: "Escaneie o QR Code com o WhatsApp para completar.",
+        })
+      } else {
+        throw new Error(qrResponse.data?.error || 'Falha ao gerar QR Code')
+      }
+
+    } catch (error: any) {
+      console.error('Erro na reconexão limpa:', error)
+      
+      // Marcar etapa atual como erro
+      setCleanReconnectSteps(prev => {
+        const runningStep = prev.find(s => s.status === 'running')
+        if (runningStep) {
+          return prev.map(s => s.id === runningStep.id 
+            ? { ...s, status: 'error', error: error.message } 
+            : s
+          )
+        }
+        return prev
+      })
+
+      toast({
+        title: "Erro na reconexão",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setCleanReconnectRunning(false)
+    }
+  }
+
+  // Polling para verificar conexão durante reconexão limpa
+  useEffect(() => {
+    if (!showCleanReconnectDialog || connectionState.isConnected || !cleanReconnectQR) return
+
+    console.log('Iniciando polling durante reconexão limpa...')
+    
+    const checkInterval = setInterval(async () => {
+      await checkConnection()
+    }, 3000)
+
+    return () => clearInterval(checkInterval)
+  }, [showCleanReconnectDialog, connectionState.isConnected, cleanReconnectQR, checkConnection])
+
+  // Fechar dialog de reconexão limpa quando conectar
+  useEffect(() => {
+    if (connectionState.isConnected && showCleanReconnectDialog && cleanReconnectQR) {
+      console.log('WhatsApp conectado durante reconexão limpa!')
+      setShowCleanReconnectDialog(false)
+      setCleanReconnectQR(null)
+      refreshConnection()
+      toast({
+        title: "WhatsApp Reconectado!",
+        description: "A reconexão foi concluída com sucesso.",
+      })
+    }
+  }, [connectionState.isConnected, showCleanReconnectDialog, cleanReconnectQR, refreshConnection, toast])
+
   return (
     <div className="space-y-6">
       <Card>
@@ -372,6 +517,16 @@ export function WhatsAppIntegration() {
               <>
                 <Button onClick={handleClearInstance} disabled={clearingInstance} variant="destructive" size="sm">
                   {clearingInstance ? "Limpando..." : "Limpar Instância"}
+                </Button>
+                <Button 
+                  onClick={handleCleanReconnect} 
+                  disabled={cleanReconnectRunning} 
+                  variant="outline" 
+                  size="sm"
+                  className="border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  {cleanReconnectRunning ? "Reconectando..." : "Reconectar Limpo"}
                 </Button>
                 {!connectionState.isConnected && (
                   <Button onClick={() => handleShowQR(false)} disabled={loadingQR} variant="secondary">
@@ -469,6 +624,107 @@ export function WhatsAppIntegration() {
                     Nova Instância
                   </Button>
                 </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Reconexão Limpa */}
+      <Dialog open={showCleanReconnectDialog} onOpenChange={(open) => {
+        if (!cleanReconnectRunning) setShowCleanReconnectDialog(open)
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5" />
+              Reconexão Limpa do WhatsApp
+            </DialogTitle>
+            <DialogDescription>
+              Este processo limpa a sessão antiga e cria uma nova conexão do zero
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Progress Steps */}
+            <div className="space-y-3">
+              {cleanReconnectSteps.map((step) => (
+                <div 
+                  key={step.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    step.status === 'running' ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' :
+                    step.status === 'success' ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' :
+                    step.status === 'error' ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800' :
+                    'bg-muted/50 border-border'
+                  }`}
+                >
+                  <div className="flex-shrink-0">
+                    {step.status === 'pending' && (
+                      <CircleDot className="w-5 h-5 text-muted-foreground" />
+                    )}
+                    {step.status === 'running' && (
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                    )}
+                    {step.status === 'success' && (
+                      <Check className="w-5 h-5 text-green-600" />
+                    )}
+                    {step.status === 'error' && (
+                      <X className="w-5 h-5 text-red-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-sm font-medium ${
+                      step.status === 'running' ? 'text-blue-700 dark:text-blue-300' :
+                      step.status === 'success' ? 'text-green-700 dark:text-green-300' :
+                      step.status === 'error' ? 'text-red-700 dark:text-red-300' :
+                      'text-muted-foreground'
+                    }`}>
+                      {step.label}
+                    </p>
+                    {step.error && (
+                      <p className="text-xs text-red-600 mt-1">{step.error}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* QR Code após etapas concluídas */}
+            {cleanReconnectQR && (
+              <div className="flex flex-col items-center space-y-4 pt-4 border-t">
+                <div className="p-4 bg-white rounded-lg border shadow-sm">
+                  <img 
+                    src={cleanReconnectQR}
+                    alt="QR Code WhatsApp"
+                    className="w-48 h-48"
+                    onError={(e) => {
+                      console.error('Erro ao carregar QR Code:', cleanReconnectQR);
+                      e.currentTarget.src = '/placeholder.svg';
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-amber-600">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span className="text-sm font-medium">Aguardando leitura do QR Code...</span>
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium">Escaneie com o WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">
+                    Menu (⋮) → Dispositivos conectados → Conectar um dispositivo
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Botão de fechar se houver erro */}
+            {cleanReconnectSteps.some(s => s.status === 'error') && (
+              <div className="flex justify-center pt-2">
+                <Button 
+                  onClick={() => setShowCleanReconnectDialog(false)}
+                  variant="outline"
+                >
+                  Fechar
+                </Button>
               </div>
             )}
           </div>
