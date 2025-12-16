@@ -248,12 +248,19 @@ async function sendMessage(payload: any) {
 
   const evolutionApiUrl = `${instance_url}/message/sendText/${instance_name}`;
   
+  // Delay aleatório: 30s ± 5s (entre 25s e 35s) para evitar detecção de spam
+  const baseDelay = 30000;
+  const variation = 5000;
+  const randomDelay = baseDelay + Math.floor(Math.random() * (variation * 2 + 1)) - variation;
+
   const messageData = {
     number: normalizedPhone,
     text: message,
-    delay: 1000,
+    delay: randomDelay,
     linkPreview: linkPreview !== undefined ? linkPreview : true
   };
+  
+  console.log(`Delay configurado: ${randomDelay}ms (${(randomDelay/1000).toFixed(1)}s)`);
 
   console.log('Enviando para Evolution API:', {
     url: evolutionApiUrl,
