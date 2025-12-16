@@ -108,13 +108,12 @@ export function useDashboardStats() {
           .eq("status", "paid")
           .gte("paid_at", lastMonthStart.toISOString())
           .lt("paid_at", lastMonthEnd.toISOString()),
-        // Overdue payments
+        // Overdue payments - buscar pelo status 'overdue'
         supabase
           .from("payment_transactions")
           .select("amount")
           .eq("company_id", companyId)
-          .eq("status", "pending")
-          .lt("due_date", now.toISOString().split("T")[0]),
+          .eq("status", "overdue"),
         // Upcoming payments (next 7 days)
         supabase
           .from("payment_transactions")
@@ -123,12 +122,12 @@ export function useDashboardStats() {
           .eq("status", "pending")
           .gte("due_date", now.toISOString().split("T")[0])
           .lte("due_date", sevenDaysFromNow.toISOString().split("T")[0]),
-        // Total payments for default rate calculation
+        // Total payments for default rate calculation (inclui overdue)
         supabase
           .from("payment_transactions")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
-          .in("status", ["paid", "pending"]),
+          .in("status", ["paid", "pending", "overdue"]),
       ]);
 
       const activeClients = activeClientsResult.count || 0;
