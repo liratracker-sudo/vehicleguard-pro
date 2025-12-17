@@ -473,6 +473,102 @@ export function useContracts() {
     }
   }
 
+  const resendSignatureNotification = async (contractId: string) => {
+    try {
+      const contract = contracts.find(c => c.id === contractId)
+      if (!contract) {
+        throw new Error('Contrato não encontrado')
+      }
+
+      if (!contract.assinafy_document_id || !contract.document_url) {
+        throw new Error('Este contrato ainda não foi enviado para assinatura')
+      }
+
+      console.log('Reenviando notificação para contrato:', contractId)
+
+      // Buscar dados do cliente e empresa em paralelo
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuário não autenticado')
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!profile?.company_id) throw new Error('Perfil não encontrado')
+
+      const [clientResult, planResult, whatsappResult] = await Promise.all([
+        supabase
+          .from('clients')
+          .select('name, phone')
+          .eq('id', contract.client_id)
+          .single(),
+        supabase
+          .from('plans')
+          .select('name')
+          .eq('id', contract.plan_id)
+          .single(),
+        supabase
+          .from('whatsapp_settings')
+          .select('instance_url, instance_name, api_token, is_active, connection_status')
+          .eq('company_id', profile.company_id)
+          .eq('is_active', true)
+          .maybeSingle()
+      ])
+
+      const client = clientResult.data
+      const plan = planResult.data
+      const whatsappSettings = whatsappResult.data
+
+      if (!client) throw new Error('Cliente não encontrado')
+      if (!client.phone) throw new Error('Cliente não possui telefone cadastrado')
+
+      if (!whatsappSettings || whatsappSettings.connection_status !== 'connected') {
+        throw new Error('WhatsApp não está configurado ou conectado')
+      }
+
+      // Montar mensagem de lembrete
+      const message = `Olá ${client.name}! 📄\n\n` +
+        `Estamos reenviando o link do seu contrato que ainda aguarda assinatura.\n\n` +
+        `📋 *Plano:* ${plan?.name || 'Contratado'}\n` +
+        `💰 *Valor:* R$ ${contract.monthly_value.toFixed(2)}/mês\n\n` +
+        `🔗 *Acesse o link abaixo para assinar:*\n${contract.document_url}\n\n` +
+        `Em caso de dúvidas, entre em contato.`
+
+      // Enviar mensagem WhatsApp
+      const { error: whatsappError } = await supabase.functions.invoke('whatsapp-evolution', {
+        body: {
+          action: 'send_message',
+          instance_url: whatsappSettings.instance_url,
+          api_token: whatsappSettings.api_token,
+          instance_name: whatsappSettings.instance_name,
+          phone_number: client.phone,
+          message: message,
+          company_id: profile.company_id,
+          client_id: contract.client_id
+        }
+      })
+
+      if (whatsappError) throw whatsappError
+
+      console.log('✅ Notificação reenviada com sucesso')
+
+      toast({
+        title: "Notificação enviada",
+        description: `Lembrete de assinatura enviado para ${client.name}`
+      })
+    } catch (error: any) {
+      console.error('Erro ao reenviar notificação:', error)
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao reenviar notificação",
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
   const generateContractContent = (
     contract: Contract, 
     client: any, 
@@ -570,6 +666,7 @@ Contratada
     updateContract,
     deleteContract,
     sendForSignature,
-    syncContractStatus
+    syncContractStatus,
+    resendSignatureNotification
   };
 }
