@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye, FileSearch, RefreshCw } from "lucide-react"
+import { Plus, FileText, Download, Send, Search, Filter, MoreHorizontal, Edit, Trash, Eye, FileSearch, RefreshCw, MessageSquare } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -47,7 +47,8 @@ const ContractsPage = () => {
   const [showLogs, setShowLogs] = useState(false)
   const [selectedContractForLogs, setSelectedContractForLogs] = useState<string | undefined>()
   const [syncingStatus, setSyncingStatus] = useState<string | null>(null)
-  const { contracts, loading, deleteContract, sendForSignature, loadContracts } = useContracts()
+  const [resendingNotification, setResendingNotification] = useState<string | null>(null)
+  const { contracts, loading, deleteContract, sendForSignature, loadContracts, resendSignatureNotification } = useContracts()
 
   const clearClientFilter = () => {
     setSearchParams({})
@@ -202,6 +203,15 @@ const ContractsPage = () => {
       toast.error('Erro ao sincronizar status do documento')
     } finally {
       setSyncingStatus(null)
+    }
+  }
+
+  const handleResendNotification = async (contractId: string) => {
+    setResendingNotification(contractId)
+    try {
+      await resendSignatureNotification(contractId)
+    } finally {
+      setResendingNotification(null)
     }
   }
 
@@ -425,11 +435,21 @@ const ContractsPage = () => {
                                   {syncingStatus === contract.id ? 'Sincronizando...' : 'Sincronizar status'}
                                 </DropdownMenuItem>
                               )}
+                              {contract.assinafy_document_id && 
+                               (contract.signature_status === 'pending' || contract.signature_status === 'sent') && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleResendNotification(contract.id)}
+                                  disabled={resendingNotification === contract.id}
+                                >
+                                  <MessageSquare className={`mr-2 h-4 w-4 ${resendingNotification === contract.id ? 'animate-pulse' : ''}`} />
+                                  {resendingNotification === contract.id ? 'Enviando...' : 'Reenviar notificação'}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleEdit(contract.id)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Editar
                               </DropdownMenuItem>
-                              {(contract.signature_status === 'pending' || contract.signature_status === 'cancelled') && (
+                              {(contract.signature_status === 'pending' || contract.signature_status === 'cancelled') && !contract.assinafy_document_id && (
                                 <DropdownMenuItem onClick={() => sendForSignature(contract.id)}>
                                   <Send className="mr-2 h-4 w-4" />
                                   Enviar para assinatura
