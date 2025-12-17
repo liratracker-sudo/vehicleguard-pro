@@ -12,129 +12,59 @@ import {
   Building2,
   Shield,
   UserPlus,
-  Receipt
+  Receipt,
+  LogOut,
+  ChevronRight
 } from "lucide-react"
 
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
-  useSidebar,
+  SidebarFooter,
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
 import { supabase } from "@/integrations/supabase/client"
 import { useClientRegistrations } from "@/hooks/useClientRegistrations"
 
 const navigation = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-    group: "principal"
-  },
-  {
-    title: "Clientes",
-    url: "/clients",
-    icon: Users,
-    group: "gestao"
-  },
-  {
-    title: "Cadastros Pendentes",
-    url: "/registrations",
-    icon: UserPlus,
-    group: "gestao"
-  },
-  {
-    title: "Planos",
-    url: "/plans",
-    icon: CreditCard,
-    group: "gestao"
-  },
-  {
-    title: "Contratos",
-    url: "/contracts",
-    icon: FileText,
-    group: "gestao"
-  },
-  {
-    title: "Veículos",
-    url: "/vehicles",
-    icon: Car,
-    group: "gestao"
-  },
-  {
-    title: "Cobrança",
-    url: "/billing",
-    icon: DollarSign,
-    group: "financeiro"
-  },
-  {
-    title: "Financeiro",
-    url: "/financial",
-    icon: BarChart3,
-    group: "financeiro"
-  },
-  {
-    title: "Contas a Pagar",
-    url: "/expenses",
-    icon: Receipt,
-    group: "financeiro"
-  },
-  {
-    title: "Relatórios",
-    url: "/reports",
-    icon: FileText,
-    group: "relatorios"
-  },
-  {
-    title: "White Label",
-    url: "/white-label",
-    icon: Building2,
-    group: "configuracoes"
-  },
-  {
-    title: "Configurações",
-    url: "/settings",
-    icon: Settings,
-    group: "configuracoes"
-  },
-  {
-    title: "Administração",
-    url: "/admin",
-    icon: Shield,
-    group: "admin",
-    requireSuperAdmin: true
-  }
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Clientes", url: "/clients", icon: Users },
+  { title: "Cadastros Pendentes", url: "/registrations", icon: UserPlus, showBadge: true },
+  { title: "Planos", url: "/plans", icon: CreditCard },
+  { title: "Contratos", url: "/contracts", icon: FileText },
+  { title: "Veículos", url: "/vehicles", icon: Car },
+  { title: "Cobrança", url: "/billing", icon: DollarSign },
+  { title: "Financeiro", url: "/financial", icon: BarChart3 },
+  { title: "Contas a Pagar", url: "/expenses", icon: Receipt },
+  { title: "Relatórios", url: "/reports", icon: FileText },
+  { title: "White Label", url: "/white-label", icon: Building2 },
+  { title: "Configurações", url: "/settings", icon: Settings },
 ]
 
-const groupedNavigation = {
-  principal: navigation.filter(item => item.group === "principal"),
-  gestao: navigation.filter(item => item.group === "gestao"),
-  financeiro: navigation.filter(item => item.group === "financeiro"),
-  relatorios: navigation.filter(item => item.group === "relatorios"),
-  configuracoes: navigation.filter(item => item.group === "configuracoes"),
-  admin: navigation.filter(item => item.group === "admin"),
-}
+const adminNavigation = [
+  { title: "Administração", url: "/admin", icon: Shield },
+]
 
 export function AppSidebar() {
   const location = useLocation()
   const currentPath = location.pathname
 
-  const isActive = (path: string) => currentPath === path
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-primary/10 text-primary font-semibold border-r-2 border-primary" 
-      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
+      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [companyName, setCompanyName] = useState("GestaoTracker")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [userName, setUserName] = useState("")
+  const [userEmail, setUserEmail] = useState("")
   const { pendingCount } = useClientRegistrations()
   
   useEffect(() => {
@@ -143,15 +73,22 @@ export function AppSidebar() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       
+      if (isMounted) {
+        setUserEmail(user.email || "")
+      }
+      
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role, company_id')
+        .select('role, company_id, full_name')
         .eq('user_id', user.id)
         .single()
       
       if (!isMounted) return
       
-      // Verificar se o usuário tem role de super_admin na tabela user_roles
+      if (profile?.full_name) {
+        setUserName(profile.full_name)
+      }
+      
       const { data: userRole } = await supabase
         .from('user_roles')
         .select('role')
@@ -162,7 +99,6 @@ export function AppSidebar() {
       setIsSuperAdmin(!!userRole)
       
       if (profile?.company_id) {
-        // Buscar dados da empresa
         const { data: company } = await supabase
           .from('companies')
           .select('name')
@@ -173,7 +109,6 @@ export function AppSidebar() {
           setCompanyName(company.name)
         }
         
-        // Buscar logo do branding
         const { data: branding } = await supabase
           .from('company_branding')
           .select('logo_url')
@@ -188,146 +123,98 @@ export function AppSidebar() {
     return () => { isMounted = false }
   }, [])
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+  }
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
   return (
-    <Sidebar className="w-64 sm:w-64" collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center justify-center px-3 sm:px-4 py-4">
+    <Sidebar className="w-56 border-r-0">
+      {/* Header com logo */}
+      <SidebarHeader className="p-4">
+        <div className="flex items-center gap-3">
           {logoUrl ? (
             <img 
               src={logoUrl} 
               alt={`${companyName} Logo`}
-              className="w-18 h-18 rounded-lg object-contain"
+              className="w-8 h-8 rounded-lg object-contain"
             />
           ) : (
-            <div className="w-18 h-18 bg-gradient-primary rounded-lg flex items-center justify-center icon-hover">
-              <Car className="w-10 h-10 text-white" />
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <Car className="w-4 h-4 text-primary-foreground" />
             </div>
           )}
+          <span className="font-semibold text-sidebar-foreground text-sm truncate">
+            {companyName}
+          </span>
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        {/* Principal */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Principal</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {groupedNavigation.principal.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="w-4 h-4 icon-hover" />
-                      <span className="truncate">{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <Separator className="bg-sidebar-border/50" />
 
-        {/* Gestão */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Gestão</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {groupedNavigation.gestao.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                      {item.url === '/registrations' && pendingCount > 0 && (
-                        <Badge variant="destructive" className="ml-auto">
-                          {pendingCount}
-                        </Badge>
-                      )}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Financeiro */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Financeiro</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {groupedNavigation.financeiro.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Relatórios */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Relatórios</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {groupedNavigation.relatorios.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Configurações */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Configurações</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {groupedNavigation.configuracoes.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Administração */}
-        {isSuperAdmin && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Administração</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {groupedNavigation.admin.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} className={getNavCls}>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+      {/* Menu principal - lista única */}
+      <SidebarContent className="px-2 py-3">
+        <SidebarMenu>
+          {navigation.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton asChild className="h-9">
+                <NavLink to={item.url} className={getNavCls}>
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate text-sm">{item.title}</span>
+                  {item.showBadge && pendingCount > 0 && (
+                    <Badge variant="destructive" className="ml-auto h-5 px-1.5 text-xs">
+                      {pendingCount}
+                    </Badge>
+                  )}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+          
+          {/* Admin - apenas se super admin */}
+          {isSuperAdmin && adminNavigation.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton asChild className="h-9">
+                <NavLink to={item.url} className={getNavCls}>
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate text-sm">{item.title}</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
       </SidebarContent>
+
+      {/* Footer com informações do usuário */}
+      <SidebarFooter className="mt-auto border-t border-sidebar-border/50 p-3">
+        <div 
+          className="flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent/50 cursor-pointer transition-colors"
+          onClick={handleLogout}
+        >
+          <Avatar className="w-8 h-8">
+            <AvatarFallback className="bg-primary/20 text-primary text-xs">
+              {getInitials(userName || userEmail)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-sidebar-foreground truncate">
+              {userName || "Usuário"}
+            </p>
+            <p className="text-xs text-sidebar-foreground/60 truncate">
+              {userEmail}
+            </p>
+          </div>
+          <LogOut className="w-4 h-4 text-sidebar-foreground/60 shrink-0" />
+        </div>
+      </SidebarFooter>
     </Sidebar>
   )
 }

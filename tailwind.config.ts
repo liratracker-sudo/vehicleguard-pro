@@ -84,7 +84,11 @@ export default {
 					DEFAULT: 'hsl(var(--hover))',
 					accent: 'hsl(var(--hover-accent))'
 				},
-				active: 'hsl(var(--active))'
+				active: 'hsl(var(--active))',
+				content: {
+					DEFAULT: 'hsl(var(--content))',
+					foreground: 'hsl(var(--content-foreground))'
+				}
 			},
 			backgroundImage: {
 				'gradient-primary': 'var(--gradient-primary)',
