@@ -57,8 +57,8 @@ export function AppSidebar() {
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium rounded-md" 
-      : "text-sidebar-foreground hover:bg-slate-100 hover:text-sidebar-foreground rounded-md"
+      ? "bg-blue-500 text-white font-medium rounded-md" 
+      : "text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-md"
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [companyName, setCompanyName] = useState("GestaoTracker")
