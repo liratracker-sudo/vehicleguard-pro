@@ -833,6 +833,16 @@ async function syncDocumentStatus(apiKey: string, documentId: string, supabaseCl
     const completionStatuses = ["certificated", "completed", "signed"];
     const isSigned = completionStatuses.includes(doc.status);
     
+    // Fetch current contract status BEFORE updating to avoid duplicate notifications
+    const { data: currentContract } = await supabaseClient
+      .from('contracts')
+      .select('id, signature_status')
+      .eq('assinafy_document_id', documentId)
+      .single();
+
+    const wasAlreadySigned = currentContract?.signature_status === 'signed';
+    console.log("📋 Current contract status:", currentContract?.signature_status, "| Was already signed:", wasAlreadySigned);
+    
     const updateData: any = {};
 
     if (isSigned) {
@@ -874,8 +884,10 @@ async function syncDocumentStatus(apiKey: string, documentId: string, supabaseCl
 
     console.log("✅ Contract updated successfully:", data);
 
-    // Send WhatsApp notification to client when contract is signed via sync
-    if (isSigned && data && data.length > 0) {
+    // Send WhatsApp notification ONLY if status changed from non-signed to signed
+    // This prevents duplicate notifications when webhook already sent one
+    if (isSigned && !wasAlreadySigned && data && data.length > 0) {
+      console.log("📲 Status changed to signed, sending WhatsApp notification...");
       const contractId = data[0].id;
       
       // Fetch full contract data for notification
@@ -888,6 +900,8 @@ async function syncDocumentStatus(apiKey: string, documentId: string, supabaseCl
       if (contractData) {
         await sendWhatsAppNotificationToClient(supabaseClient, contractData, documentId);
       }
+    } else if (isSigned && wasAlreadySigned) {
+      console.log("ℹ️ Contract was already signed, skipping notification (already sent by webhook)");
     }
 
     return new Response(
