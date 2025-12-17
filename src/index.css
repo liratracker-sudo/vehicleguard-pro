@@ -225,6 +225,36 @@
   }
 }
 
+/* Force sidebar colors - override any theme conflicts */
+[data-sidebar="sidebar"] {
+  background-color: white !important;
+  color: #475569 !important; /* slate-600 */
+}
+
+[data-sidebar="sidebar"] * {
+  color: inherit;
+}
+
+[data-sidebar="menu-button"] {
+  color: #475569 !important; /* slate-600 */
+}
+
+[data-sidebar="menu-button"]:hover {
+  background-color: #f1f5f9 !important; /* slate-100 */
+  color: #1e293b !important; /* slate-800 */
+}
+
+[data-sidebar="menu-button"][data-active="true"],
+[data-sidebar="menu-button"]:active {
+  background-color: #3b82f6 !important; /* blue-500 */
+  color: white !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"] *,
+[data-sidebar="menu-button"]:active * {
+  color: white !important;
+}
+
 @layer base {
   * {
     @apply border-border;
