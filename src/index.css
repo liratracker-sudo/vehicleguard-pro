@@ -78,14 +78,14 @@
     --radius-sm: 0.5rem;
     --radius-lg: 1rem;
     
-    /* Sidebar System */
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 40% 98%;
+    /* Sidebar System - Clean White */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 20% 45%;
     --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 33% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 20%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 91% 60%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217 91% 60%;
     
     /* Content area - clean white/light */
@@ -123,13 +123,14 @@
     --input: 217 33% 17%;
     --ring: 217 91% 60%;
     
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 40% 98%;
+    /* Sidebar System - Clean White */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 20% 45%;
     --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 33% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 20%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 91% 60%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217 91% 60%;
     
     /* Content area - clean light */
@@ -208,14 +209,14 @@
     --radius-sm: 0.5rem;
     --radius-lg: 1rem;
     
-    /* Sidebar System */
-    --sidebar-background: 220 20% 14%;
-    --sidebar-foreground: 0 0% 98%;
+    /* Sidebar System - Clean White */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 20% 45%;
     --sidebar-primary: 24 95% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 20%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 20% 20%;
+    --sidebar-accent: 24 95% 53%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 24 95% 53%;
     
     /* Content area - clean white */
