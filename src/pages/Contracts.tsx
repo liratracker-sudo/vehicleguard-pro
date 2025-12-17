@@ -80,10 +80,15 @@ const ContractsPage = () => {
     }
   }
 
-  const getSignatureBadge = (status: string) => {
+  const getSignatureBadge = (status: string, hasDocument: boolean) => {
+    // Diferenciar entre não enviado e aguardando assinatura
+    if (status === 'pending' && !hasDocument) {
+      return <Badge className="bg-muted text-muted-foreground border-muted-foreground/30">Não enviado</Badge>
+    }
+    if (status === 'pending' && hasDocument) {
+      return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">Aguardando</Badge>
+    }
     switch (status) {
-      case 'pending':
-        return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">Pendente</Badge>
       case 'sent':
         return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Enviado</Badge>
       case 'signed':
@@ -405,7 +410,7 @@ const ContractsPage = () => {
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(contract.status)}</TableCell>
-                        <TableCell>{getSignatureBadge(contract.signature_status)}</TableCell>
+                        <TableCell>{getSignatureBadge(contract.signature_status, !!contract.assinafy_document_id)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
