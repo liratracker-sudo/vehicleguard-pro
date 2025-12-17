@@ -257,6 +257,22 @@ serve(async (req) => {
       .order('paid_at', { ascending: false })
       .limit(30);
 
+    // ====== BUSCAR CONTRATOS ======
+    const { data: allContracts } = await supabase
+      .from('contracts')
+      .select(`
+        *,
+        clients:client_id(id, name, phone),
+        plans:plan_id(name)
+      `)
+      .eq('company_id', company_id)
+      .order('created_at', { ascending: false });
+
+    // Separar contratos por status de assinatura
+    const pendingSignatureContracts = allContracts?.filter((c: any) => c.signature_status === 'pending') || [];
+    const signedContracts = allContracts?.filter((c: any) => c.signature_status === 'signed') || [];
+    const sentContracts = allContracts?.filter((c: any) => c.signature_status === 'sent') || [];
+
     // Filtrar pagamentos de HOJE
     const today = new Date().toISOString().split('T')[0];
     const todayPayments = paidPayments?.filter(p => p.paid_at?.startsWith(today)) || [];
@@ -342,7 +358,8 @@ Suas capacidades:
 1. Fornecer informações completas sobre clientes, cobranças, pagamentos e situação financeira
 2. Acessar dados cadastrais de todos os clientes (nome, telefone, email, documento, endereço)
 3. **CONTAS A PAGAR**: Informar sobre despesas, fornecedores e pagamentos pendentes
-4. Executar ações quando solicitado pelo gestor:
+4. **CONTRATOS**: Informar sobre contratos pendentes de assinatura, contratos assinados, contratos enviados
+5. Executar ações quando solicitado pelo gestor:
    - Forçar cobrança de clientes inadimplentes (enviar mensagem de cobrança via IA)
    - Gerar relatórios financeiros (contas a receber E a pagar)
    - Listar clientes com pagamentos em atraso
@@ -382,6 +399,33 @@ ${upcomingExpenseDetails.length > 0
       return `${e.index}. ${e.description}${e.supplier ? ` (${e.supplier})` : ''} - R$ ${e.amount.toFixed(2)} | ${e.due_date.split('-').slice(1).reverse().join('/')} | ${statusDia} [ID:${e.id}]`;
     }).join('\n')
   : 'Nenhuma'}
+
+======== CONTRATOS ========
+- Pendentes de assinatura: ${pendingSignatureContracts.length} contratos
+- Enviados aguardando assinatura: ${sentContracts.length} contratos  
+- Assinados: ${signedContracts.length} contratos
+- Total de contratos: ${allContracts?.length || 0}
+
+CONTRATOS PENDENTES DE ASSINATURA:
+${pendingSignatureContracts.length > 0
+  ? pendingSignatureContracts.map((c: any, i: number) => 
+      `${i + 1}. ${c.clients?.name || 'Cliente não identificado'} - ${c.plans?.name || 'Plano não identificado'} - R$ ${Number(c.monthly_value).toFixed(2)}/mês - Início: ${c.start_date}`
+    ).join('\n')
+  : 'Nenhum contrato pendente de assinatura'}
+
+CONTRATOS ENVIADOS (AGUARDANDO ASSINATURA DO CLIENTE):
+${sentContracts.length > 0
+  ? sentContracts.map((c: any, i: number) => 
+      `${i + 1}. ${c.clients?.name || 'Cliente não identificado'} - ${c.plans?.name || 'Plano não identificado'} - R$ ${Number(c.monthly_value).toFixed(2)}/mês - Tel: ${c.clients?.phone || 'N/A'}`
+    ).join('\n')
+  : 'Nenhum contrato aguardando assinatura'}
+
+CONTRATOS ASSINADOS RECENTEMENTE:
+${signedContracts.slice(0, 5).length > 0
+  ? signedContracts.slice(0, 5).map((c: any, i: number) => 
+      `${i + 1}. ${c.clients?.name || 'Cliente não identificado'} - ${c.plans?.name || 'Plano não identificado'} - Assinado em: ${c.signed_at ? new Date(c.signed_at).toLocaleDateString('pt-BR') : 'N/A'}`
+    ).join('\n')
+  : 'Nenhum contrato assinado recentemente'}
 
 PAGAMENTOS RECEBIDOS HOJE (${today}):
 ${todayPayments.length > 0 
@@ -471,7 +515,13 @@ EXEMPLOS DE PERGUNTAS SOBRE CONTAS A PAGAR:
 - "Quais contas a pagar eu tenho?" → Liste as despesas pendentes e vencidas
 - "O que vence essa semana?" → Mostre as despesas dos próximos 7 dias
 - "Quanto tenho a pagar para fornecedores?" → Informe o total pendente
-- "Me lembra de pagar a VOXTER amanhã às 9h" → Use AGENDAR_LEMBRETE_FORNECEDOR`;
+- "Me lembra de pagar a VOXTER amanhã às 9h" → Use AGENDAR_LEMBRETE_FORNECEDOR
+
+EXEMPLOS DE PERGUNTAS SOBRE CONTRATOS:
+- "Quais contratos estão pendentes de assinatura?" → Liste os contratos com signature_status = pending
+- "Quantos contratos foram assinados?" → Informe a quantidade de contratos assinados
+- "Quem não assinou o contrato ainda?" → Liste clientes com contratos pendentes ou enviados
+- "Status dos contratos" → Mostre o resumo de todos os contratos por status`;
 
     // Detectar se é um pedido de lembrete para não oferecer web_search
     const isReminderRequest = /\b(lembra|lembre|avisa|alerta|notifica|agenda)\b/i.test(message);
