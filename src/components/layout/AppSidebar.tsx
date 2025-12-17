@@ -137,7 +137,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar className="w-56 border-r border-sidebar-border shadow-sm">
+    <Sidebar className="w-56 border-r border-slate-200 shadow-sm">
       {/* Header com logo */}
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
@@ -152,13 +152,13 @@ export function AppSidebar() {
               <Car className="w-4 h-4 text-primary-foreground" />
             </div>
           )}
-          <span className="font-semibold text-sidebar-foreground text-sm truncate">
+          <span className="font-semibold text-slate-700 text-sm truncate">
             {companyName}
           </span>
         </div>
       </SidebarHeader>
 
-      <Separator className="bg-sidebar-border/50" />
+      <Separator className="bg-slate-200" />
 
       {/* Menu principal - lista única */}
       <SidebarContent className="px-2 py-3">
@@ -194,9 +194,9 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer com informações do usuário */}
-      <SidebarFooter className="mt-auto border-t border-sidebar-border/50 p-3">
+      <SidebarFooter className="mt-auto border-t border-slate-200 p-3">
         <div 
-          className="flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent/50 cursor-pointer transition-colors"
+          className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 cursor-pointer transition-colors"
           onClick={handleLogout}
         >
           <Avatar className="w-8 h-8">
@@ -205,14 +205,14 @@ export function AppSidebar() {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
+            <p className="text-sm font-medium text-slate-700 truncate">
               {userName || "Usuário"}
             </p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">
+            <p className="text-xs text-slate-500 truncate">
               {userEmail}
             </p>
           </div>
-          <LogOut className="w-4 h-4 text-sidebar-foreground/60 shrink-0" />
+          <LogOut className="w-4 h-4 text-slate-400 shrink-0" />
         </div>
       </SidebarFooter>
     </Sidebar>
