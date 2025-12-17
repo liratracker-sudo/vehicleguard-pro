@@ -57,8 +57,8 @@ export function AppSidebar() {
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
-      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium rounded-md" 
+      : "text-sidebar-foreground hover:bg-slate-100 hover:text-sidebar-foreground rounded-md"
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [companyName, setCompanyName] = useState("GestaoTracker")
@@ -137,7 +137,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar className="w-56 border-r-0">
+    <Sidebar className="w-56 border-r border-sidebar-border shadow-sm">
       {/* Header com logo */}
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
