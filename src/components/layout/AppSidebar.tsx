@@ -55,11 +55,6 @@ export function AppSidebar() {
   const location = useLocation()
   const currentPath = location.pathname
 
-  const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    isActive 
-      ? "bg-blue-500 text-white font-medium rounded-md" 
-      : "text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-md"
-
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [companyName, setCompanyName] = useState("GestaoTracker")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -165,8 +160,8 @@ export function AppSidebar() {
         <SidebarMenu>
           {navigation.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild className="h-9">
-                <NavLink to={item.url} className={getNavCls}>
+              <SidebarMenuButton asChild className="h-9" isActive={currentPath === item.url}>
+                <NavLink to={item.url} className="flex items-center gap-2 w-full">
                   <item.icon className="w-4 h-4 shrink-0" />
                   <span className="truncate text-sm">{item.title}</span>
                   {item.showBadge && pendingCount > 0 && (
@@ -182,8 +177,8 @@ export function AppSidebar() {
           {/* Admin - apenas se super admin */}
           {isSuperAdmin && adminNavigation.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild className="h-9">
-                <NavLink to={item.url} className={getNavCls}>
+              <SidebarMenuButton asChild className="h-9" isActive={currentPath === item.url}>
+                <NavLink to={item.url} className="flex items-center gap-2 w-full">
                   <item.icon className="w-4 h-4 shrink-0" />
                   <span className="truncate text-sm">{item.title}</span>
                 </NavLink>
