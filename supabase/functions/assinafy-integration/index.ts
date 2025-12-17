@@ -681,6 +681,26 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       }
     }
 
+    // Update contract directly in edge function (more reliable than frontend)
+    if (supabaseClient && contractId) {
+      console.log("📝 Updating contract with document data...");
+      const { error: contractUpdateError } = await supabaseClient
+        .from('contracts')
+        .update({
+          assinafy_document_id: documentId,
+          document_url: signingUrl,
+          signature_status: 'sent'
+        })
+        .eq('id', contractId);
+      
+      if (contractUpdateError) {
+        console.error("❌ Failed to update contract:", contractUpdateError);
+        // Don't fail the operation, just log the error
+      } else {
+        console.log("✅ Contract updated successfully with Assinafy data");
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

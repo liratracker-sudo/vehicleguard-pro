@@ -388,17 +388,7 @@ export function useContracts() {
       const documentId = response.data.document_id
       const signingUrl = response.data.signing_url
       console.log('Documento criado com sucesso. ID:', documentId)
-
-      const { error: updateError } = await supabase
-        .from('contracts')
-        .update({ 
-          signature_status: 'pending',
-          assinafy_document_id: documentId,
-          document_url: signingUrl
-        })
-        .eq('id', contractId)
-
-      if (updateError) throw updateError
+      console.log('Contrato atualizado pela edge function - document_id:', documentId)
 
       console.log('Enviando notificações WhatsApp...')
       
