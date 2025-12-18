@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { NavLink, useLocation } from "react-router-dom"
+import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,7 +14,8 @@ import {
   UserPlus,
   Receipt,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  User
 } from "lucide-react"
 
 import {
@@ -26,6 +27,13 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
@@ -53,6 +61,7 @@ const adminNavigation = [
 
 export function AppSidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const currentPath = location.pathname
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
@@ -190,25 +199,37 @@ export function AppSidebar() {
 
       {/* Footer com informações do usuário */}
       <SidebarFooter className="mt-auto border-t border-slate-200 p-3">
-        <div 
-          className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 cursor-pointer transition-colors"
-          onClick={handleLogout}
-        >
-          <Avatar className="w-8 h-8">
-            <AvatarFallback className="bg-primary/20 text-primary text-xs">
-              {getInitials(userName || userEmail)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-700 truncate">
-              {userName || "Usuário"}
-            </p>
-            <p className="text-xs text-slate-500 truncate">
-              {userEmail}
-            </p>
-          </div>
-          <LogOut className="w-4 h-4 text-slate-400 shrink-0" />
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 cursor-pointer transition-colors">
+              <Avatar className="w-8 h-8">
+                <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                  {getInitials(userName || userEmail)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-700 truncate">
+                  {userName || "Usuário"}
+                </p>
+                <p className="text-xs text-slate-500 truncate">
+                  {userEmail}
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="right" className="w-56 bg-background">
+            <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+              <User className="w-4 h-4 mr-2" />
+              Meu Perfil
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   )
