@@ -144,8 +144,26 @@ serve(async (req) => {
     console.log('Payment found:', { 
       id: payment.id, 
       status: payment.status, 
-      company_id: payment.company_id 
+      company_id: payment.company_id,
+      amount: payment.amount,
+      contract_id: payment.contract_id
     });
+
+    // Buscar valor correto do contrato se existir (para garantir consistência)
+    let baseAmount = payment.amount;
+    if (payment.contract_id) {
+      const { data: contract } = await supabase
+        .from('contracts')
+        .select('monthly_value')
+        .eq('id', payment.contract_id)
+        .single();
+      
+      if (contract?.monthly_value && contract.monthly_value !== payment.amount) {
+        console.log(`⚠️ Valor do pagamento (${payment.amount}) diferente do contrato (${contract.monthly_value}). Usando valor do contrato.`);
+        baseAmount = contract.monthly_value;
+      }
+    }
+    console.log('Base amount for fee calculation:', baseAmount);
 
     // Verificar se já foi pago
     if (payment.status === 'paid') {
