@@ -59,14 +59,28 @@ function setBrazilTime(date: Date, hour: number, minute: number, randomize: bool
   return utcDate;
 }
 
+// Global timeout for edge function (50s to stay under 60s limit)
+const FUNCTION_TIMEOUT_MS = 50000;
+
+// Helper to create timeout promise
+function createTimeout(ms: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Function timeout exceeded (${ms}ms)`));
+    }, ms);
+  });
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let logEntryId: string | null = null;
+
   try {
-    const startTime = Date.now();
-    console.log('Billing notifications processor started');
+    console.log('🚀 Billing notifications processor started');
     
     // Parse request body to check for specific payment/company triggers
     let body;
@@ -85,48 +99,70 @@ serve(async (req) => {
       .from('cron_execution_logs')
       .insert({
         job_name: trigger === 'manual_9am_start' ? 'billing-notifications-manual-9am' : 'billing-notifications-function',
-        status: 'running'
+        status: 'running',
+        started_at: new Date().toISOString()
       })
       .select()
       .single();
     
+    logEntryId = logEntry?.id || null;
+    
     let result;
     
-    if (trigger === 'payment_created' && payment_id) {
-      // Handle specific payment notification creation
-      console.log(`Creating notifications for specific payment: ${payment_id}`);
-      
-      // Get payment details to identify company
-      const { data: payment } = await supabase
-        .from('payment_transactions')
-        .select('company_id')
-        .eq('id', payment_id)
-        .single();
+    // Wrap main processing in timeout
+    const mainProcessing = async () => {
+      if (trigger === 'payment_created' && payment_id) {
+        // Handle specific payment notification creation
+        console.log(`📝 Creating notifications for specific payment: ${payment_id}`);
         
-      if (payment?.company_id) {
-        result = await createMissingNotifications(payment_id, payment.company_id);
+        // Get payment details to identify company
+        const { data: payment } = await supabase
+          .from('payment_transactions')
+          .select('company_id')
+          .eq('id', payment_id)
+          .single();
+          
+        if (payment?.company_id) {
+          return await createMissingNotifications(payment_id, payment.company_id);
+        }
+        return { created: 0, skipped: 0 };
+      } else if (trigger === 'resend_notification' && notification_id) {
+        // Handle specific notification resend
+        console.log(`🔄 Resending specific notification: ${notification_id}`);
+        return await resendSpecificNotification(notification_id);
+      } else if (trigger === 'debug_notification' && notification_id) {
+        // Handle notification debug
+        console.log(`🐛 Debugging specific notification: ${notification_id}`);
+        return await debugSpecificNotification(notification_id);
+      } else if (trigger === 'manual_9am_start') {
+        // Handle manual 9am trigger - force send all pending notifications and create missing ones
+        console.log('🚀 Manual 9AM trigger - processing all notifications with force=true');
+        return await processNotifications(true);
+      } else {
+        // Process all pending notifications and create missing ones
+        return await processNotifications(force);
       }
-    } else if (trigger === 'resend_notification' && notification_id) {
-      // Handle specific notification resend
-      console.log(`🔄 Resending specific notification: ${notification_id}`);
-      result = await resendSpecificNotification(notification_id);
-    } else if (trigger === 'debug_notification' && notification_id) {
-      // Handle notification debug
-      console.log(`🐛 Debugging specific notification: ${notification_id}`);
-      result = await debugSpecificNotification(notification_id);
-    } else if (trigger === 'manual_9am_start') {
-      // Handle manual 9am trigger - force send all pending notifications and create missing ones
-      console.log('🚀 Manual 9AM trigger - processing all notifications with force=true');
-      result = await processNotifications(true);
-    } else {
-      // Process all pending notifications and create missing ones
-      result = await processNotifications(force);
+    };
+
+    // Execute with timeout protection
+    try {
+      result = await Promise.race([
+        mainProcessing(),
+        createTimeout(FUNCTION_TIMEOUT_MS)
+      ]);
+    } catch (timeoutError) {
+      if (timeoutError instanceof Error && timeoutError.message.includes('timeout')) {
+        console.error('⏰ Function timeout reached, aborting...');
+        throw timeoutError;
+      }
+      throw timeoutError;
     }
     
     const executionTime = Date.now() - startTime;
+    console.log(`✅ Billing notifications completed in ${executionTime}ms`);
     
     // Update log entry with success
-    if (logEntry) {
+    if (logEntryId) {
       await supabase
         .from('cron_execution_logs')
         .update({
@@ -135,7 +171,7 @@ serve(async (req) => {
           execution_time_ms: executionTime,
           response_body: JSON.stringify(result || { success: true })
         })
-        .eq('id', logEntry.id);
+        .eq('id', logEntryId);
     }
     
     return new Response(
@@ -148,17 +184,31 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error processing billing notifications:', error);
+    const executionTime = Date.now() - startTime;
+    console.error('❌ Error processing billing notifications:', error);
     
-    // Log error for monitoring
-    await supabase
-      .from('cron_execution_logs')
-      .insert({
-        job_name: 'billing-notifications-function',
-        status: 'error',
-        finished_at: new Date().toISOString(),
-        error_message: error instanceof Error ? error.message : String(error)
-      });
+    // Update existing log entry or create new one with error
+    if (logEntryId) {
+      await supabase
+        .from('cron_execution_logs')
+        .update({
+          status: 'error',
+          finished_at: new Date().toISOString(),
+          execution_time_ms: executionTime,
+          error_message: error instanceof Error ? error.message : String(error)
+        })
+        .eq('id', logEntryId);
+    } else {
+      await supabase
+        .from('cron_execution_logs')
+        .insert({
+          job_name: 'billing-notifications-function',
+          status: 'error',
+          finished_at: new Date().toISOString(),
+          execution_time_ms: executionTime,
+          error_message: error instanceof Error ? error.message : String(error)
+        });
+    }
     
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
@@ -171,7 +221,7 @@ serve(async (req) => {
 });
 
 async function processNotifications(force = false) {
-  console.log('Starting notification processing...', { force });
+  console.log('🚀 [CHECKPOINT] Starting notification processing...', { force });
   
   const results = {
     sent: 0,
@@ -181,141 +231,161 @@ async function processNotifications(force = false) {
     recreated: 0
   };
   
-  // 1. Limpar e recriar notificações de cobranças já vencidas com horário incorreto
-  const recreatedResults = await recreateOverdueNotifications();
-  results.recreated = recreatedResults.recreated;
+  try {
+    // 1. Limpar e recriar notificações de cobranças já vencidas com horário incorreto
+    console.log('📋 [STEP 1/3] Recreating overdue notifications...');
+    const recreatedResults = await recreateOverdueNotifications();
+    results.recreated = recreatedResults.recreated;
+    console.log(`✅ [STEP 1/3] Done: ${results.recreated} recreated`);
+    
+    // 2. Send pending notifications that are due (or all if force=true)
+    console.log('📤 [STEP 2/3] Sending pending notifications...');
+    const sentResults = await sendPendingNotifications(force);
+    results.sent = sentResults.sent;
+    results.failed = sentResults.failed;
+    console.log(`✅ [STEP 2/3] Done: ${results.sent} sent, ${results.failed} failed`);
+    
+    // 3. Create new notifications for payments without them
+    console.log('📝 [STEP 3/3] Creating missing notifications...');
+    const createdResults = await createMissingNotifications();
+    results.created = createdResults.created;
+    results.skipped = createdResults.skipped;
+    console.log(`✅ [STEP 3/3] Done: ${results.created} created, ${results.skipped} skipped`);
+    
+  } catch (error) {
+    console.error('❌ Error in processNotifications:', error instanceof Error ? error.message : error);
+    throw error; // Re-throw to be caught by main handler
+  }
   
-  // 2. Send pending notifications that are due (or all if force=true)
-  const sentResults = await sendPendingNotifications(force);
-  results.sent = sentResults.sent;
-  results.failed = sentResults.failed;
-  
-  // 3. Create new notifications for payments without them
-  const createdResults = await createMissingNotifications();
-  results.created = createdResults.created;
-  results.skipped = createdResults.skipped;
-  
-  console.log('Notification processing completed', results);
+  console.log('✅ [CHECKPOINT] Notification processing completed', results);
   return results;
 }
 
 // Função para recriar notificações de cobranças já vencidas com horário incorreto
+// OTIMIZADO: Limita processamento a 30 pagamentos por execução para evitar timeout
 async function recreateOverdueNotifications() {
-  console.log('🔄 Verificando cobranças já vencidas com notificações incorretas...');
+  console.log('🔄 [CHECKPOINT] Iniciando verificação de cobranças vencidas com notificações incorretas...');
   
-  const results = { recreated: 0 };
+  const results = { recreated: 0, processed: 0 };
   const now = new Date();
   const sendHour = 9; // Hora correta para envio (9h Brasil)
+  const BATCH_LIMIT = 30; // Limitar processamento por execução
   
-  // Buscar todos os pagamentos já vencidos
-  const { data: overduePayments, error: paymentsError } = await supabase
-    .from('payment_transactions')
-    .select('id, company_id, due_date, status')
-    .lt('due_date', now.toISOString())
-    .in('status', ['pending', 'overdue']);
-  
-  if (paymentsError) {
-    console.error('Erro ao buscar pagamentos vencidos:', paymentsError);
-    return results;
-  }
-  
-  if (!overduePayments || overduePayments.length === 0) {
-    console.log('✅ Nenhum pagamento vencido encontrado');
-    return results;
-  }
-  
-  console.log(`📋 Encontrados ${overduePayments.length} pagamentos vencidos para verificar`);
-  
-  for (const payment of overduePayments) {
-    // Buscar notificações pendentes deste pagamento
-    const { data: pendingNotifications } = await supabase
-      .from('payment_notifications')
-      .select('id, scheduled_for, event_type, offset_days')
-      .eq('payment_id', payment.id)
-      .eq('status', 'pending');
+  try {
+    // Buscar pagamentos já vencidos COM LIMITE
+    const { data: overduePayments, error: paymentsError } = await supabase
+      .from('payment_transactions')
+      .select('id, company_id, client_id, due_date, status')
+      .lt('due_date', now.toISOString())
+      .in('status', ['pending', 'overdue'])
+      .limit(BATCH_LIMIT);
     
-    if (!pendingNotifications || pendingNotifications.length === 0) {
-      // Sem notificações pendentes - criar notificação post_due
-      console.log(`📝 Criando notificação post_due para pagamento vencido ${payment.id}`);
-      
-      const dueDate = new Date(payment.due_date);
-      const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      // Criar notificação para hoje às 9h
-      const scheduledFor = setBrazilTime(now, sendHour, 0);
-      
-      const { error: insertError } = await supabase
-        .from('payment_notifications')
-        .insert({
-          payment_id: payment.id,
-          client_id: payment.client_id,
-          company_id: payment.company_id,
-          event_type: 'post_due',
-          offset_days: daysOverdue,
-          scheduled_for: scheduledFor.toISOString(),
-          status: 'pending'
-        });
-      
-      if (!insertError) {
-        results.recreated++;
-        console.log(`✅ Notificação post_due criada para ${payment.id} - agendada para ${scheduledFor.toISOString()}`);
-      } else {
-        console.error(`❌ Erro ao criar notificação para ${payment.id}:`, insertError);
-      }
-      continue;
+    if (paymentsError) {
+      console.error('❌ Erro ao buscar pagamentos vencidos:', paymentsError);
+      return results;
     }
     
-    // Verificar se alguma notificação está com horário incorreto (22h UTC = 19h Brasil)
-    const incorrectNotifications = pendingNotifications.filter(n => {
-      const schedDate = new Date(n.scheduled_for);
-      const schedHour = schedDate.getUTCHours();
-      // 22h UTC é o antigo horário incorreto (19h Brasil em vez de 9h)
-      return schedHour === 22;
-    });
+    if (!overduePayments || overduePayments.length === 0) {
+      console.log('✅ [CHECKPOINT] Nenhum pagamento vencido encontrado');
+      return results;
+    }
     
-    if (incorrectNotifications.length > 0) {
-      console.log(`🔧 Encontradas ${incorrectNotifications.length} notificações com horário incorreto para ${payment.id}`);
+    console.log(`📋 [CHECKPOINT] Processando ${overduePayments.length} de no máximo ${BATCH_LIMIT} pagamentos vencidos`);
+    
+    // Buscar todas as notificações pendentes em batch (uma única query)
+    const paymentIds = overduePayments.map(p => p.id);
+    const { data: allPendingNotifications } = await supabase
+      .from('payment_notifications')
+      .select('id, payment_id, scheduled_for, event_type, offset_days')
+      .in('payment_id', paymentIds)
+      .eq('status', 'pending');
+    
+    // Criar mapa de notificações por payment_id
+    const notificationsByPayment = new Map<string, typeof allPendingNotifications>();
+    for (const notif of allPendingNotifications || []) {
+      if (!notificationsByPayment.has(notif.payment_id)) {
+        notificationsByPayment.set(notif.payment_id, []);
+      }
+      notificationsByPayment.get(notif.payment_id)!.push(notif);
+    }
+    
+    // Processar cada pagamento
+    for (const payment of overduePayments) {
+      results.processed++;
+      const pendingNotifications = notificationsByPayment.get(payment.id) || [];
       
-      // Marcar notificações antigas como skipped
-      for (const oldNotif of incorrectNotifications) {
+      if (pendingNotifications.length === 0) {
+        // Sem notificações pendentes - criar notificação post_due
+        const dueDate = new Date(payment.due_date);
+        const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        const scheduledFor = setBrazilTime(now, sendHour, 0);
+        
+        const { error: insertError } = await supabase
+          .from('payment_notifications')
+          .insert({
+            payment_id: payment.id,
+            client_id: payment.client_id,
+            company_id: payment.company_id,
+            event_type: 'post_due',
+            offset_days: daysOverdue,
+            scheduled_for: scheduledFor.toISOString(),
+            status: 'pending'
+          });
+        
+        if (!insertError) {
+          results.recreated++;
+        } else {
+          console.error(`❌ Erro ao criar notificação para ${payment.id}:`, insertError.message);
+        }
+        continue;
+      }
+      
+      // Verificar se alguma notificação está com horário incorreto (22h UTC = 19h Brasil)
+      const incorrectNotifications = pendingNotifications.filter(n => {
+        const schedDate = new Date(n.scheduled_for);
+        const schedHour = schedDate.getUTCHours();
+        return schedHour === 22;
+      });
+      
+      if (incorrectNotifications.length > 0) {
+        // Marcar notificações antigas como skipped em batch
+        const oldIds = incorrectNotifications.map(n => n.id);
         await supabase
           .from('payment_notifications')
           .update({ 
             status: 'skipped',
             last_error: 'Horário incorreto - recriada com horário correto (9h Brasil)'
           })
-          .eq('id', oldNotif.id);
+          .in('id', oldIds);
         
-        console.log(`🗑️ Notificação ${oldNotif.id} marcada como skipped`);
-      }
-      
-      // Criar nova notificação com horário correto
-      const dueDate = new Date(payment.due_date);
-      const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      const scheduledFor = setBrazilTime(now, sendHour, 0);
-      
-      const { error: insertError } = await supabase
-        .from('payment_notifications')
-        .insert({
-          payment_id: payment.id,
-          client_id: payment.client_id,
-          company_id: payment.company_id,
-          event_type: 'post_due',
-          offset_days: daysOverdue,
-          scheduled_for: scheduledFor.toISOString(),
-          status: 'pending'
-        });
-      
-      if (!insertError) {
-        results.recreated++;
-        console.log(`✅ Nova notificação criada para ${payment.id} - agendada para ${scheduledFor.toISOString()}`);
-      } else {
-        console.error(`❌ Erro ao criar nova notificação para ${payment.id}:`, insertError);
+        // Criar nova notificação com horário correto
+        const dueDate = new Date(payment.due_date);
+        const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        const scheduledFor = setBrazilTime(now, sendHour, 0);
+        
+        const { error: insertError } = await supabase
+          .from('payment_notifications')
+          .insert({
+            payment_id: payment.id,
+            client_id: payment.client_id,
+            company_id: payment.company_id,
+            event_type: 'post_due',
+            offset_days: daysOverdue,
+            scheduled_for: scheduledFor.toISOString(),
+            status: 'pending'
+          });
+        
+        if (!insertError) {
+          results.recreated++;
+        }
       }
     }
+    
+    console.log(`✅ [CHECKPOINT] Recriação concluída: ${results.recreated} notificações recriadas de ${results.processed} processados`);
+  } catch (error) {
+    console.error('❌ Erro no processo de recriação:', error instanceof Error ? error.message : error);
   }
   
-  console.log(`✅ Processo de recriação concluído: ${results.recreated} notificações recriadas`);
   return results;
 }
 
