@@ -186,9 +186,9 @@ serve(async (req) => {
 
     console.log('Late fee settings:', feeSettings);
 
-    // Calcular multa e juros se aplicável
+    // Calcular multa e juros se aplicável (usando baseAmount do contrato)
     const feeCalculation = calculateLateFees(
-      payment.amount,
+      baseAmount,
       payment.due_date,
       feeSettings
     );
