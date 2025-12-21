@@ -346,13 +346,39 @@ serve(async (req) => {
     })) || [];
 
     // Data/hora atual no fuso horário do Brasil
-    const currentDateTime = toISODateTimeBR(nowInBrasilia());
+    const now = nowInBrasilia();
+    const currentDateTime = toISODateTimeBR(now);
+    
+    // Calcular dia da semana em português
+    const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+    const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const dayOfWeek = diasSemana[now.getDay()];
+    const dayOfWeekNum = now.getDay(); // 0=Domingo, 1=Segunda, ..., 6=Sábado
+    const dayNum = now.getDate();
+    const monthName = meses[now.getMonth()];
+    const year = now.getFullYear();
 
     // Preparar prompt para a IA
     const systemPrompt = `Você é um assistente de gestão financeira inteligente para ${companyName}.
 
-DATA E HORA ATUAL NO BRASIL: ${currentDateTime} (Horário de Brasília - UTC-3)
-Use SEMPRE esta data/hora como referência para interpretar comandos como "amanhã", "hoje", "daqui a 2 dias", etc.
+=======================================================================
+🗓️ HOJE É ${dayOfWeek.toUpperCase()}, DIA ${dayNum} DE ${monthName.toUpperCase()} DE ${year}
+DATA/HORA ATUAL: ${currentDateTime} (Horário de Brasília - UTC-3)
+DIA DA SEMANA ATUAL (NÚMERO): ${dayOfWeekNum} (0=Domingo, 1=Segunda, 2=Terça, 3=Quarta, 4=Quinta, 5=Sexta, 6=Sábado)
+=======================================================================
+
+INSTRUÇÕES PARA CÁLCULO DE DATAS (MUITO IMPORTANTE):
+- HOJE é ${dayOfWeek}, ${dayNum}/${now.getMonth() + 1}/${year}
+- Para calcular "próxima segunda-feira": se hoje é ${dayOfWeek} (${dayOfWeekNum}), adicione ${(1 - dayOfWeekNum + 7) % 7 || 7} dias
+- Para calcular "próxima terça-feira": adicione ${(2 - dayOfWeekNum + 7) % 7 || 7} dias a partir de hoje
+- Para calcular "próxima quarta-feira": adicione ${(3 - dayOfWeekNum + 7) % 7 || 7} dias a partir de hoje
+- Para calcular "próxima quinta-feira": adicione ${(4 - dayOfWeekNum + 7) % 7 || 7} dias a partir de hoje
+- Para calcular "próxima sexta-feira": adicione ${(5 - dayOfWeekNum + 7) % 7 || 7} dias a partir de hoje
+- Para calcular "próximo sábado": adicione ${(6 - dayOfWeekNum + 7) % 7 || 7} dias a partir de hoje
+- Para calcular "próximo domingo": adicione ${(0 - dayOfWeekNum + 7) % 7 || 7} dias a partir de hoje
+- SEMPRE verifique o dia da semana antes de calcular datas!
+
+Use SEMPRE esta data/hora como referência para interpretar comandos como "amanhã", "hoje", "daqui a 2 dias", "segunda-feira", etc.
 
 Suas capacidades:
 1. Fornecer informações completas sobre clientes, cobranças, pagamentos e situação financeira
