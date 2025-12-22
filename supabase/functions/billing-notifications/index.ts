@@ -13,6 +13,120 @@ const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app'
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// ================== CACHES GLOBAIS PARA OTIMIZAÇÃO ==================
+// Esses caches são preenchidos uma vez por execução e reutilizados
+interface CompanyCache {
+  notificationSettings: Map<string, any>;
+  whatsappSettings: Map<string, any>;
+  companyDomains: Map<string, string | null>;
+  whatsappConnectionStatus: Map<string, { connected: boolean; error?: string }>;
+}
+
+let companyCache: CompanyCache = {
+  notificationSettings: new Map(),
+  whatsappSettings: new Map(),
+  companyDomains: new Map(),
+  whatsappConnectionStatus: new Map(),
+};
+
+// Função para resetar cache no início de cada execução
+function resetCache() {
+  companyCache = {
+    notificationSettings: new Map(),
+    whatsappSettings: new Map(),
+    companyDomains: new Map(),
+    whatsappConnectionStatus: new Map(),
+  };
+  console.log('🗑️ Cache resetado para nova execução');
+}
+
+// Função para pré-carregar todas as configurações necessárias
+async function preloadConfigurations(companyIds: string[]) {
+  if (companyIds.length === 0) return;
+  
+  console.log(`📦 Pré-carregando configurações para ${companyIds.length} empresas...`);
+  const startTime = Date.now();
+  
+  // Buscar todas as configurações em paralelo
+  const [notificationSettingsResult, whatsappSettingsResult, companiesResult] = await Promise.all([
+    supabase
+      .from('payment_notification_settings')
+      .select('*')
+      .in('company_id', companyIds),
+    supabase
+      .from('whatsapp_settings')
+      .select('*')
+      .in('company_id', companyIds)
+      .eq('is_active', true),
+    supabase
+      .from('companies')
+      .select('id, domain')
+      .in('id', companyIds)
+  ]);
+  
+  // Popular caches
+  for (const setting of notificationSettingsResult.data || []) {
+    companyCache.notificationSettings.set(setting.company_id, setting);
+  }
+  
+  for (const setting of whatsappSettingsResult.data || []) {
+    companyCache.whatsappSettings.set(setting.company_id, setting);
+  }
+  
+  for (const company of companiesResult.data || []) {
+    companyCache.companyDomains.set(company.id, company.domain);
+  }
+  
+  console.log(`✅ Cache carregado em ${Date.now() - startTime}ms: ${companyCache.notificationSettings.size} notification settings, ${companyCache.whatsappSettings.size} whatsapp settings, ${companyCache.companyDomains.size} domains`);
+}
+
+// Função para verificar conexão WhatsApp com cache
+async function checkWhatsAppConnectionCached(companyId: string): Promise<{ connected: boolean; error?: string }> {
+  // Verificar se já temos no cache
+  if (companyCache.whatsappConnectionStatus.has(companyId)) {
+    console.log(`📱 WhatsApp connection (cached) para empresa ${companyId}`);
+    return companyCache.whatsappConnectionStatus.get(companyId)!;
+  }
+  
+  // Buscar configurações do cache
+  const whatsappSettings = companyCache.whatsappSettings.get(companyId);
+  if (!whatsappSettings) {
+    const result = { connected: false, error: 'Configurações do WhatsApp não encontradas' };
+    companyCache.whatsappConnectionStatus.set(companyId, result);
+    return result;
+  }
+  
+  // Verificar conexão
+  console.log(`📱 Verificando conexão WhatsApp para empresa ${companyId}...`);
+  try {
+    const connectionCheck = await supabase.functions.invoke('whatsapp-evolution', {
+      body: {
+        action: 'checkConnection',
+        payload: {
+          instance_url: whatsappSettings.instance_url,
+          api_token: whatsappSettings.api_token,
+          instance_name: whatsappSettings.instance_name
+        }
+      }
+    });
+    
+    const result = {
+      connected: connectionCheck.data?.connected || false,
+      error: connectionCheck.error?.message || connectionCheck.data?.error
+    };
+    
+    companyCache.whatsappConnectionStatus.set(companyId, result);
+    console.log(`📱 WhatsApp connection status para ${companyId}: ${result.connected ? '✅ conectado' : '❌ desconectado'}`);
+    return result;
+  } catch (error) {
+    const result = { connected: false, error: error instanceof Error ? error.message : String(error) };
+    companyCache.whatsappConnectionStatus.set(companyId, result);
+    return result;
+  }
+}
+
+// ================== FIM DOS CACHES ==================
+
 // Helper function to convert UTC date to Brazil timezone (America/Sao_Paulo = UTC-3)
 function toBrazilTime(date: Date): Date {
   // Get the timezone offset for Brazil (UTC-3 = -180 minutes)
@@ -81,6 +195,9 @@ serve(async (req) => {
 
   try {
     console.log('🚀 Billing notifications processor started');
+    
+    // Resetar cache no início de cada execução
+    resetCache();
     
     // Parse request body to check for specific payment/company triggers
     let body;
@@ -437,6 +554,9 @@ async function resendSpecificNotification(notificationId: string) {
     throw new Error(`Pagamento não está mais pendente (status: ${paymentStatus})`);
   }
   
+  // Pré-carregar configurações para esta empresa
+  await preloadConfigurations([notification.company_id]);
+  
   try {
     await sendSingleNotification(notification);
     
@@ -480,23 +600,24 @@ async function debugSpecificNotification(notificationId: string) {
     .from('payment_notifications')
     .select(`
       *,
-      payment_transactions!inner(*, clients(name, phone, email)),
-      payment_notification_settings(*)
+      payment_transactions(*, clients(name, phone, email))
     `)
     .eq('id', notificationId)
     .single();
 
-  if (error) {
-    console.error('❌ Error fetching notification for debug:', error);
-    return { error: `Notification not found: ${error.message}` };
+  if (error || !notification) {
+    throw new Error(`Notification not found: ${error?.message || 'Unknown error'}`);
   }
 
   const debugInfo = {
-    notification_id: notificationId,
-    status: notification.status,
-    attempts: notification.attempts,
-    scheduled_for: notification.scheduled_for,
-    sent_at: notification.sent_at,
+    notification: {
+      id: notification.id,
+      event_type: notification.event_type,
+      offset_days: notification.offset_days,
+      scheduled_for: notification.scheduled_for,
+      status: notification.status,
+      attempts: notification.attempts
+    },
     last_error: notification.last_error,
     payment: {
       id: notification.payment_transactions?.id,
@@ -680,7 +801,7 @@ async function sendPendingNotifications(force = false) {
     // Order by offset_days ASC for pre_due to send most relevant (closest to due date) first
     .order('offset_days', { ascending: true })
     .order('scheduled_for', { ascending: true })
-    .limit(100); // Increase limit for manual triggers
+    .limit(50); // Limite reduzido para garantir processamento dentro do timeout
 
   // ALWAYS filter by scheduled_for to prevent sending future notifications
   // force mode only means "send immediately" for notifications that are already due
@@ -703,10 +824,19 @@ async function sendPendingNotifications(force = false) {
     offset_days: n.offset_days
   })));
 
+  if (!pendingNotifications || pendingNotifications.length === 0) {
+    return results;
+  }
+
+  // OTIMIZAÇÃO: Extrair IDs únicos de empresas e pré-carregar todas as configurações
+  const uniqueCompanyIds = [...new Set(pendingNotifications.map(n => n.company_id))];
+  console.log(`📦 Pré-carregando configurações para ${uniqueCompanyIds.length} empresas...`);
+  await preloadConfigurations(uniqueCompanyIds);
+
   // Track which payment+event_type combinations we've already sent in this batch
   const sentInThisBatch = new Set<string>();
 
-  for (const notification of pendingNotifications || []) {
+  for (const notification of pendingNotifications) {
     console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
     
     // Skip notifications that are too old or don't have valid payment data
@@ -779,12 +909,8 @@ async function sendPendingNotifications(force = false) {
     }
     
     try {
-      // Get notification settings for the company to use retry settings
-      const { data: notificationSettings } = await supabase
-        .from('payment_notification_settings')
-        .select('max_attempts_per_notification, retry_interval_hours')
-        .eq('company_id', notification.company_id)
-        .single();
+      // Usar configurações do cache em vez de buscar do banco
+      const notificationSettings = companyCache.notificationSettings.get(notification.company_id);
 
       await sendSingleNotification(notification);
       
@@ -803,12 +929,8 @@ async function sendPendingNotifications(force = false) {
     } catch (error) {
       console.error(`Failed to send notification ${notification.id}:`, error);
       
-      // Get notification settings for retry logic
-      const { data: notificationSettings } = await supabase
-        .from('payment_notification_settings')
-        .select('max_attempts_per_notification, retry_interval_hours')
-        .eq('company_id', notification.company_id)
-        .single();
+      // Usar configurações do cache para retry logic
+      const notificationSettings = companyCache.notificationSettings.get(notification.company_id);
       
       // Update attempts and mark as failed if too many attempts
       const newAttempts = notification.attempts + 1;
@@ -881,16 +1003,13 @@ async function cleanupInvalidNotifications() {
   }
 }
 
+// OTIMIZADO: sendSingleNotification agora usa cache
 async function sendSingleNotification(notification: any) {
   const payment = notification.payment_transactions;
   const client = payment.clients;
   
-  // Get notification settings for the company
-  const { data: settings } = await supabase
-    .from('payment_notification_settings')
-    .select('*')
-    .eq('company_id', notification.company_id)
-    .single();
+  // Usar cache em vez de buscar do banco
+  const settings = companyCache.notificationSettings.get(notification.company_id);
   
   if (!client?.phone) {
     throw new Error('Cliente não possui telefone cadastrado');
@@ -913,80 +1032,89 @@ async function sendSingleNotification(notification: any) {
     throw new Error(`Número bloqueado: ${clientStatus.whatsapp_block_reason || 'Falhas consecutivas'}`);
   }
 
-  // Get WhatsApp settings for company
-  const { data: whatsappSettings } = await supabase
-    .from('whatsapp_settings')
-    .select('*')
-    .eq('company_id', notification.company_id)
-    .eq('is_active', true)
-    .single();
-
+  // Usar cache para WhatsApp settings
+  const whatsappSettings = companyCache.whatsappSettings.get(notification.company_id);
   if (!whatsappSettings) {
     throw new Error('Configurações do WhatsApp não encontradas');
   }
 
-  // Fetch company domain for payment link
-  const { data: companyData } = await supabase
-    .from('companies')
-    .select('domain')
-    .eq('id', notification.company_id)
-    .single();
+  // Usar cache para domain
+  const companyDomain = companyCache.companyDomains.get(notification.company_id);
   
   // Use company domain if configured, otherwise fallback to APP_URL
-  const baseUrl = companyData?.domain 
-    ? `https://${companyData.domain.replace(/^https?:\/\//, '')}` 
+  const baseUrl = companyDomain 
+    ? `https://${companyDomain.replace(/^https?:\/\//, '')}` 
     : appUrl;
   
   const paymentLink = `${baseUrl}/checkout/${payment.id}`;
-  console.log(`📎 Payment link generated: ${paymentLink} (domain: ${companyData?.domain || 'fallback'})`);
+  console.log(`📎 Payment link generated: ${paymentLink} (domain: ${companyDomain || 'fallback'})`);
 
-  // First validate connection in real-time before sending
-  console.log(`Validating WhatsApp connection for company ${notification.company_id}...`);
-  const connectionCheck = await supabase.functions.invoke('whatsapp-evolution', {
-    body: {
-      action: 'checkConnection',
-      payload: {
-        instance_url: whatsappSettings.instance_url,
-        api_token: whatsappSettings.api_token,
-        instance_name: whatsappSettings.instance_name
-      }
-    }
-  });
+  // OTIMIZAÇÃO: Verificar conexão WhatsApp usando cache (apenas 1x por empresa)
+  console.log(`Validating WhatsApp connection for company ${notification.company_id} (cached)...`);
+  const connectionStatus = await checkWhatsAppConnectionCached(notification.company_id);
 
   // Check if connection validation failed or connection is not active
-  if (connectionCheck.error || !connectionCheck.data?.connected) {
-    const errorMsg = connectionCheck.error?.message || 
-                    (connectionCheck.data?.error) || 
-                    'WhatsApp não está conectado';
+  if (!connectionStatus.connected) {
+    const errorMsg = connectionStatus.error || 'WhatsApp não está conectado';
     console.error(`Connection check failed for company ${notification.company_id}:`, errorMsg);
     
     // Log WhatsApp disconnection alert with client info
     await logWhatsAppAlert(
       notification.company_id, 
-      `WhatsApp não autenticado — reconectar o número para continuar os envios. Estado: ${connectionCheck.data?.state || 'unknown'}`,
+      `WhatsApp desconectado: ${errorMsg}`,
       { name: client.name, phone: client.phone }
     );
     
-    throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
+    throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios. Erro: ${errorMsg}`);
   }
 
-  // 🤖 SEMPRE usar IA para gerar mensagens - NÃO enviar se IA falhar
-  let message: string;
+  // Format payment info for AI message generation
+  const dueDate = new Date(payment.due_date);
+  const formattedDueDate = formatDateBR(dueDate);
+  const formattedAmount = formatCurrencyBR(payment.amount);
   
+  // Calculate days difference
+  const daysDiff = calculateDaysDiff(dueDate);
+  const daysText = formatDaysText(daysDiff);
+
+  // === GERAR MENSAGEM COM IA ===
   console.log(`🤖 Generating AI message for notification ${notification.id}...`);
   
+  let message = '';
+  
+  // SEMPRE usar IA para gerar mensagens
   try {
     const aiResponse = await supabase.functions.invoke('ai-collection', {
       body: {
-        action: 'process_specific_payment',
         company_id: notification.company_id,
-        payment_id: payment.id
+        client_id: notification.client_id,
+        payment_id: payment.id,
+        event_type: notification.event_type,
+        days_overdue: notification.event_type === 'post_due' ? notification.offset_days : 0,
+        amount: payment.amount,
+        due_date: payment.due_date,
+        client_name: client.name
       }
     });
-
-    if (aiResponse.error || !aiResponse.data?.generated_message) {
-      const errorMsg = aiResponse.error?.message || 'IA não retornou mensagem';
-      console.error('❌ AI generation failed:', errorMsg);
+    
+    if (aiResponse.error) {
+      const errorMsg = `Erro ao gerar mensagem com IA: ${aiResponse.error.message || JSON.stringify(aiResponse.error)}`;
+      console.error('❌ AI error:', errorMsg);
+      
+      // Criar alerta para a empresa
+      await logAIFailureAlert(
+        notification.company_id,
+        payment.amount,
+        client.name,
+        errorMsg
+      );
+      
+      throw new Error(`Falha no sistema de IA: ${errorMsg}. Cobrança NÃO foi enviada.`);
+    }
+    
+    if (!aiResponse.data?.generated_message) {
+      const errorMsg = 'IA não retornou mensagem';
+      console.error('❌ AI returned empty message');
       
       // Criar alerta para a empresa
       await logAIFailureAlert(
@@ -1445,105 +1573,89 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     // Post-due notifications (for overdue payments)
     // NOVA LÓGICA: Criar apenas a PRÓXIMA notificação respeitando o intervalo de 6h
     if (isOverdue) {
-      console.log(`Creating post-due notifications for payment ${payment.id}, ${daysPastDue} days overdue`);
-      
-      const timeParts = settings.send_hour.split(':');
-      const baseHour = parseInt(timeParts[0]) || 9;
-      const baseMinute = parseInt(timeParts[1]) || 0;
+      const postDueDays = settings.post_due_days || [1, 3, 7, 15, 30];
+      const postDueTimes = settings.post_due_times_per_day || 2;
       const intervalHours = settings.post_due_interval_hours || 6;
       
-      // Buscar a última notificação post_due enviada ou agendada
-      const postDueNotifications = existingNotifications
-        .filter(n => n.event_type === 'post_due')
-        .sort((a, b) => new Date(b.scheduled_for).getTime() - new Date(a.scheduled_for).getTime());
+      // Parse send_hour
+      const timeParts = settings.send_hour.split(':');
+      const baseHour = parseInt(timeParts[0]) || 9;
+      const minute = parseInt(timeParts[1]) || 0;
       
-      const lastPostDue = postDueNotifications[0];
-      const hasPendingPostDue = postDueNotifications.some(n => n.status === 'pending');
+      // Verificar se já enviamos notificação nas últimas 6 horas
+      const sixHoursAgo = new Date(now.getTime() - intervalHours * 60 * 60 * 1000);
+      const { data: recentPostDue } = await supabase
+        .from('payment_notifications')
+        .select('sent_at')
+        .eq('payment_id', payment.id)
+        .eq('event_type', 'post_due')
+        .eq('status', 'sent')
+        .gte('sent_at', sixHoursAgo.toISOString())
+        .limit(1);
       
-      // Se já existe uma notificação pendente, não criar outra
-      if (hasPendingPostDue) {
-        console.log(`✅ Post_due notification already pending, skipping creation`);
-      } else {
-        // Calcular quando deve ser a próxima notificação
-        let nextScheduledDate: Date;
+      if (recentPostDue && recentPostDue.length > 0) {
+        console.log(`⏭️ Skipping post_due for payment ${payment.id} - sent in last ${intervalHours}h`);
+        continue;
+      }
+      
+      // Encontrar o próximo slot disponível para notificação
+      let notificationCreated = false;
+      
+      for (const targetDays of postDueDays) {
+        if (notificationCreated) break;
+        if (daysPastDue < targetDays) continue; // Ainda não chegou neste dia
         
-        if (!lastPostDue) {
-          // Primeira notificação post_due - agendar para o horário configurado (9h da manhã no Brasil)
-          nextScheduledDate = setBrazilTime(new Date(), baseHour, baseMinute);
+        // Verificar se já tem notificação pendente para este dia
+        for (let dispatchIndex = 0; dispatchIndex < postDueTimes; dispatchIndex++) {
+          const key = `post_due_${targetDays}_${dispatchIndex}`;
+          if (existingKeys.has(key)) continue;
           
-          // Se já passou do horário de hoje, enviar em alguns minutos com escalonamento
-          if (nextScheduledDate.getTime() < now.getTime()) {
-            // Escalonar múltiplos pagamentos: 2min, 5min, 8min, 11min...
-            const delayMinutes = 2 + ((paymentIndex - 1) * 3);
-            nextScheduledDate = new Date(now.getTime() + (delayMinutes * 60 * 1000));
-          }
-          console.log(`🆕 First post_due notification for payment #${paymentIndex}, scheduling for ${nextScheduledDate.toISOString()}`);
-        } else {
-          // Próxima notificação = última + intervalo configurado (6h)
-          nextScheduledDate = new Date(lastPostDue.scheduled_for);
-          nextScheduledDate.setHours(nextScheduledDate.getHours() + intervalHours);
-          console.log(`📅 Last post_due at ${lastPostDue.scheduled_for}, scheduling next for ${nextScheduledDate.toISOString()}`);
+          // Criar notificação
+          let scheduledDate = setBrazilTime(now, baseHour, minute, true);
           
-          // Se a data calculada já passou, agendar com escalonamento
-          if (nextScheduledDate.getTime() < now.getTime()) {
-            // Escalonar múltiplos pagamentos: 2min, 5min, 8min, 11min...
-            const delayMinutes = 2 + ((paymentIndex - 1) * 3);
-            nextScheduledDate = new Date(now.getTime() + (delayMinutes * 60 * 1000));
-            console.log(`⚡ Payment #${paymentIndex}: Adjusted to immediate send with ${delayMinutes}min delay: ${nextScheduledDate.toISOString()}`);
+          // Adicionar intervalo para o segundo disparo do dia
+          if (dispatchIndex > 0) {
+            scheduledDate.setHours(scheduledDate.getHours() + (dispatchIndex * intervalHours));
           }
+          
+          // Se a hora já passou hoje, agendar para agora + 5 min
+          if (scheduledDate.getTime() < now.getTime()) {
+            scheduledDate = new Date(now.getTime() + 5 * 60 * 1000);
+          }
+          
+          notifications.push({
+            company_id: settings.company_id,
+            payment_id: payment.id,
+            client_id: payment.client_id,
+            event_type: 'post_due',
+            offset_days: targetDays,
+            scheduled_for: scheduledDate.toISOString(),
+            status: 'pending',
+            attempts: 0
+          });
+          
+          console.log(`📝 Created post_due notification for payment ${payment.id}: day ${targetDays}, dispatch ${dispatchIndex}`);
+          notificationCreated = true;
+          break; // Criar apenas UMA notificação por vez
         }
-        
-        console.log(`Creating next post-due notification scheduled for: ${nextScheduledDate.toISOString()}`);
-        
-        notifications.push({
-          company_id: settings.company_id,
-          payment_id: payment.id,
-          client_id: payment.client_id,
-          event_type: 'post_due',
-          offset_days: daysPastDue,
-          scheduled_for: nextScheduledDate.toISOString(),
-          status: 'pending',
-          attempts: 0
-        });
       }
     }
   }
 
+  // Insert all notifications in a batch
   if (notifications.length > 0) {
-    // Tentar insert em batch primeiro
-    const { error } = await supabase
+    console.log(`Inserting ${notifications.length} new notifications for company ${settings.company_id}`);
+    
+    const { data: inserted, error: insertError } = await supabase
       .from('payment_notifications')
-      .insert(notifications);
+      .insert(notifications)
+      .select('id');
 
-    if (error) {
-      // Se houver erro de chave duplicada, tentar inserir um por um ignorando duplicatas
-      if (error.code === '23505') {
-        console.warn(`Duplicate key error for company ${settings.company_id}, inserting individually...`);
-        let successCount = 0;
-        
-        for (const notification of notifications) {
-          const { error: individualError } = await supabase
-            .from('payment_notifications')
-            .insert(notification);
-          
-          if (individualError) {
-            if (individualError.code !== '23505') {
-              console.error(`Error inserting individual notification:`, individualError);
-            }
-            // Se for erro de duplicata, apenas ignorar silenciosamente
-          } else {
-            successCount++;
-          }
-        }
-        
-        console.log(`Created ${successCount}/${notifications.length} notifications for company ${settings.company_id} (skipped duplicates)`);
-        results.created = successCount;
-      } else {
-        console.error(`Error creating notifications for company ${settings.company_id}:`, error);
-      }
+    if (insertError) {
+      console.error(`Error inserting notifications for company ${settings.company_id}:`, insertError);
     } else {
-      console.log(`Created ${notifications.length} notifications for company ${settings.company_id}`);
-      results.created = notifications.length;
+      results.created = inserted?.length || 0;
+      console.log(`Successfully created ${results.created} notifications for company ${settings.company_id}`);
     }
   }
   
