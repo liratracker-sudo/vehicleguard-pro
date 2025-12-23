@@ -1086,6 +1086,7 @@ async function sendSingleNotification(notification: any) {
   try {
     const aiResponse = await supabase.functions.invoke('ai-collection', {
       body: {
+        action: 'process_specific_payment',
         company_id: notification.company_id,
         client_id: notification.client_id,
         payment_id: payment.id,
