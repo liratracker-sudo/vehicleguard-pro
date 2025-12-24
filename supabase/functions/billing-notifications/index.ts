@@ -770,18 +770,23 @@ async function sendPendingNotifications(force = false) {
   
   const results = { sent: 0, failed: 0, skipped: 0, blocked_by_time: false };
   
-  // VALIDAÇÃO DE JANELA DE HORÁRIO: Só enviar entre 8h e 11h Brasil
+  // VALIDAÇÃO DE JANELA DE HORÁRIO: Enviar entre 8h-11h E 14h-16h Brasil
   const now = new Date();
   const brazilHour = (now.getUTCHours() - 3 + 24) % 24; // UTC-3
   
-  if (!force && (brazilHour < 8 || brazilHour > 11)) {
-    console.log(`⏰ BLOQUEADO: Fora da janela de envio (${brazilHour}h Brasil). Envio permitido apenas entre 8h-11h Brasil.`);
+  // Janela manhã: 8h-11h | Janela tarde: 14h-16h
+  const inMorningWindow = brazilHour >= 8 && brazilHour <= 11;
+  const inAfternoonWindow = brazilHour >= 14 && brazilHour <= 16;
+  
+  if (!force && !inMorningWindow && !inAfternoonWindow) {
+    console.log(`⏰ BLOQUEADO: Fora da janela de envio (${brazilHour}h Brasil). Envio permitido: 8h-11h e 14h-16h Brasil.`);
     console.log(`⏰ Horário atual UTC: ${now.getUTCHours()}h, Brasil: ${brazilHour}h`);
     results.blocked_by_time = true;
     return results;
   }
   
-  console.log(`✅ Dentro da janela de envio (${brazilHour}h Brasil). Processando notificações...`);
+  const windowType = inMorningWindow ? 'manhã' : 'tarde';
+  console.log(`✅ Dentro da janela de envio ${windowType} (${brazilHour}h Brasil). Processando notificações...`);
   
   // First, cleanup notifications for cancelled/paid payments BEFORE querying
   await cleanupInvalidNotifications();
