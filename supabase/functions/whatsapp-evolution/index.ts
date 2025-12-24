@@ -248,9 +248,10 @@ async function sendMessage(payload: any) {
 
   const evolutionApiUrl = `${instance_url}/message/sendText/${instance_name}`;
   
-  // Delay aleatório: 30s ± 5s (entre 25s e 35s) para evitar detecção de spam
-  const baseDelay = 30000;
-  const variation = 5000;
+  // Delay aleatório: 6.5s ± 1.5s (entre 5s e 8s) para evitar detecção de spam
+  // Reduzido de 30s para permitir mais mensagens por execução (~10-15 por batch)
+  const baseDelay = 6500;
+  const variation = 1500;
   const randomDelay = baseDelay + Math.floor(Math.random() * (variation * 2 + 1)) - variation;
 
   const messageData = {
