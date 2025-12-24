@@ -173,8 +173,22 @@ function setBrazilTime(date: Date, hour: number, minute: number, randomize: bool
   return utcDate;
 }
 
-// Global timeout for edge function (50s to stay under 60s limit)
-const FUNCTION_TIMEOUT_MS = 50000;
+// Global timeout for edge function (280s - alinhado com cron timeout de 300s)
+const FUNCTION_TIMEOUT_MS = 280000;
+
+// Configurações de processamento paralelo por empresa
+const NOTIFICATIONS_PER_COMPANY = 25; // Limite de notificações por empresa por execução
+const PARALLEL_COMPANIES = 3; // Número de empresas processadas simultaneamente
+const DELAY_BETWEEN_MESSAGES_MS = { min: 5000, max: 8000 }; // Delay anti-ban entre mensagens
+
+// Helper para delay aleatório (anti-ban)
+function randomDelay(): Promise<void> {
+  const delay = Math.floor(
+    Math.random() * (DELAY_BETWEEN_MESSAGES_MS.max - DELAY_BETWEEN_MESSAGES_MS.min + 1) + 
+    DELAY_BETWEEN_MESSAGES_MS.min
+  );
+  return new Promise(resolve => setTimeout(resolve, delay));
+}
 
 // Helper to create timeout promise
 function createTimeout(ms: number): Promise<never> {
@@ -355,9 +369,9 @@ async function processNotifications(force = false) {
     results.recreated = recreatedResults.recreated;
     console.log(`✅ [STEP 1/3] Done: ${results.recreated} recreated`);
     
-    // 2. Send pending notifications that are due (or all if force=true)
-    console.log('📤 [STEP 2/3] Sending pending notifications...');
-    const sentResults = await sendPendingNotifications(force);
+    // 2. Send pending notifications POR EMPRESA em PARALELO
+    console.log('📤 [STEP 2/3] Sending pending notifications (parallel by company)...');
+    const sentResults = await sendPendingNotificationsParallel(force);
     results.sent = sentResults.sent;
     results.failed = sentResults.failed;
     console.log(`✅ [STEP 2/3] Done: ${results.sent} sent, ${results.failed} failed`);
@@ -377,6 +391,223 @@ async function processNotifications(force = false) {
   console.log('✅ [CHECKPOINT] Notification processing completed', results);
   return results;
 }
+
+// ==================== PROCESSAMENTO PARALELO POR EMPRESA ====================
+
+// Função principal que orquestra o processamento paralelo por empresa
+async function sendPendingNotificationsParallel(force = false) {
+  console.log('🚀 [PARALLEL] Starting parallel notification processing by company...', { force });
+  
+  const results = { sent: 0, failed: 0, skipped: 0, blocked_by_time: false, companies_processed: 0 };
+  
+  // VALIDAÇÃO DE JANELA DE HORÁRIO: Enviar entre 8h-11h E 14h-16h Brasil
+  const now = new Date();
+  const brazilHour = (now.getUTCHours() - 3 + 24) % 24; // UTC-3
+  
+  // Janela manhã: 8h-11h | Janela tarde: 14h-16h
+  const inMorningWindow = brazilHour >= 8 && brazilHour <= 11;
+  const inAfternoonWindow = brazilHour >= 14 && brazilHour <= 16;
+  
+  if (!force && !inMorningWindow && !inAfternoonWindow) {
+    console.log(`⏰ BLOQUEADO: Fora da janela de envio (${brazilHour}h Brasil). Envio permitido: 8h-11h e 14h-16h Brasil.`);
+    results.blocked_by_time = true;
+    return results;
+  }
+  
+  const windowType = inMorningWindow ? 'manhã' : 'tarde';
+  console.log(`✅ Dentro da janela de envio ${windowType} (${brazilHour}h Brasil). Processando por empresa...`);
+  
+  // First, cleanup notifications for cancelled/paid payments
+  await cleanupInvalidNotifications();
+  
+  // Buscar empresas com notificações ativas
+  const { data: activeCompanies, error: companiesError } = await supabase
+    .from('payment_notification_settings')
+    .select('company_id, send_hour')
+    .eq('active', true);
+  
+  if (companiesError || !activeCompanies?.length) {
+    console.log('No active companies with notification settings');
+    return results;
+  }
+  
+  console.log(`📊 [PARALLEL] Found ${activeCompanies.length} active companies`);
+  
+  // Pré-carregar configurações de todas as empresas
+  const companyIds = activeCompanies.map(c => c.company_id);
+  await preloadConfigurations(companyIds);
+  
+  // Processar empresas em lotes paralelos (PARALLEL_COMPANIES simultâneas)
+  for (let i = 0; i < activeCompanies.length; i += PARALLEL_COMPANIES) {
+    const batch = activeCompanies.slice(i, i + PARALLEL_COMPANIES);
+    console.log(`📦 [PARALLEL] Processing batch ${Math.floor(i / PARALLEL_COMPANIES) + 1}: ${batch.length} companies`);
+    
+    // Processar lote de empresas em paralelo
+    const batchResults = await Promise.all(
+      batch.map(company => processCompanyNotifications(company.company_id, force))
+    );
+    
+    // Agregar resultados
+    for (const companyResult of batchResults) {
+      results.sent += companyResult.sent;
+      results.failed += companyResult.failed;
+      results.skipped += companyResult.skipped;
+      results.companies_processed++;
+    }
+    
+    console.log(`✅ [PARALLEL] Batch completed. Totals so far: ${results.sent} sent, ${results.failed} failed`);
+  }
+  
+  console.log(`🏁 [PARALLEL] All companies processed: ${results.companies_processed} companies, ${results.sent} sent, ${results.failed} failed`);
+  return results;
+}
+
+// Processa notificações de UMA empresa específica (limite: NOTIFICATIONS_PER_COMPANY)
+async function processCompanyNotifications(companyId: string, force = false) {
+  console.log(`🏢 [COMPANY ${companyId}] Starting processing (limit: ${NOTIFICATIONS_PER_COMPANY})...`);
+  
+  const results = { sent: 0, failed: 0, skipped: 0 };
+  const bufferTime = new Date();
+  bufferTime.setMinutes(bufferTime.getMinutes() + 5);
+  
+  // Buscar notificações pendentes APENAS desta empresa
+  const { data: notifications, error } = await supabase
+    .from('payment_notifications')
+    .select(`
+      *,
+      payment_transactions!inner(*, clients(name, phone, email))
+    `)
+    .eq('company_id', companyId)
+    .eq('status', 'pending')
+    .lte('scheduled_for', bufferTime.toISOString())
+    .order('offset_days', { ascending: true })
+    .order('scheduled_for', { ascending: true })
+    .limit(NOTIFICATIONS_PER_COMPANY); // LIMITE POR EMPRESA
+  
+  if (error) {
+    console.error(`❌ [COMPANY ${companyId}] Error fetching notifications:`, error);
+    return results;
+  }
+  
+  if (!notifications || notifications.length === 0) {
+    console.log(`📭 [COMPANY ${companyId}] No pending notifications`);
+    return results;
+  }
+  
+  console.log(`📋 [COMPANY ${companyId}] Found ${notifications.length} pending notifications`);
+  
+  // Track which payment+event_type combinations we've already sent in this batch
+  const sentInThisBatch = new Set<string>();
+  
+  for (const notification of notifications) {
+    // Skip notifications without valid data
+    if (!notification.payment_transactions || !notification.payment_transactions.clients) {
+      console.log(`⏭️ [COMPANY ${companyId}] Skipping ${notification.id} - invalid data`);
+      continue;
+    }
+    
+    // Skip notifications for cancelled or paid payments
+    const paymentStatus = notification.payment_transactions.status;
+    if (!paymentStatus || !['pending', 'overdue'].includes(paymentStatus)) {
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'skipped',
+          last_error: `Payment status is ${paymentStatus}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      results.skipped++;
+      continue;
+    }
+    
+    // Check for duplicates in this batch
+    const batchKey = `${notification.payment_id}:${notification.event_type}`;
+    if (sentInThisBatch.has(batchKey)) {
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'skipped',
+          last_error: `Duplicate ${notification.event_type} - already sent in this batch`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      results.skipped++;
+      continue;
+    }
+    
+    // Check for recently sent similar notifications (last 12 hours)
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { data: recentSent } = await supabase
+      .from('payment_notifications')
+      .select('id, sent_at')
+      .eq('payment_id', notification.payment_id)
+      .eq('event_type', notification.event_type)
+      .eq('status', 'sent')
+      .gte('sent_at', twelveHoursAgo)
+      .limit(1);
+
+    if (recentSent && recentSent.length > 0) {
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'skipped',
+          last_error: `Similar notification already sent at ${recentSent[0].sent_at}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      results.skipped++;
+      continue;
+    }
+    
+    try {
+      await sendSingleNotification(notification);
+      
+      // Mark as sent
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          attempts: notification.attempts + 1
+        })
+        .eq('id', notification.id);
+      
+      sentInThisBatch.add(batchKey);
+      results.sent++;
+      console.log(`✅ [COMPANY ${companyId}] Notification ${notification.id} sent`);
+      
+      // DELAY ANTI-BAN entre mensagens (5-8 segundos)
+      if (notifications.indexOf(notification) < notifications.length - 1) {
+        await randomDelay();
+      }
+      
+    } catch (error) {
+      console.error(`❌ [COMPANY ${companyId}] Failed notification ${notification.id}:`, error);
+      
+      const newAttempts = notification.attempts + 1;
+      const maxAttempts = 3;
+      const status = newAttempts >= maxAttempts ? 'failed' : 'pending';
+      
+      await supabase
+        .from('payment_notifications')
+        .update({
+          status,
+          attempts: newAttempts,
+          last_error: error instanceof Error ? error.message : String(error),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id);
+      
+      results.failed++;
+    }
+  }
+  
+  console.log(`🏁 [COMPANY ${companyId}] Completed: ${results.sent} sent, ${results.failed} failed, ${results.skipped} skipped`);
+  return results;
+}
+
+// ==================== FIM PROCESSAMENTO PARALELO ====================
 
 // Função para recriar notificações de cobranças já vencidas com horário incorreto
 // OTIMIZADO: Limita processamento a 30 pagamentos por execução para evitar timeout
@@ -765,207 +996,8 @@ function generateRecommendations(debugInfo: any): string[] {
   return recommendations;
 }
 
-async function sendPendingNotifications(force = false) {
-  console.log('Sending pending notifications...', { force });
-  
-  const results = { sent: 0, failed: 0, skipped: 0, blocked_by_time: false };
-  
-  // VALIDAÇÃO DE JANELA DE HORÁRIO: Enviar entre 8h-11h E 14h-16h Brasil
-  const now = new Date();
-  const brazilHour = (now.getUTCHours() - 3 + 24) % 24; // UTC-3
-  
-  // Janela manhã: 8h-11h | Janela tarde: 14h-16h
-  const inMorningWindow = brazilHour >= 8 && brazilHour <= 11;
-  const inAfternoonWindow = brazilHour >= 14 && brazilHour <= 16;
-  
-  if (!force && !inMorningWindow && !inAfternoonWindow) {
-    console.log(`⏰ BLOQUEADO: Fora da janela de envio (${brazilHour}h Brasil). Envio permitido: 8h-11h e 14h-16h Brasil.`);
-    console.log(`⏰ Horário atual UTC: ${now.getUTCHours()}h, Brasil: ${brazilHour}h`);
-    results.blocked_by_time = true;
-    return results;
-  }
-  
-  const windowType = inMorningWindow ? 'manhã' : 'tarde';
-  console.log(`✅ Dentro da janela de envio ${windowType} (${brazilHour}h Brasil). Processando notificações...`);
-  
-  // First, cleanup notifications for cancelled/paid payments BEFORE querying
-  await cleanupInvalidNotifications();
-  
-  // Get all pending notifications that are due (including a 5-minute buffer for timing issues)
-  // If force=true, include all pending notifications regardless of scheduled time
-  const bufferTime = new Date();
-  bufferTime.setMinutes(bufferTime.getMinutes() + 5);
-  
-  let query = supabase
-    .from('payment_notifications')
-    .select(`
-      *,
-      payment_transactions!inner(*, clients(name, phone, email))
-    `)
-    .eq('status', 'pending')
-    // Order by offset_days ASC for pre_due to send most relevant (closest to due date) first
-    .order('offset_days', { ascending: true })
-    .order('scheduled_for', { ascending: true })
-    .limit(50); // Limite reduzido para garantir processamento dentro do timeout
-
-  // ALWAYS filter by scheduled_for to prevent sending future notifications
-  // force mode only means "send immediately" for notifications that are already due
-  console.log(`Processing notifications${force ? ' (force mode - only overdue)' : ''}, cutoff: ${bufferTime.toISOString()}`);
-  query = query.lte('scheduled_for', bufferTime.toISOString());
-
-  const { data: pendingNotifications, error } = await query;
-
-  if (error) {
-    console.error('Error fetching pending notifications:', error);
-    return results;
-  }
-
-  console.log(`Found ${pendingNotifications?.length || 0} pending notifications to send`);
-  console.log('Notification details:', pendingNotifications?.map(n => ({
-    id: n.id,
-    event_type: n.event_type,
-    payment_status: n.payment_transactions?.status,
-    scheduled_for: n.scheduled_for,
-    offset_days: n.offset_days
-  })));
-
-  if (!pendingNotifications || pendingNotifications.length === 0) {
-    return results;
-  }
-
-  // OTIMIZAÇÃO: Extrair IDs únicos de empresas e pré-carregar todas as configurações
-  const uniqueCompanyIds = [...new Set(pendingNotifications.map(n => n.company_id))];
-  console.log(`📦 Pré-carregando configurações para ${uniqueCompanyIds.length} empresas...`);
-  await preloadConfigurations(uniqueCompanyIds);
-
-  // Track which payment+event_type combinations we've already sent in this batch
-  const sentInThisBatch = new Set<string>();
-
-  for (const notification of pendingNotifications) {
-    console.log(`Processing notification ${notification.id} for company ${notification.company_id}, event: ${notification.event_type}`);
-    
-    // Skip notifications that are too old or don't have valid payment data
-    if (!notification.payment_transactions || !notification.payment_transactions.clients) {
-      console.log(`Skipping notification ${notification.id} - invalid payment/client data`);
-      continue;
-    }
-    
-    // Skip notifications for cancelled or paid payments and mark as skipped
-    const paymentStatus = notification.payment_transactions.status;
-    if (!paymentStatus || !['pending', 'overdue'].includes(paymentStatus)) {
-      console.log(`Skipping notification ${notification.id} - payment status is ${paymentStatus}`);
-      
-      // Mark as skipped
-      await supabase
-        .from('payment_notifications')
-        .update({
-          status: 'skipped',
-          last_error: `Payment status is ${paymentStatus}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', notification.id);
-      
-      continue;
-    }
-
-    // Check if we already sent this payment+event_type in this batch
-    const batchKey = `${notification.payment_id}:${notification.event_type}`;
-    if (sentInThisBatch.has(batchKey)) {
-      console.log(`⏭️ Skipping notification ${notification.id} - already sent ${notification.event_type} for payment ${notification.payment_id} in this batch`);
-      
-      await supabase
-        .from('payment_notifications')
-        .update({
-          status: 'skipped',
-          last_error: `Duplicate ${notification.event_type} - another notification of same type already sent`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', notification.id);
-      
-      results.skipped++;
-      continue;
-    }
-
-    // Check if we already sent a similar notification recently (last 12 hours)
-    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
-    const { data: recentSent } = await supabase
-      .from('payment_notifications')
-      .select('id, sent_at')
-      .eq('payment_id', notification.payment_id)
-      .eq('event_type', notification.event_type)
-      .eq('status', 'sent')
-      .gte('sent_at', twelveHoursAgo)
-      .limit(1);
-
-    if (recentSent && recentSent.length > 0) {
-      console.log(`⏭️ Skipping notification ${notification.id} - similar ${notification.event_type} already sent in last 12h (at ${recentSent[0].sent_at})`);
-      
-      await supabase
-        .from('payment_notifications')
-        .update({
-          status: 'skipped',
-          last_error: `Similar notification already sent at ${recentSent[0].sent_at}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', notification.id);
-      
-      results.skipped++;
-      continue;
-    }
-    
-    try {
-      // Usar configurações do cache em vez de buscar do banco
-      const notificationSettings = companyCache.notificationSettings.get(notification.company_id);
-
-      await sendSingleNotification(notification);
-      
-      // Mark as sent with retry limit
-      await supabase
-        .from('payment_notifications')
-        .update({
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          attempts: notification.attempts + 1
-        })
-        .eq('id', notification.id);
-        
-      console.log(`Notification sent successfully: ${notification.id}`);
-      results.sent++;
-    } catch (error) {
-      console.error(`Failed to send notification ${notification.id}:`, error);
-      
-      // Usar configurações do cache para retry logic
-      const notificationSettings = companyCache.notificationSettings.get(notification.company_id);
-      
-      // Update attempts and mark as failed if too many attempts
-      const newAttempts = notification.attempts + 1;
-      const maxAttempts = notificationSettings?.max_attempts_per_notification || 3;
-      const retryInterval = notificationSettings?.retry_interval_hours || 1;
-      const status = newAttempts >= maxAttempts ? 'failed' : 'pending';
-      
-      await supabase
-        .from('payment_notifications')
-        .update({
-          status,
-          attempts: newAttempts,
-          last_error: error instanceof Error ? error.message : String(error),
-          // Reschedule based on retry_interval_hours if not failed
-          scheduled_for: status === 'pending' 
-            ? new Date(Date.now() + retryInterval * 60 * 60 * 1000).toISOString()
-            : notification.scheduled_for
-        })
-        .eq('id', notification.id);
-      
-      results.failed++;
-    }
-    
-    // Mark as sent in this batch to prevent duplicates
-    sentInThisBatch.add(batchKey);
-  }
-  
-  console.log(`Notification results: sent=${results.sent}, failed=${results.failed}, skipped=${results.skipped}`);
-  return results;
-}
+// NOTA: A função sendPendingNotifications foi substituída por sendPendingNotificationsParallel
+// que processa notificações por empresa com limite individual (NOTIFICATIONS_PER_COMPANY) e processamento paralelo
 
 async function cleanupInvalidNotifications() {
   console.log('Cleaning up notifications for cancelled/paid payments...');
