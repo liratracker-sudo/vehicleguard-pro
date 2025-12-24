@@ -437,10 +437,28 @@ async function sendPendingNotificationsParallel(force = false) {
   const companyIds = activeCompanies.map(c => c.company_id);
   await preloadConfigurations(companyIds);
   
+  // FILTRAR empresas que TÊM WhatsApp configurado (evitar processamento desnecessário)
+  const companiesWithWhatsApp = activeCompanies.filter(company => {
+    const whatsappSettings = companyCache.whatsappSettings.get(company.company_id);
+    if (!whatsappSettings) {
+      console.log(`⏭️ Skipping company ${company.company_id} - no WhatsApp configured`);
+      return false;
+    }
+    return true;
+  });
+  
+  console.log(`📊 [PARALLEL] ${companiesWithWhatsApp.length}/${activeCompanies.length} companies have WhatsApp configured`);
+  
+  if (companiesWithWhatsApp.length === 0) {
+    console.log('⚠️ No companies with WhatsApp configured - nothing to process');
+    return results;
+  }
+  
   // Processar empresas em lotes paralelos (PARALLEL_COMPANIES simultâneas)
-  for (let i = 0; i < activeCompanies.length; i += PARALLEL_COMPANIES) {
-    const batch = activeCompanies.slice(i, i + PARALLEL_COMPANIES);
-    console.log(`📦 [PARALLEL] Processing batch ${Math.floor(i / PARALLEL_COMPANIES) + 1}: ${batch.length} companies`);
+  // USAR companiesWithWhatsApp ao invés de activeCompanies
+  for (let i = 0; i < companiesWithWhatsApp.length; i += PARALLEL_COMPANIES) {
+    const batch = companiesWithWhatsApp.slice(i, i + PARALLEL_COMPANIES);
+    console.log(`📦 [PARALLEL] Processing batch ${Math.floor(i / PARALLEL_COMPANIES) + 1}: ${batch.length} companies (with WhatsApp)`);
     
     // Processar lote de empresas em paralelo
     const batchResults = await Promise.all(
@@ -668,9 +686,10 @@ async function recreateOverdueNotifications() {
         const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
         const scheduledFor = setBrazilTime(now, sendHour, 0);
         
+        // USAR UPSERT com ignoreDuplicates para evitar erros de constraint
         const { error: insertError } = await supabase
           .from('payment_notifications')
-          .insert({
+          .upsert({
             payment_id: payment.id,
             client_id: payment.client_id,
             company_id: payment.company_id,
@@ -678,6 +697,9 @@ async function recreateOverdueNotifications() {
             offset_days: daysOverdue,
             scheduled_for: scheduledFor.toISOString(),
             status: 'pending'
+          }, {
+            onConflict: 'company_id,payment_id,event_type,offset_days',
+            ignoreDuplicates: true
           });
         
         if (!insertError) {
@@ -711,9 +733,10 @@ async function recreateOverdueNotifications() {
         const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
         const scheduledFor = setBrazilTime(now, sendHour, 0);
         
+        // USAR UPSERT com ignoreDuplicates para evitar erros de constraint
         const { error: insertError } = await supabase
           .from('payment_notifications')
-          .insert({
+          .upsert({
             payment_id: payment.id,
             client_id: payment.client_id,
             company_id: payment.company_id,
@@ -721,6 +744,9 @@ async function recreateOverdueNotifications() {
             offset_days: daysOverdue,
             scheduled_for: scheduledFor.toISOString(),
             status: 'pending'
+          }, {
+            onConflict: 'company_id,payment_id,event_type,offset_days',
+            ignoreDuplicates: true
           });
         
         if (!insertError) {
@@ -1680,13 +1706,16 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     }
   }
 
-  // Insert all notifications in a batch
+  // USAR UPSERT com ignoreDuplicates para evitar erros de constraint de duplicata
   if (notifications.length > 0) {
     console.log(`Inserting ${notifications.length} new notifications for company ${settings.company_id}`);
     
     const { data: inserted, error: insertError } = await supabase
       .from('payment_notifications')
-      .insert(notifications)
+      .upsert(notifications, {
+        onConflict: 'company_id,payment_id,event_type,offset_days',
+        ignoreDuplicates: true
+      })
       .select('id');
 
     if (insertError) {
