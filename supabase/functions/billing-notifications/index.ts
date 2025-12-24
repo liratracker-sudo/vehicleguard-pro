@@ -603,6 +603,28 @@ async function processCompanyNotifications(companyId: string, force = false) {
     } catch (error) {
       console.error(`❌ [COMPANY ${companyId}] Failed notification ${notification.id}:`, error);
       
+      // 🔌 CIRCUIT BREAKER: Se for erro de WhatsApp desconectado, marcar como failed e PARAR
+      if ((error as any).isCircuitBreaker || (error instanceof Error && error.message.includes('[CIRCUIT_BREAKER]'))) {
+        console.error(`🔌 [CIRCUIT BREAKER] Company ${companyId} - WhatsApp disconnected, stopping all notifications`);
+        
+        // Marcar esta notificação como failed
+        await supabase
+          .from('payment_notifications')
+          .update({
+            status: 'failed',
+            attempts: notification.attempts + 1,
+            last_error: 'WhatsApp desconectado - reconecte para retomar envios',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', notification.id);
+        
+        results.failed++;
+        
+        // PARAR o processamento desta empresa (circuit breaker ativado)
+        console.log(`🛑 [COMPANY ${companyId}] Circuit breaker activated - stopping all notifications for this company`);
+        break;
+      }
+      
       const newAttempts = notification.attempts + 1;
       const maxAttempts = 3;
       const status = newAttempts >= maxAttempts ? 'failed' : 'pending';
@@ -1116,10 +1138,10 @@ async function sendSingleNotification(notification: any) {
   console.log(`Validating WhatsApp connection for company ${notification.company_id} (cached)...`);
   const connectionStatus = await checkWhatsAppConnectionCached(notification.company_id);
 
-  // Check if connection validation failed or connection is not active
+  // 🔌 CIRCUIT BREAKER: Se WhatsApp desconectado, marcar como failed e parar processamento
   if (!connectionStatus.connected) {
     const errorMsg = connectionStatus.error || 'WhatsApp não está conectado';
-    console.error(`Connection check failed for company ${notification.company_id}:`, errorMsg);
+    console.error(`🔌 [CIRCUIT BREAKER] Connection check failed for company ${notification.company_id}:`, errorMsg);
     
     // Log WhatsApp disconnection alert with client info
     await logWhatsAppAlert(
@@ -1128,7 +1150,10 @@ async function sendSingleNotification(notification: any) {
       { name: client.name, phone: client.phone }
     );
     
-    throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios. Erro: ${errorMsg}`);
+    // CIRCUIT BREAKER: Lançar erro específico que será tratado de forma especial
+    const circuitBreakerError = new Error(`[CIRCUIT_BREAKER] WhatsApp desconectado para empresa ${notification.company_id}. Reconectar para continuar. Erro: ${errorMsg}`);
+    (circuitBreakerError as any).isCircuitBreaker = true;
+    throw circuitBreakerError;
   }
 
   // Format payment info for AI message generation
@@ -1145,7 +1170,7 @@ async function sendSingleNotification(notification: any) {
   
   let message = '';
   
-  // SEMPRE usar IA para gerar mensagens
+  // GERAR MENSAGEM COM IA (com fallback para mensagem padrão)
   try {
     const aiResponse = await supabase.functions.invoke('ai-collection', {
       body: {
@@ -1161,56 +1186,52 @@ async function sendSingleNotification(notification: any) {
       }
     });
     
-    if (aiResponse.error) {
-      const errorMsg = `Erro ao gerar mensagem com IA: ${aiResponse.error.message || JSON.stringify(aiResponse.error)}`;
-      console.error('❌ AI error:', errorMsg);
+    if (aiResponse.error || !aiResponse.data?.generated_message) {
+      const errorMsg = aiResponse.error?.message || 'IA não retornou mensagem';
+      console.warn('⚠️ AI generation failed, using fallback message:', errorMsg);
       
-      // Criar alerta para a empresa
+      // Registrar alerta para a empresa (mas não interromper)
       await logAIFailureAlert(
         notification.company_id,
         payment.amount,
         client.name,
-        errorMsg
+        `IA falhou, usando mensagem padrão: ${errorMsg}`
       );
       
-      throw new Error(`Falha no sistema de IA: ${errorMsg}. Cobrança NÃO foi enviada.`);
-    }
-    
-    if (!aiResponse.data?.generated_message) {
-      const errorMsg = 'IA não retornou mensagem';
-      console.error('❌ AI returned empty message');
-      
-      // Criar alerta para a empresa
-      await logAIFailureAlert(
-        notification.company_id,
-        payment.amount,
+      // 🔄 FALLBACK: Gerar mensagem padrão quando IA falhar
+      message = generateFallbackMessage(
         client.name,
-        errorMsg
+        formattedAmount,
+        formattedDueDate,
+        notification.event_type,
+        daysText
       );
-      
-      throw new Error(`Falha no sistema de IA: ${errorMsg}. Cobrança NÃO foi enviada.`);
+      console.log('📝 Using fallback message');
     } else {
       message = aiResponse.data.generated_message;
       console.log('✅ AI message generated successfully');
     }
   } catch (error) {
-    // Se for erro do nosso throw acima, re-throw
-    if (error instanceof Error && error.message.includes('Falha no sistema de IA')) {
-      throw error;
-    }
-    
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('❌ Error calling AI collection:', errorMsg);
+    console.warn('⚠️ Error calling AI collection, using fallback:', errorMsg);
     
-    // Criar alerta para a empresa
+    // Registrar alerta para a empresa (mas não interromper)
     await logAIFailureAlert(
       notification.company_id,
       payment.amount,
       client.name,
-      errorMsg
+      `Erro na IA, usando mensagem padrão: ${errorMsg}`
     );
     
-    throw new Error(`Falha no sistema de IA: ${errorMsg}. Cobrança NÃO foi enviada.`);
+    // 🔄 FALLBACK: Gerar mensagem padrão quando IA falhar
+    message = generateFallbackMessage(
+      client.name,
+      formattedAmount,
+      formattedDueDate,
+      notification.event_type,
+      daysText
+    );
+    console.log('📝 Using fallback message after error');
   }
   
   // Remove any existing links from the message and add the payment link at the end
@@ -1328,6 +1349,31 @@ async function logAIFailureAlert(
       });
   } catch (error) {
     console.error('Failed to log AI failure alert:', error);
+  }
+}
+
+// 🔄 FALLBACK: Gerar mensagem padrão quando IA falhar
+function generateFallbackMessage(
+  clientName: string,
+  formattedAmount: string,
+  formattedDueDate: string,
+  eventType: string,
+  daysText: string
+): string {
+  const firstName = clientName.split(' ')[0];
+  
+  switch (eventType) {
+    case 'pre_due':
+      return `Olá ${firstName}! 👋\n\nEste é um lembrete amigável sobre sua fatura de R$ ${formattedAmount} com vencimento em ${formattedDueDate}.\n\nAntecipe o pagamento e evite contratempos!`;
+    
+    case 'on_due':
+      return `Olá ${firstName}! 👋\n\nSua fatura de R$ ${formattedAmount} vence hoje (${formattedDueDate}).\n\nRealize o pagamento para manter seus serviços em dia!`;
+    
+    case 'post_due':
+      return `Olá ${firstName}! 👋\n\n⚠️ Sua fatura de R$ ${formattedAmount} está em atraso há ${daysText} dia(s). Vencimento original: ${formattedDueDate}.\n\nRegularize sua situação o quanto antes para evitar encargos adicionais.`;
+    
+    default:
+      return `Olá ${firstName}! 👋\n\nVocê possui uma fatura de R$ ${formattedAmount} com vencimento em ${formattedDueDate}.\n\nAguardamos seu pagamento!`;
   }
 }
 
