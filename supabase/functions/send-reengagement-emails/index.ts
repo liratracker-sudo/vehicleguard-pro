@@ -190,7 +190,7 @@ serve(async (req) => {
         
         // Enviar via Resend
         const { error: emailError } = await resend.emails.send({
-          from: "GestaoTracker <onboarding@resend.dev>",
+          from: "GestaoTracker <suporte@liratracker.com.br>",
           to: [recipientEmail],
           subject: `🚀 ${recipientName}, seu GestaoTracker está te esperando!`,
           html: emailHtml,
