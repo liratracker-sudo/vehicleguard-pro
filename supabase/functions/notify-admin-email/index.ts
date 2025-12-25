@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+const appUrl = Deno.env.get('APP_URL') || 'https://gestaotracker.lovable.app';
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -102,7 +102,7 @@ serve(async (req: Request): Promise<Response> => {
     console.log(`📤 Sending email to ${adminProfile.email}...`);
     
     const emailResponse = await resend.emails.send({
-      from: "VehicleGuard <alertas@resend.dev>", // Use seu domínio verificado
+      from: "GestaoTracker <alertas@resend.dev>",
       to: [adminProfile.email],
       subject: subject,
       html: html,
@@ -203,7 +203,7 @@ function generateEmailContent(
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               
               <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-                Este é um email automático do sistema VehicleGuard.<br>
+                Este é um email automático do sistema GestaoTracker.<br>
                 Você só receberá um novo alerta deste tipo após 6 horas.
               </p>
             </div>
@@ -246,7 +246,7 @@ function generateEmailContent(
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               
               <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-                Email automático do VehicleGuard. Próximo alerta em 6 horas.
+                Email automático do GestaoTracker. Próximo alerta em 6 horas.
               </p>
             </div>
           </body>
