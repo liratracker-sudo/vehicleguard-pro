@@ -368,9 +368,9 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
         
         <!-- CTA Button -->
         <div style="text-align: center; margin-bottom: 30px;">
-          <a href="${appUrl}" 
-             style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
-            🚀 Começar Agora
+          <a href="https://wa.me/5521992081803?text=Ol%C3%A1!%20Preciso%20de%20ajuda%20para%20configurar%20minha%20conta%20GestaoTracker." 
+             style="display: inline-block; background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);">
+            💬 Me ajude a configurar Grátis
           </a>
         </div>
         
