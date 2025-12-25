@@ -65,6 +65,7 @@ export function useReengagement() {
       );
 
       const result = await response.json();
+      console.log('Reengagement API response:', result);
       
       if (result.inactive_companies) {
         setInactiveCompanies(result.inactive_companies);
