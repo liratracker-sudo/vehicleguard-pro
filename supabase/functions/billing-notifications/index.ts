@@ -1293,7 +1293,7 @@ async function sendSingleNotification(notification: any) {
     .eq('id', notification.id);
 }
 
-// Helper function to log WhatsApp alerts with optional client info
+// Helper function to log WhatsApp alerts with optional client info AND send email to admin
 async function logWhatsAppAlert(
   companyId: string, 
   message: string,
@@ -1319,6 +1319,37 @@ async function logWhatsAppAlert(
         severity: 'error',
         created_at: new Date().toISOString()
       });
+    
+    // 📧 ENVIAR EMAIL PARA O ADMIN (com rate limiting interno na função)
+    // Só envia para alertas de desconexão (não para erros menores)
+    const isDisconnectionAlert = message.toLowerCase().includes('desconectado') || 
+                                  message.toLowerCase().includes('não autenticado') ||
+                                  message.toLowerCase().includes('not connected');
+    
+    if (isDisconnectionAlert) {
+      console.log('📧 Triggering admin email notification for WhatsApp disconnection...');
+      
+      try {
+        const emailResponse = await supabase.functions.invoke('notify-admin-email', {
+          body: {
+            company_id: companyId,
+            alert_type: 'whatsapp_disconnected',
+            context: {
+              error_message: message
+            }
+          }
+        });
+        
+        if (emailResponse.error) {
+          console.error('⚠️ Failed to send admin email:', emailResponse.error.message);
+        } else {
+          console.log('✅ Admin email notification result:', emailResponse.data);
+        }
+      } catch (emailError) {
+        console.error('⚠️ Error invoking notify-admin-email:', emailError);
+        // Não falhar o fluxo principal por causa do email
+      }
+    }
   } catch (error) {
     console.error('Failed to log WhatsApp alert:', error);
     // Don't throw here to avoid breaking the main flow
