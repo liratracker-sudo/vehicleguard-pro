@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCompanyAdmin } from "@/hooks/useCompanyAdmin"
 import { CompanyManagement } from "@/components/admin/CompanyManagement"
 import { SubscriptionPlansManagement } from "@/components/admin/SubscriptionPlansManagement"
-import { Building2, Crown, TrendingUp, CreditCard, FileText, Users } from "lucide-react"
+import { ReengagementManagement } from "@/components/admin/ReengagementManagement"
+import { Building2, Crown, TrendingUp, CreditCard, FileText, Users, Mail } from "lucide-react"
 
 const AdminPage = () => {
   const { stats, loading: statsLoading } = useCompanyAdmin()
@@ -32,7 +33,7 @@ const AdminPage = () => {
         </div>
 
         <Tabs defaultValue="stats" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="stats" className="gap-2">
               <TrendingUp className="w-4 h-4" />
               Estatísticas
@@ -44,6 +45,10 @@ const AdminPage = () => {
             <TabsTrigger value="plans" className="gap-2">
               <CreditCard className="w-4 h-4" />
               Planos
+            </TabsTrigger>
+            <TabsTrigger value="reengagement" className="gap-2">
+              <Mail className="w-4 h-4" />
+              Reengajamento
             </TabsTrigger>
             <TabsTrigger value="logs" className="gap-2">
               <FileText className="w-4 h-4" />
@@ -152,6 +157,10 @@ const AdminPage = () => {
 
           <TabsContent value="plans">
             <SubscriptionPlansManagement />
+          </TabsContent>
+
+          <TabsContent value="reengagement">
+            <ReengagementManagement />
           </TabsContent>
 
           <TabsContent value="logs">
