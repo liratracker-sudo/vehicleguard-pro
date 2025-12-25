@@ -2169,6 +2169,53 @@ export type Database = {
           },
         ]
       }
+      reengagement_email_logs: {
+        Row: {
+          admin_name: string | null
+          clicked_at: string | null
+          company_id: string
+          email: string
+          error_message: string | null
+          id: string
+          opened_at: string | null
+          sent_at: string | null
+          status: string
+          template_type: string
+        }
+        Insert: {
+          admin_name?: string | null
+          clicked_at?: string | null
+          company_id: string
+          email: string
+          error_message?: string | null
+          id?: string
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+          template_type?: string
+        }
+        Update: {
+          admin_name?: string | null
+          clicked_at?: string | null
+          company_id?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+          template_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reengagement_email_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_reminders: {
         Row: {
           action_type: string

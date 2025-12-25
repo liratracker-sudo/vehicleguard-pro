@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.notify-admin-email]
 verify_jwt = false
+
+[functions.send-reengagement-emails]
+verify_jwt = true
