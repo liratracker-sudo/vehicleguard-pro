@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_notification_logs: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          message: string | null
+          notification_type: string
+          recipient: string
+          sent_via: string
+          subject: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          notification_type: string
+          recipient: string
+          sent_via?: string
+          subject?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          notification_type?: string
+          recipient?: string
+          sent_via?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_notification_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_collection_logs: {
         Row: {
           client_id: string | null

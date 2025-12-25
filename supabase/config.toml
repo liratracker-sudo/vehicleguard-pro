@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.whatsapp-test-diagnostic]
 verify_jwt = true
+
+[functions.notify-admin-email]
+verify_jwt = false
