@@ -70,7 +70,7 @@ serve(async (req: Request): Promise<Response> => {
     // 2. Buscar dados da empresa e admin
     const { data: company, error: companyError } = await supabase
       .from('companies')
-      .select('id, name, slug')
+      .select('id, name, slug, logo_url')
       .eq('id', company_id)
       .single();
     
@@ -94,9 +94,10 @@ serve(async (req: Request): Promise<Response> => {
     }
     
     console.log(`📧 Found admin: ${adminProfile.full_name} (${adminProfile.email})`);
+    console.log(`🖼️ Company logo: ${company.logo_url || 'none'}`);
     
     // 3. Gerar conteúdo do email baseado no tipo de alerta
-    const { subject, html } = generateEmailContent(alert_type, company.name, context, appUrl);
+    const { subject, html } = generateEmailContent(alert_type, company.name, context, appUrl, company.logo_url);
     
     // 4. Enviar email via Resend
     console.log(`📤 Sending email to ${adminProfile.email}...`);
@@ -149,9 +150,15 @@ function generateEmailContent(
   alertType: string, 
   companyName: string, 
   context?: NotifyAdminRequest['context'],
-  appUrl?: string
+  appUrl?: string,
+  logoUrl?: string | null
 ): { subject: string; html: string } {
   const settingsUrl = `${appUrl}/settings?tab=integracoes`;
+  
+  // Logo HTML - usa logo da empresa ou fallback para texto
+  const logoHtml = logoUrl 
+    ? `<img src="${logoUrl}" alt="${companyName}" style="max-height: 50px; max-width: 200px; margin-bottom: 15px; object-fit: contain;">`
+    : `<div style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: white;">GestaoTracker</div>`;
   
   switch (alertType) {
     case 'whatsapp_disconnected':
@@ -166,6 +173,7 @@ function generateEmailContent(
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              ${logoHtml}
               <h1 style="color: white; margin: 0; font-size: 24px;">⚠️ Alerta: WhatsApp Desconectado</h1>
             </div>
             
@@ -223,6 +231,7 @@ function generateEmailContent(
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              ${logoHtml}
               <h1 style="color: white; margin: 0; font-size: 24px;">⚠️ Alerta: Falha no Sistema de IA</h1>
             </div>
             
@@ -258,8 +267,33 @@ function generateEmailContent(
       return {
         subject: `⚠️ Alerta do sistema - ${companyName}`,
         html: `
-          <p>Foi detectado um problema no sistema da empresa ${companyName}.</p>
-          <p>Por favor, acesse o sistema para verificar.</p>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              ${logoHtml}
+              <h1 style="color: white; margin: 0; font-size: 24px;">⚠️ Alerta do Sistema</h1>
+            </div>
+            
+            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; margin-bottom: 20px;">
+                Foi detectado um problema no sistema da empresa <strong>${companyName}</strong>.
+              </p>
+              <p style="font-size: 16px;">
+                Por favor, acesse o sistema para verificar.
+              </p>
+              
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              
+              <p style="font-size: 12px; color: #9ca3af; text-align: center;">
+                Email automático do GestaoTracker.
+              </p>
+            </div>
+          </body>
+          </html>
         `
       };
   }
