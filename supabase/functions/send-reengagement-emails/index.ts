@@ -128,13 +128,18 @@ serve(async (req) => {
           success: true,
           dry_run: true,
           total_inactive: inactiveCompanies.length,
-          companies: inactiveCompanies.map(c => ({
+          inactive_companies: inactiveCompanies.map(c => ({
             id: c.id,
             name: c.name,
+            email: c.email,
             admin_name: c.admin_name,
             admin_email: c.admin_email,
-            days_since_signup: c.days_since_signup,
-            already_sent: c.already_sent
+            created_at: c.created_at,
+            days_inactive: c.days_since_signup,
+            already_sent: c.already_sent,
+            clients_count: 0,
+            vehicles_count: 0,
+            contracts_count: 0
           }))
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
