@@ -187,55 +187,87 @@ serve(async (req) => {
         continue;
       }
 
-      try {
-        // Gerar HTML do email
-        const emailHtml = generateReengagementEmail(recipientName, company.name, appUrl);
-        
-        // Enviar via Resend
-        const { error: emailError } = await resend.emails.send({
-          from: "GestaoTracker <suporte@liratracker.com.br>",
-          to: [recipientEmail],
-          subject: `🚀 ${recipientName}, seu GestaoTracker está te esperando!`,
-          html: emailHtml,
-        });
+      // Aguardar 1 segundo ANTES de cada envio para evitar rate limit
+      await sleep(1000);
 
-        if (emailError) {
-          throw emailError;
+      // Gerar HTML do email
+      const emailHtml = generateReengagementEmail(recipientName, company.name, appUrl);
+      
+      // Retry com backoff exponencial para rate limit
+      let attempts = 0;
+      const maxAttempts = 3;
+      let lastError: any = null;
+      let emailSent = false;
+
+      while (attempts < maxAttempts && !emailSent) {
+        try {
+          console.log(`📤 Tentativa ${attempts + 1}/${maxAttempts} para ${recipientEmail}...`);
+          
+          const { error: emailError } = await resend.emails.send({
+            from: "GestaoTracker <suporte@liratracker.com.br>",
+            to: [recipientEmail],
+            subject: `🚀 ${recipientName}, seu GestaoTracker está te esperando!`,
+            html: emailHtml,
+          });
+
+          if (emailError) {
+            throw emailError;
+          }
+
+          emailSent = true;
+
+          // Logar envio bem-sucedido
+          await supabase.from('reengagement_email_logs').insert({
+            company_id: company.id,
+            email: recipientEmail,
+            admin_name: recipientName,
+            template_type,
+            status: 'sent'
+          });
+
+          results.sent++;
+          results.details.push({
+            company_id: company.id,
+            company_name: company.name,
+            email: recipientEmail,
+            status: 'sent'
+          });
+
+          console.log(`✅ Email enviado para ${recipientEmail} (${company.name})`);
+
+        } catch (error: any) {
+          lastError = error;
+          attempts++;
+          
+          // Verificar se é rate limit (429)
+          const isRateLimit = error?.statusCode === 429 || 
+                              error?.message?.includes('rate_limit') ||
+                              error?.name === 'rate_limit_exceeded';
+          
+          if (isRateLimit && attempts < maxAttempts) {
+            // Backoff exponencial: 2s, 4s, 6s
+            const waitTime = attempts * 2000;
+            console.log(`⏳ Rate limit detectado! Aguardando ${waitTime}ms antes de retry ${attempts}/${maxAttempts}...`);
+            await sleep(waitTime);
+          } else if (!isRateLimit) {
+            // Erro não é rate limit, não fazer retry
+            console.error(`❌ Erro não-recuperável para ${recipientEmail}:`, error);
+            break;
+          }
         }
+      }
 
-        // Logar envio
-        await supabase.from('reengagement_email_logs').insert({
-          company_id: company.id,
-          email: recipientEmail,
-          admin_name: recipientName,
-          template_type,
-          status: 'sent'
-        });
-
-        results.sent++;
-        results.details.push({
-          company_id: company.id,
-          company_name: company.name,
-          email: recipientEmail,
-          status: 'sent'
-        });
-
-        console.log(`✅ Email sent to ${recipientEmail} (${company.name})`);
-
-        // Aguardar 600ms antes do próximo envio (Resend limit: 2/segundo)
-        await sleep(600);
-
-      } catch (error: any) {
-        console.error(`❌ Failed to send to ${recipientEmail}:`, error);
+      // Se todas as tentativas falharam, logar erro
+      if (!emailSent) {
+        console.error(`❌ Falha após ${attempts} tentativas para ${recipientEmail}:`, lastError);
         
-        // Logar erro
         await supabase.from('reengagement_email_logs').insert({
           company_id: company.id,
           email: recipientEmail,
           admin_name: recipientName,
           template_type,
           status: 'failed',
-          error_message: error.message
+          error_message: lastError?.message || 'Unknown error after max retries'
         });
 
         results.failed++;
@@ -244,7 +276,7 @@ serve(async (req) => {
           company_name: company.name,
           email: recipientEmail,
           status: 'failed',
-          error: error.message
+          error: lastError?.message || 'Unknown error after max retries'
         });
       }
     }
