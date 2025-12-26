@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,7 +20,7 @@ export interface PaymentTransaction {
   paid_at: string | null;
   created_at: string;
   updated_at: string;
-  // Relacionamentos
+  description?: string | null;
   clients?: {
     name: string;
     email: string | null;
@@ -36,19 +36,64 @@ export interface PaymentTransaction {
   } | null;
 }
 
-export function usePayments() {
+interface UsePaymentsReturn {
+  payments: PaymentTransaction[];
+  loading: boolean;
+  error: string | null;
+  loadPayments: () => Promise<void>;
+  createPayment: (paymentData: CreatePaymentData) => Promise<any>;
+  updatePaymentStatus: (paymentId: string, status: string, paidAt?: string) => Promise<void>;
+}
+
+interface CreatePaymentData {
+  client_id: string;
+  contract_id?: string;
+  transaction_type: string;
+  amount: number;
+  due_date?: string;
+  payment_gateway?: string;
+}
+
+const LOAD_TIMEOUT_MS = 15000; // 15 segundos
+
+export function usePayments(): UsePaymentsReturn {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
+    // Cancelar requisição anterior se existir
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    console.log('[usePayments] Iniciando carregamento...');
+    setLoading(true);
+    setError(null);
+
+    // Timeout para evitar loading eterno
+    const timeoutId = setTimeout(() => {
+      console.error('[usePayments] Timeout atingido');
+      setLoading(false);
+      setError('Tempo esgotado ao carregar cobranças. Verifique sua conexão.');
+      toast({
+        title: "Timeout",
+        description: "Tempo esgotado ao carregar. Tente novamente.",
+        variant: "destructive"
+      });
+    }, LOAD_TIMEOUT_MS);
+
     try {
-      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        throw new Error('Usuário não autenticado');
+        throw new Error('Usuário não autenticado. Faça login novamente.');
       }
+
+      console.log('[usePayments] Usuário:', user.id);
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -57,10 +102,12 @@ export function usePayments() {
         .maybeSingle();
 
       if (!profile?.company_id) {
-        throw new Error('Perfil da empresa não encontrado');
+        throw new Error('Perfil não encontrado. Contate o suporte.');
       }
 
-      const { data, error } = await supabase
+      console.log('[usePayments] Company ID:', profile.company_id);
+
+      const { data, error: queryError } = await supabase
         .from('payment_transactions')
         .select(`
           *,
@@ -81,22 +128,40 @@ export function usePayments() {
         .eq('company_id', profile.company_id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
+      clearTimeout(timeoutId);
+
+      if (queryError) {
+        throw queryError;
       }
 
-      setPayments(data as any || []);
-    } catch (error: any) {
-      console.error('Erro ao carregar pagamentos:', error);
+      console.log('[usePayments] Pagamentos carregados:', data?.length || 0);
+      setPayments(data as PaymentTransaction[] || []);
+      setError(null);
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      
+      // Ignorar erro de abort
+      if (err.name === 'AbortError') {
+        console.log('[usePayments] Requisição cancelada');
+        return;
+      }
+
+      const errorMessage = err.message || 'Erro desconhecido ao carregar cobranças';
+      console.error('[usePayments] Erro:', errorMessage);
+      
+      setError(errorMessage);
+      setPayments([]);
+      
       toast({
-        title: "Erro",
-        description: error.message || "Erro ao carregar pagamentos",
+        title: "Erro ao carregar",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const createPayment = async (paymentData: {
     client_id: string;
@@ -239,6 +304,7 @@ export function usePayments() {
   return {
     payments,
     loading,
+    error,
     loadPayments,
     createPayment,
     updatePaymentStatus
