@@ -27,6 +27,9 @@ interface InactiveCompany {
   already_sent: boolean;
 }
 
+// Helper function to add delay between emails (avoid rate limit)
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -218,6 +221,9 @@ serve(async (req) => {
         });
 
         console.log(`✅ Email sent to ${recipientEmail} (${company.name})`);
+
+        // Aguardar 600ms antes do próximo envio (Resend limit: 2/segundo)
+        await sleep(600);
 
       } catch (error: any) {
         console.error(`❌ Failed to send to ${recipientEmail}:`, error);

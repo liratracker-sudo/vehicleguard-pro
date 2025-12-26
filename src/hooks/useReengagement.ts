@@ -151,9 +151,10 @@ export function useReengagement() {
         throw new Error(result.error);
       }
 
-      const sent = result.results?.filter((r: any) => r.status === 'sent').length || 0;
-      const skipped = result.results?.filter((r: any) => r.status === 'skipped').length || 0;
-      const failed = result.results?.filter((r: any) => r.status === 'failed').length || 0;
+      const results = Array.isArray(result.results) ? result.results : (result.results?.details || []);
+      const sent = results.filter((r: any) => r.status === 'sent').length;
+      const skipped = results.filter((r: any) => r.status === 'skipped').length;
+      const failed = results.filter((r: any) => r.status === 'failed').length;
 
       if (sent > 0) {
         toast.success(`${sent} email(s) enviado(s) com sucesso!`);
