@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, RefreshCw, WifiOff } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -44,7 +44,7 @@ const BillingPage = () => {
   const [showStats, setShowStats] = useState(false)
   const { toast } = useToast()
   
-  const { payments, loading, loadPayments } = usePayments()
+  const { payments, loading, error, loadPayments } = usePayments()
   const { 
     getCompanyBalance 
   } = useBillingManagement()
@@ -323,8 +323,34 @@ const BillingPage = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Carregando...
+                      <TableCell colSpan={6} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-3">
+                          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                          <span className="text-muted-foreground">Carregando cobranças...</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="p-3 rounded-full bg-destructive/10">
+                            <WifiOff className="w-6 h-6 text-destructive" />
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-foreground">Erro ao carregar</p>
+                            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => loadPayments()}
+                            className="gap-2"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Tentar novamente
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : sortedPayments.length === 0 ? (
