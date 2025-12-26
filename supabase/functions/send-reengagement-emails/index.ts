@@ -51,7 +51,9 @@ serve(async (req) => {
 
     console.log(`📧 Reengagement email request - dry_run: ${dry_run}, min_days: ${min_days_inactive}`);
 
-    // Buscar empresas inativas (0 clientes, 0 veículos, 0 contratos)
+    console.log('🔍 Iniciando busca otimizada com batch queries...');
+
+    // ETAPA 1: Buscar todas as empresas ativas com contagens (1 query)
     const { data: companies, error: companiesError } = await supabase
       .from('companies')
       .select(`
@@ -70,57 +72,98 @@ serve(async (req) => {
       throw new Error(`Failed to fetch companies: ${companiesError.message}`);
     }
 
-    // Filtrar empresas inativas
-    const inactiveCompanies: InactiveCompany[] = [];
-    
-    for (const company of companies || []) {
+    // ETAPA 2: Filtrar empresas potencialmente inativas (sem queries)
+    const potentiallyInactive = (companies || []).filter(company => {
       const clientCount = company.clients?.[0]?.count || 0;
       const vehicleCount = company.vehicles?.[0]?.count || 0;
       const contractCount = company.contracts?.[0]?.count || 0;
       
-      // Só considera inativa se não tem nenhum dado
-      if (clientCount === 0 && vehicleCount === 0 && contractCount === 0) {
-        const daysSinceSignup = Math.floor(
-          (Date.now() - new Date(company.created_at).getTime()) / (1000 * 60 * 60 * 24)
-        );
-        
-        // Filtrar por dias mínimos
-        if (daysSinceSignup >= min_days_inactive) {
-          // Filtrar por IDs específicos se fornecidos
-          if (company_ids && company_ids.length > 0 && !company_ids.includes(company.id)) {
-            continue;
-          }
-          
-          // Buscar admin da empresa
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, email')
-            .eq('company_id', company.id)
-            .eq('role', 'admin')
-            .single();
-          
-          // Verificar se já recebeu email deste tipo
-          const { data: existingLog } = await supabase
-            .from('reengagement_email_logs')
-            .select('id')
-            .eq('company_id', company.id)
-            .eq('template_type', template_type)
-            .eq('status', 'sent')
-            .single();
-          
-          inactiveCompanies.push({
-            id: company.id,
-            name: company.name,
-            email: company.email,
-            admin_name: profile?.full_name || null,
-            admin_email: profile?.email || null,
-            created_at: company.created_at,
-            days_since_signup: daysSinceSignup,
-            already_sent: !!existingLog
-          });
-        }
+      if (clientCount > 0 || vehicleCount > 0 || contractCount > 0) {
+        return false;
+      }
+      
+      const daysSinceSignup = Math.floor(
+        (Date.now() - new Date(company.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      if (daysSinceSignup < min_days_inactive) {
+        return false;
+      }
+      
+      if (company_ids && company_ids.length > 0 && !company_ids.includes(company.id)) {
+        return false;
+      }
+      
+      return true;
+    });
+
+    console.log(`📊 ${potentiallyInactive.length} empresas potencialmente inativas encontradas`);
+
+    // Se não há empresas, retornar cedo
+    if (potentiallyInactive.length === 0) {
+      const emptyResult = dry_run 
+        ? { success: true, dry_run: true, total_inactive: 0, inactive_companies: [] }
+        : { success: true, results: { sent: 0, skipped: 0, failed: 0, details: [] } };
+      
+      return new Response(
+        JSON.stringify(emptyResult),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const companyIds = potentiallyInactive.map(c => c.id);
+
+    // ETAPA 3: BATCH - Buscar todos os admins de uma vez (1 query em vez de N)
+    console.log('📥 Buscando perfis de admin em batch...');
+    const { data: allProfiles } = await supabase
+      .from('profiles')
+      .select('company_id, full_name, email')
+      .in('company_id', companyIds)
+      .eq('role', 'admin');
+
+    // Criar mapa para acesso O(1)
+    const profileMap = new Map<string, { full_name: string | null; email: string | null }>();
+    for (const profile of allProfiles || []) {
+      if (!profileMap.has(profile.company_id)) {
+        profileMap.set(profile.company_id, { 
+          full_name: profile.full_name, 
+          email: profile.email 
+        });
       }
     }
+    console.log(`✅ ${profileMap.size} perfis de admin encontrados`);
+
+    // ETAPA 4: BATCH - Verificar emails já enviados de uma vez (1 query em vez de N)
+    console.log('📥 Verificando logs de emails em batch...');
+    const { data: existingLogs } = await supabase
+      .from('reengagement_email_logs')
+      .select('company_id')
+      .in('company_id', companyIds)
+      .eq('template_type', template_type)
+      .eq('status', 'sent');
+
+    // Criar Set para verificação O(1)
+    const sentCompanyIds = new Set((existingLogs || []).map(l => l.company_id));
+    console.log(`✅ ${sentCompanyIds.size} empresas já receberam email`);
+
+    // ETAPA 5: Montar lista final sem queries adicionais
+    const inactiveCompanies: InactiveCompany[] = potentiallyInactive.map(company => {
+      const profile = profileMap.get(company.id);
+      const daysSinceSignup = Math.floor(
+        (Date.now() - new Date(company.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      return {
+        id: company.id,
+        name: company.name,
+        email: company.email,
+        admin_name: profile?.full_name || null,
+        admin_email: profile?.email || null,
+        created_at: company.created_at,
+        days_since_signup: daysSinceSignup,
+        already_sent: sentCompanyIds.has(company.id)
+      };
+    });
 
     console.log(`📊 Found ${inactiveCompanies.length} inactive companies`);
 
