@@ -6,13 +6,19 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { WhiteLabelConfig } from "./WhiteLabelConfig"
 import { CompanyForm } from "./CompanyForm"
 import { CompanyLimitsDialog } from "./CompanyLimitsDialog"
 import { CompanySubscriptionDialog } from "./CompanySubscriptionDialog"
 import { CompanyPasswordDialog } from "./CompanyPasswordDialog"
 import { CompanyUsersDialog } from "./CompanyUsersDialog"
-import { Building2, Plus, Settings, Activity, Palette, ExternalLink, Edit, CreditCard, Key, Trash2, Users } from "lucide-react"
+import { Building2, Plus, Settings, Edit, CreditCard, Key, Trash2, Users, MoreHorizontal } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Company {
   id: string
@@ -23,11 +29,6 @@ interface Company {
   domain: string
   is_active: boolean
   created_at: string
-  branding?: {
-    logo_url: string
-    primary_color: string
-    subdomain: string
-  }
   subscription?: {
     plan_name: string
     status: string
@@ -44,7 +45,6 @@ export function CompanyManagement() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
-  const [showWhiteLabelConfig, setShowWhiteLabelConfig] = useState(false)
   const [showLimitsDialog, setShowLimitsDialog] = useState(false)
   const [showCompanyForm, setShowCompanyForm] = useState(false)
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false)
@@ -59,11 +59,6 @@ export function CompanyManagement() {
         .from('companies')
         .select(`
           *,
-          company_branding (
-            logo_url,
-            primary_color,
-            subdomain
-          ),
           company_subscriptions (
             subscription_plans (
               name
@@ -82,7 +77,6 @@ export function CompanyManagement() {
 
       const formattedData = companiesData?.map(company => ({
         ...company,
-        branding: company.company_branding?.[0] || null,
         subscription: company.company_subscriptions?.[0] ? {
           plan_name: company.company_subscriptions[0].subscription_plans?.name || 'Sem plano',
           status: company.company_subscriptions[0].status
@@ -134,11 +128,6 @@ export function CompanyManagement() {
         variant: "destructive"
       })
     }
-  }
-
-  const openBrandingSettings = (company: Company) => {
-    setSelectedCompany(company)
-    setShowWhiteLabelConfig(true)
   }
 
   const openLimitsSettings = (company: Company) => {
@@ -257,10 +246,6 @@ export function CompanyManagement() {
         () => loadCompanies()
       )
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'company_branding' },
-        () => loadCompanies()
-      )
-      .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'company_limits' },
         () => loadCompanies()
       )
@@ -286,20 +271,6 @@ export function CompanyManagement() {
     )
   }
 
-  // Se está mostrando configuração white-label, renderizar apenas ela
-  if (showWhiteLabelConfig && selectedCompany) {
-    return (
-      <WhiteLabelConfig
-        companyId={selectedCompany.id}
-        companyName={selectedCompany.name}
-        onClose={() => {
-          setShowWhiteLabelConfig(false)
-          setSelectedCompany(null)
-          loadCompanies() // Recarregar dados após fechar
-        }}
-      />
-    )
-  }
 
   return (
     <div className="space-y-6">
@@ -328,7 +299,6 @@ export function CompanyManagement() {
                 <TableRow>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Plano</TableHead>
-                  <TableHead>Subdomínio</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Criado em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -363,16 +333,6 @@ export function CompanyManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {company.branding?.subdomain ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{company.branding.subdomain}</span>
-                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">Não configurado</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={company.is_active}
@@ -387,62 +347,39 @@ export function CompanyManagement() {
                       {new Date(company.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditCompany(company)}
-                          className="gap-2"
-                        >
-                          <Edit className="w-4 h-4" />
-                          Editar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openBrandingSettings(company)}
-                          className="gap-2"
-                        >
-                          <Palette className="w-4 h-4" />
-                          Branding
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openLimitsSettings(company)}
-                          className="gap-2"
-                        >
-                          <Settings className="w-4 h-4" />
-                          Limites
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openUsersSettings(company)}
-                          className="gap-2"
-                        >
-                          <Users className="w-4 h-4" />
-                          Usuários
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openPasswordSettings(company)}
-                          className="gap-2"
-                        >
-                          <Key className="w-4 h-4" />
-                          Senha
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteCompany(company)}
-                          className="gap-2 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Excluir
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-popover">
+                          <DropdownMenuItem onClick={() => handleEditCompany(company)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openLimitsSettings(company)}>
+                            <Settings className="w-4 h-4 mr-2" />
+                            Limites
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openUsersSettings(company)}>
+                            <Users className="w-4 h-4 mr-2" />
+                            Usuários
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openPasswordSettings(company)}>
+                            <Key className="w-4 h-4 mr-2" />
+                            Senha
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => deleteCompany(company)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
