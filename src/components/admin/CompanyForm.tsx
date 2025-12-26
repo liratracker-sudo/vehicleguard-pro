@@ -24,7 +24,6 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     slug: company?.slug || '',
     email: company?.email || '',
     phone: company?.phone || '',
-    domain: company?.domain || '',
     address: company?.address || '',
     plan_id: ''
   })
@@ -67,10 +66,10 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     try {
       if (company) {
         // Atualizar empresa existente
-        const { name, slug, email, phone, domain, address } = formData
+        const { name, slug, email, phone, address } = formData
         const { error } = await supabase
           .from('companies')
-          .update({ name, slug, email, phone, domain, address })
+          .update({ name, slug, email, phone, address })
           .eq('id', company.id)
 
         if (error) throw error
@@ -81,10 +80,10 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
         })
       } else {
         // Criar nova empresa
-        const { name, slug, email, phone, domain, address } = formData
+        const { name, slug, email, phone, address } = formData
         const { data: newCompany, error: companyError } = await supabase
           .from('companies')
-          .insert([{ name, slug, email, phone, domain, address }])
+          .insert([{ name, slug, email, phone, address }])
           .select('id')
           .single()
 
@@ -121,7 +120,6 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
           slug: '',
           email: '',
           phone: '',
-          domain: '',
           address: '',
           plan_id: ''
         })
@@ -158,7 +156,6 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
         slug: company.slug || '',
         email: company.email || '',
         phone: company.phone || '',
-        domain: company.domain || '',
         address: company.address || '',
         plan_id: ''
       })
@@ -168,7 +165,6 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
         slug: '',
         email: '',
         phone: '',
-        domain: '',
         address: '',
         plan_id: ''
       })
@@ -177,7 +173,7 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {company ? 'Editar Empresa' : 'Nova Empresa'}
@@ -190,7 +186,7 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <Label htmlFor="name">Nome da Empresa *</Label>
             <Input
@@ -199,52 +195,45 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Nome da empresa"
               required
+              className="h-9"
             />
           </div>
 
           <div>
-            <Label htmlFor="slug">Slug (Identificador único) *</Label>
+            <Label htmlFor="slug">Slug *</Label>
             <Input
               id="slug"
               value={formData.slug}
               onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
               placeholder="slug-da-empresa"
               required
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Usado para URLs e identificação no sistema
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="email">E-mail</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              placeholder="contato@empresa.com"
+              className="h-9"
             />
           </div>
 
-          <div>
-            <Label htmlFor="phone">Telefone</Label>
-            <Input
-              id="phone"
-              value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-              placeholder="(11) 99999-9999"
-            />
-          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="contato@empresa.com"
+                className="h-9"
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="domain">Domínio</Label>
-            <Input
-              id="domain"
-              value={formData.domain}
-              onChange={(e) => setFormData(prev => ({ ...prev, domain: e.target.value }))}
-              placeholder="empresa.com.br"
-            />
+            <div>
+              <Label htmlFor="phone">Telefone</Label>
+              <Input
+                id="phone"
+                value={formData.phone}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="(11) 99999-9999"
+                className="h-9"
+              />
+            </div>
           </div>
 
           <div>
@@ -253,8 +242,8 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
               id="address"
               value={formData.address}
               onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-              placeholder="Endereço completo da empresa"
-              rows={3}
+              placeholder="Endereço completo"
+              rows={2}
             />
           </div>
 
