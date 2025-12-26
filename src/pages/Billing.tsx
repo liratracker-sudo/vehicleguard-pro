@@ -2,7 +2,6 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, RefreshCw, WifiOff } from "lucide-react"
@@ -18,6 +17,7 @@ import { useBillingManagement } from "@/hooks/useBillingManagement"
 import { CpfLookup } from "@/components/billing/CpfLookup"
 import { formatDateBR, daysUntil } from "@/lib/timezone"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { ModernStatCard } from "@/components/ui/modern-stat-card"
 import {
   Select,
   SelectContent,
@@ -214,50 +214,34 @@ const BillingPage = () => {
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-              <Card className="bg-emerald-500/10 border-emerald-500/20">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Recebido</span>
-                    <DollarSign className="h-4 w-4 text-emerald-600" />
-                  </div>
-                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                    R$ {totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-amber-500/10 border-amber-500/20">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Pendente</span>
-                    <Calendar className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <div className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                    R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-red-500/10 border-red-500/20">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-red-700 dark:text-red-400">Vencido</span>
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                  </div>
-                  <div className="text-lg font-bold text-red-700 dark:text-red-400">
-                    R$ {totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-primary/10 border-primary/20">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-primary">Saldo Devedor</span>
-                    <AlertCircle className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="text-lg font-bold text-primary">
-                    R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </div>
-                </CardContent>
-              </Card>
+              <ModernStatCard
+                title="Recebido"
+                value={`R$ ${totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<DollarSign className="h-5 w-5" />}
+                variant="success"
+                className="py-2"
+              />
+              <ModernStatCard
+                title="Pendente"
+                value={`R$ ${totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<Calendar className="h-5 w-5" />}
+                variant="warning"
+                className="py-2"
+              />
+              <ModernStatCard
+                title="Vencido"
+                value={`R$ ${totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<AlertCircle className="h-5 w-5" />}
+                variant="danger"
+                className="py-2"
+              />
+              <ModernStatCard
+                title="Saldo Devedor"
+                value={`R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<AlertCircle className="h-5 w-5" />}
+                variant="info"
+                className="py-2"
+              />
             </div>
           </CollapsibleContent>
         </Collapsible>

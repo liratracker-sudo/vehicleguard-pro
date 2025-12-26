@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CreditCard, QrCode, Barcode, Wallet } from "lucide-react";
+import { GatewayCard } from "@/components/ui/gateway-card";
 
 interface GatewayConfig {
   gateway: string;
@@ -92,7 +91,6 @@ export function PaymentGatewayConfig() {
       const isCurrentlyActive = configs[gateway]?.has(method);
 
       if (isCurrentlyActive) {
-        // Desativar
         await supabase
           .from("payment_gateway_methods")
           .delete()
@@ -100,7 +98,6 @@ export function PaymentGatewayConfig() {
           .eq("gateway_type", gateway)
           .eq("payment_method", method);
       } else {
-        // Ativar
         await supabase
           .from("payment_gateway_methods")
           .insert({
@@ -140,38 +137,34 @@ export function PaymentGatewayConfig() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {GATEWAYS.map((gw) => (
-          <Card key={gw.gateway} className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`${gw.color} p-2 rounded-lg text-white`}>
-                {gw.icon}
-              </div>
-              <div>
-                <h4 className="font-semibold">{gw.name}</h4>
-                <Badge variant="outline" className="text-xs">
-                  {configs[gw.gateway]?.size || 0} método(s) ativo(s)
-                </Badge>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {PAYMENT_METHODS.map((method) => (
-                <div key={method.key} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {method.icon}
-                    <Label htmlFor={`${gw.gateway}-${method.key}`} className="cursor-pointer">
-                      {method.label}
-                    </Label>
-                  </div>
-                  <Switch
-                    id={`${gw.gateway}-${method.key}`}
-                    checked={configs[gw.gateway]?.has(method.key) || false}
-                    onCheckedChange={() => toggleMethod(gw.gateway, method.key)}
-                    disabled={loading}
-                  />
+          <GatewayCard
+            key={gw.gateway}
+            name={gw.name}
+            icon={gw.icon}
+            iconBgColor={gw.color}
+            activeCount={configs[gw.gateway]?.size || 0}
+            totalCount={PAYMENT_METHODS.length}
+          >
+            {PAYMENT_METHODS.map((method) => (
+              <div 
+                key={method.key} 
+                className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-muted-foreground">{method.icon}</span>
+                  <Label htmlFor={`${gw.gateway}-${method.key}`} className="cursor-pointer text-sm">
+                    {method.label}
+                  </Label>
                 </div>
-              ))}
-            </div>
-          </Card>
+                <Switch
+                  id={`${gw.gateway}-${method.key}`}
+                  checked={configs[gw.gateway]?.has(method.key) || false}
+                  onCheckedChange={() => toggleMethod(gw.gateway, method.key)}
+                  disabled={loading}
+                />
+              </div>
+            ))}
+          </GatewayCard>
         ))}
       </div>
     </div>

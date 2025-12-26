@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -18,7 +18,7 @@ import { ClientForm } from "@/components/clients/ClientForm"
 import { ClientRow } from "@/components/clients/ClientRow"
 import { ClientTableSkeleton } from "@/components/clients/ClientTableSkeleton"
 import { useClients } from "@/hooks/useClients"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ModernStatCard } from "@/components/ui/modern-stat-card"
 
 const ITEMS_PER_PAGE = 15
 
@@ -118,50 +118,37 @@ const ClientsPage = () => {
 
         {/* Stats Cards */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? <Skeleton className="h-8 w-16" /> : clients.length}
-              </div>
-              <p className="text-xs text-muted-foreground">Total cadastrado</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? <Skeleton className="h-8 w-16" /> : activeCount}
-              </div>
-              <p className="text-xs text-muted-foreground">Status ativo</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Suspensos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? <Skeleton className="h-8 w-16" /> : suspendedCount}
-              </div>
-              <p className="text-xs text-muted-foreground">Status suspenso</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inativos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? <Skeleton className="h-8 w-16" /> : inactiveCount}
-              </div>
-              <p className="text-xs text-muted-foreground">Status inativo</p>
-            </CardContent>
-          </Card>
+          <ModernStatCard
+            title="Total de Clientes"
+            value={loading ? "..." : clients.length}
+            icon={<Users className="h-6 w-6" />}
+            description="Total cadastrado"
+            isLoading={loading}
+          />
+          <ModernStatCard
+            title="Clientes Ativos"
+            value={loading ? "..." : activeCount}
+            icon={<UserCheck className="h-6 w-6" />}
+            description="Status ativo"
+            variant="success"
+            isLoading={loading}
+          />
+          <ModernStatCard
+            title="Suspensos"
+            value={loading ? "..." : suspendedCount}
+            icon={<UserMinus className="h-6 w-6" />}
+            description="Status suspenso"
+            variant="warning"
+            isLoading={loading}
+          />
+          <ModernStatCard
+            title="Inativos"
+            value={loading ? "..." : inactiveCount}
+            icon={<UserX className="h-6 w-6" />}
+            description="Status inativo"
+            variant="danger"
+            isLoading={loading}
+          />
         </div>
 
         {/* Table */}
