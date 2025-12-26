@@ -367,6 +367,165 @@
 }
 
 @layer components {
+  /* Modern Glass Card */
+  .glass-card {
+    @apply relative overflow-hidden rounded-2xl;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.8) 0%,
+      hsl(var(--card) / 0.4) 100%
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 
+      0 8px 32px hsl(var(--primary) / 0.1),
+      inset 0 1px 0 hsl(var(--foreground) / 0.05);
+  }
+  
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.1),
+      transparent
+    );
+  }
+  
+  /* Glow Button */
+  .glow-button {
+    @apply relative overflow-hidden transition-all duration-300;
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+  
+  .glow-button:hover {
+    box-shadow: 0 0 40px hsl(var(--primary) / 0.5);
+    transform: translateY(-2px);
+  }
+  
+  .glow-button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--foreground) / 0.1) 0%,
+      transparent 50%
+    );
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  
+  .glow-button:hover::after {
+    opacity: 1;
+  }
+  
+  /* Glowing Badge */
+  .badge-glow {
+    @apply relative;
+    box-shadow: 0 0 15px hsl(var(--primary) / 0.4);
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+  
+  /* Modern Stat Card */
+  .stat-card {
+    @apply glass-card p-6 transition-all duration-300;
+  }
+  
+  .stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+      0 20px 40px hsl(var(--primary) / 0.15),
+      inset 0 1px 0 hsl(var(--foreground) / 0.1);
+  }
+  
+  /* Feature Card with Glow Icon */
+  .feature-card {
+    @apply glass-card p-6 transition-all duration-500;
+  }
+  
+  .feature-card:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 
+      0 20px 40px hsl(var(--primary) / 0.1),
+      0 0 0 1px hsl(var(--primary) / 0.1);
+  }
+  
+  .feature-card .icon-wrapper {
+    @apply relative transition-all duration-300;
+  }
+  
+  .feature-card:hover .icon-wrapper {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 10px currentColor);
+  }
+  
+  /* Aurora Background Effect */
+  .aurora-bg {
+    @apply absolute inset-0 overflow-hidden pointer-events-none;
+  }
+  
+  .aurora-bg::before,
+  .aurora-bg::after {
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.3;
+    animation: aurora 8s ease-in-out infinite;
+  }
+  
+  .aurora-bg::before {
+    background: hsl(var(--primary) / 0.4);
+    top: -20%;
+    right: -20%;
+  }
+  
+  .aurora-bg::after {
+    background: hsl(160 84% 39% / 0.3);
+    bottom: -20%;
+    left: -20%;
+    animation-delay: 4s;
+  }
+  
+  /* Shimmer Effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--foreground) / 0.05) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+  
+  /* Modern Grid Background */
+  .grid-pattern {
+    background-image: 
+      linear-gradient(to right, hsl(var(--border) / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  
+  /* Gradient Text */
+  .gradient-text {
+    @apply text-transparent bg-clip-text;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(160 84% 45%) 50%,
+      hsl(var(--primary)) 100%
+    );
+  }
+
   /* Layout System Components */
   .container {
     @apply flex flex-col items-start gap-2.5 p-2.5 w-full max-w-full container-responsive;
@@ -391,13 +550,13 @@
   /* Futuristic Icon Hover Animations */
   .icon-hover {
     @apply transition-all duration-300 ease-out;
-    transform: translateZ(0); /* Enable hardware acceleration */
+    transform: translateZ(0);
   }
   
   .icon-hover:hover {
     @apply scale-110;
     transform: translateY(-2px) scale(1.1);
-    filter: drop-shadow(0 4px 8px hsl(250 84% 56% / 0.3));
+    filter: drop-shadow(0 4px 8px hsl(var(--primary) / 0.3));
   }
   
   .icon-slide-hover {
@@ -413,7 +572,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, hsl(250 84% 56% / 0.1), transparent);
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent);
     transition: left 0.5s ease-out;
   }
   
