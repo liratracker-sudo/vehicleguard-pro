@@ -103,7 +103,7 @@ serve(async (req: Request): Promise<Response> => {
     console.log(`📤 Sending email to ${adminProfile.email}...`);
     
     const emailResponse = await resend.emails.send({
-      from: "GestaoTracker <alertas@resend.dev>",
+      from: "GestaoTracker <alertas@liratracker.com.br>",
       to: [adminProfile.email],
       subject: subject,
       html: html,
