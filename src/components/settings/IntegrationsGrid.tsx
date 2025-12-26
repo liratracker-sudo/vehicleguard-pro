@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Settings, CreditCard, MessageSquare, FileText } from "lucide-react"
+import { CreditCard, MessageSquare, FileText } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
+import { IntegrationCard } from "@/components/ui/integration-card"
 import { AsaasIntegrationDialog } from "./dialogs/AsaasIntegrationDialog"
 import { MercadoPagoIntegrationDialog } from "./dialogs/MercadoPagoIntegrationDialog"
 import { GerencianetIntegrationDialog } from "./dialogs/GerencianetIntegrationDialog"
@@ -25,48 +23,54 @@ const integrations = [
     key: "asaas" as keyof IntegrationStatus,
     name: "Asaas",
     description: "Emissão automática de cobranças PIX e Boleto",
-    icon: CreditCard,
-    color: "text-blue-500",
+    icon: <CreditCard className="h-5 w-5" />,
+    iconColor: "text-blue-500",
+    iconBgColor: "bg-blue-500/10",
     dialogKey: "asaas"
   },
   {
     key: "mercadopago" as keyof IntegrationStatus,
     name: "Mercado Pago",
     description: "Pagamentos online com Mercado Pago",
-    icon: CreditCard,
-    color: "text-sky-500",
+    icon: <CreditCard className="h-5 w-5" />,
+    iconColor: "text-sky-500",
+    iconBgColor: "bg-sky-500/10",
     dialogKey: "mercadopago"
   },
   {
     key: "gerencianet" as keyof IntegrationStatus,
     name: "Gerencianet / Efí Pay",
     description: "Emissão de boletos bancários",
-    icon: CreditCard,
-    color: "text-orange-500",
+    icon: <CreditCard className="h-5 w-5" />,
+    iconColor: "text-orange-500",
+    iconBgColor: "bg-orange-500/10",
     dialogKey: "gerencianet"
   },
   {
     key: "inter" as keyof IntegrationStatus,
     name: "Banco Inter",
     description: "Integração bancária para PIX e Boleto",
-    icon: CreditCard,
-    color: "text-orange-600",
+    icon: <CreditCard className="h-5 w-5" />,
+    iconColor: "text-orange-600",
+    iconBgColor: "bg-orange-600/10",
     dialogKey: "inter"
   },
   {
     key: "whatsapp" as keyof IntegrationStatus,
     name: "WhatsApp",
     description: "Envio de mensagens via WhatsApp",
-    icon: MessageSquare,
-    color: "text-green-500",
+    icon: <MessageSquare className="h-5 w-5" />,
+    iconColor: "text-green-500",
+    iconBgColor: "bg-green-500/10",
     dialogKey: "whatsapp"
   },
   {
     key: "assinafy" as keyof IntegrationStatus,
     name: "Assinafy",
     description: "Assinatura digital de contratos",
-    icon: FileText,
-    color: "text-purple-500",
+    icon: <FileText className="h-5 w-5" />,
+    iconColor: "text-purple-500",
+    iconBgColor: "bg-purple-500/10",
     dialogKey: "assinafy"
   }
 ]
@@ -146,43 +150,18 @@ export function IntegrationsGrid() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {integrations.map((integration) => {
-            const Icon = integration.icon
-            const isActive = status[integration.key]
-
-            return (
-              <Card key={integration.key} className="relative hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`${integration.color}`}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-base">{integration.name}</CardTitle>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setOpenDialog(integration.dialogKey)}
-                      className="h-8 w-8"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <CardDescription className="text-xs mt-2">
-                    {integration.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Badge variant={isActive ? "default" : "secondary"} className="text-xs">
-                    {isActive ? "Configurado" : "Não Configurado"}
-                  </Badge>
-                </CardContent>
-              </Card>
-            )
-          })}
+          {integrations.map((integration) => (
+            <IntegrationCard
+              key={integration.key}
+              name={integration.name}
+              description={integration.description}
+              icon={integration.icon}
+              iconColor={integration.iconColor}
+              iconBgColor={integration.iconBgColor}
+              isActive={status[integration.key]}
+              onConfigure={() => setOpenDialog(integration.dialogKey)}
+            />
+          ))}
         </div>
       </div>
 

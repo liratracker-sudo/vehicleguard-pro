@@ -1,6 +1,7 @@
 import { useState, useRef } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ModernStatCard } from "@/components/ui/modern-stat-card"
 import { formatDateBR } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -184,65 +185,37 @@ const FinancialPage = () => {
 
         {/* Financial Overview */}
         <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
-              <PiggyBank className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                R$ {summary.totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Total recebido
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
-              <TrendingUp className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-success">
-                R$ {summary.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Mês atual
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Despesas Mensais</CardTitle>
-              <TrendingDown className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">
-                R$ {summary.monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Mês atual
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Lucro Líquido</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                R$ {summary.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {summary.monthlyRevenue > 0 
-                  ? `Margem de ${((summary.netProfit / summary.monthlyRevenue) * 100).toFixed(1)}%`
-                  : 'Sem receitas este mês'
-                }
-              </p>
-            </CardContent>
-          </Card>
+          <ModernStatCard
+            title="Saldo Total"
+            value={`R$ ${summary.totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+            icon={<PiggyBank className="h-6 w-6" />}
+            description="Total recebido"
+            variant="info"
+          />
+          <ModernStatCard
+            title="Receita Mensal"
+            value={`R$ ${summary.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+            icon={<TrendingUp className="h-6 w-6" />}
+            description="Mês atual"
+            variant="success"
+          />
+          <ModernStatCard
+            title="Despesas Mensais"
+            value={`R$ ${summary.monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+            icon={<TrendingDown className="h-6 w-6" />}
+            description="Mês atual"
+            variant="danger"
+          />
+          <ModernStatCard
+            title="Lucro Líquido"
+            value={`R$ ${summary.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+            icon={<BarChart3 className="h-6 w-6" />}
+            description={summary.monthlyRevenue > 0 
+              ? `Margem de ${((summary.netProfit / summary.monthlyRevenue) * 100).toFixed(1)}%`
+              : 'Sem receitas este mês'
+            }
+            variant={summary.netProfit >= 0 ? 'success' : 'danger'}
+          />
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
