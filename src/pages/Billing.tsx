@@ -40,10 +40,16 @@ const BillingHistory = lazy(() => import("@/components/billing/BillingHistory").
 const BillingPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const clientIdFilter = searchParams.get('client_id')
+  const urlFilter = searchParams.get('filter')
   
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const filter = searchParams.get('filter')
+    if (filter === 'overdue') return 'overdue'
+    if (filter === 'upcoming_7days') return 'upcoming_7days'
+    return 'all'
+  })
   const [showStats, setShowStats] = useState(false)
   const { toast } = useToast()
   
@@ -85,6 +91,15 @@ const BillingPage = () => {
         payment.external_id?.toLowerCase().includes(searchLower)
       if (!matchesSearch) return false
     }
+    
+    // Filtro especial: próximos 7 dias
+    if (statusFilter === 'upcoming_7days') {
+      if (payment.status === 'paid') return false
+      if (!payment.due_date) return false
+      const days = daysUntil(payment.due_date)
+      return days >= 0 && days <= 7
+    }
+    
     if (statusFilter !== "all" && payment.status !== statusFilter) return false
     return true
   })
@@ -290,6 +305,7 @@ const BillingPage = () => {
                   <SelectItem value="pending">Pendente</SelectItem>
                   <SelectItem value="paid">Pago</SelectItem>
                   <SelectItem value="overdue">Vencido</SelectItem>
+                  <SelectItem value="upcoming_7days">Próximos 7 dias</SelectItem>
                 </SelectContent>
               </Select>
             </div>
