@@ -33,14 +33,16 @@ export function QuickAlerts({ overdueCount, overdueAmount, upcomingCount, defaul
       label: `${overdueCount} cobrança${overdueCount !== 1 ? 's' : ''} vencida${overdueCount !== 1 ? 's' : ''}`,
       sublabel: overdueCount > 0 ? formatCurrency(overdueAmount) : undefined,
       variant: overdueCount > 0 ? 'danger' : 'success',
-      show: overdueCount > 0
+      show: overdueCount > 0,
+      link: '/billing?filter=overdue'
     },
     {
       id: 'upcoming',
       icon: Clock,
       label: `${upcomingCount} vence${upcomingCount !== 1 ? 'm' : ''} nos próximos 7 dias`,
       variant: upcomingCount > 0 ? 'warning' : 'success',
-      show: upcomingCount > 0
+      show: upcomingCount > 0,
+      link: '/billing?filter=upcoming_7days'
     }
   ];
 
@@ -98,7 +100,7 @@ export function QuickAlerts({ overdueCount, overdueAmount, upcomingCount, defaul
               transition={{ delay: index * 0.1 }}
             >
               <Link 
-                to="/billing"
+                to={alert.link || '/billing'}
                 className={cn(
                   "flex items-center gap-4 p-4 rounded-xl transition-all duration-300 group",
                   alert.variant === 'danger' && "bg-destructive/5 hover:bg-destructive/10 border border-transparent hover:border-destructive/20",
