@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw } from "lucide-react"
+import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw, X } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -182,8 +182,17 @@ const ClientsPage = () => {
                   placeholder="Buscar por nome, email ou documento..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-10"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               <Button variant="outline">
                 <Filter className="w-4 h-4 mr-2" />
