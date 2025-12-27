@@ -11,6 +11,8 @@ import {
 import { TableCell, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { ClientStatus } from "./ClientStatus"
+import { ClientScoreBadge } from "./ClientScoreBadge"
+import type { ClientScore } from "@/hooks/useClientScore"
 
 interface Client {
   id: string
@@ -26,6 +28,7 @@ interface Client {
 
 interface ClientRowProps {
   client: Client
+  score?: ClientScore | null
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string, name: string) => void
@@ -45,6 +48,7 @@ function getInitials(name: string): string {
 
 export function ClientRow({
   client,
+  score,
   onView,
   onEdit,
   onDelete,
@@ -109,6 +113,18 @@ export function ClientRow({
             </TooltipProvider>
           </div>
         </div>
+      </TableCell>
+
+      <TableCell>
+        <ClientScoreBadge
+          score={score?.score}
+          totalPayments={score?.total_payments}
+          paidOnTime={score?.paid_on_time}
+          paidLate={score?.paid_late}
+          overdueCount={score?.overdue_count}
+          avgDaysLate={score?.avg_days_late}
+          size="sm"
+        />
       </TableCell>
 
       <TableCell>

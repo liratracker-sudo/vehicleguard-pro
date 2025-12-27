@@ -636,6 +636,69 @@ export type Database = {
           },
         ]
       }
+      client_scores: {
+        Row: {
+          avg_days_late: number | null
+          client_id: string
+          company_id: string
+          created_at: string | null
+          id: string
+          last_calculated_at: string | null
+          max_days_late: number | null
+          overdue_count: number | null
+          paid_late: number | null
+          paid_on_time: number | null
+          score: number
+          total_payments: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_days_late?: number | null
+          client_id: string
+          company_id: string
+          created_at?: string | null
+          id?: string
+          last_calculated_at?: string | null
+          max_days_late?: number | null
+          overdue_count?: number | null
+          paid_late?: number | null
+          paid_on_time?: number | null
+          score?: number
+          total_payments?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_days_late?: number | null
+          client_id?: string
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          last_calculated_at?: string | null
+          max_days_late?: number | null
+          overdue_count?: number | null
+          paid_late?: number | null
+          paid_on_time?: number | null
+          score?: number
+          total_payments?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_scores_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
