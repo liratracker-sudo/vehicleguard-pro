@@ -20,7 +20,7 @@ const getInitialTheme = (): ThemeMode => {
       return stored;
     }
   }
-  return 'dark';
+  return 'light';
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
