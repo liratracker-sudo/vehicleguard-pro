@@ -1,6 +1,6 @@
 import { Users, Car, DollarSign, AlertCircle } from "lucide-react"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { MetricCard } from "@/components/dashboard/MetricCard"
+import { FuturisticStatCard } from "@/components/ui/futuristic-stat-card"
 import { RecentClients } from "@/components/dashboard/RecentClients"
 import { RevenueChart } from "@/components/dashboard/RevenueChart"
 import { QuickAlerts } from "@/components/dashboard/QuickAlerts"
@@ -40,43 +40,52 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Main Metrics - 2x2 Grid */}
+        {/* Main Metrics - Futuristic Grid */}
         {isLoading ? (
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="h-32 w-full" />
+              <FuturisticStatCard
+                key={index}
+                title=""
+                value=""
+                icon={<Users />}
+                isLoading={true}
+              />
             ))}
           </div>
         ) : stats && (
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <MetricCard
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <FuturisticStatCard
               title="Clientes Ativos"
               value={stats.activeClients.toLocaleString('pt-BR')}
               icon={<Users className="h-5 w-5" />}
+              variant="default"
               trend={formatTrend(stats.clientsTrendValue) ? {
                 value: formatTrend(stats.clientsTrendValue)!,
                 isPositive: stats.clientsTrendValue > 0
               } : undefined}
             />
-            <MetricCard
+            <FuturisticStatCard
               title="Veículos"
               value={stats.totalVehicles.toLocaleString('pt-BR')}
               icon={<Car className="h-5 w-5" />}
+              variant="success"
               trend={formatTrend(stats.vehiclesTrendValue) ? {
                 value: formatTrend(stats.vehiclesTrendValue)!,
                 isPositive: stats.vehiclesTrendValue > 0
               } : undefined}
             />
-            <MetricCard
+            <FuturisticStatCard
               title="Receita Mensal"
               value={formatCurrency(stats.monthlyRevenue)}
               icon={<DollarSign className="h-5 w-5" />}
+              variant="success"
               trend={formatCurrencyTrend(stats.revenueTrendValue) ? {
                 value: formatCurrencyTrend(stats.revenueTrendValue)!,
                 isPositive: stats.revenueTrendValue > 0
               } : undefined}
             />
-            <MetricCard
+            <FuturisticStatCard
               title="Inadimplência"
               value={`${stats.defaultRate.toFixed(1)}%`}
               icon={<AlertCircle className="h-5 w-5" />}
