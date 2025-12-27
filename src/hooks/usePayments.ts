@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getCompanyId } from "@/hooks/useCompanyId";
 
 export interface PaymentTransaction {
   id: string;
@@ -54,58 +55,42 @@ interface CreatePaymentData {
   payment_gateway?: string;
 }
 
-const LOAD_TIMEOUT_MS = 15000; // 15 segundos
+// Debounce helper
+function debounce<T extends (...args: any[]) => any>(fn: T, ms: number) {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), ms);
+  };
+}
 
 export function usePayments(): UsePaymentsReturn {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const companyIdRef = useRef<string | null>(null);
+  const isLoadingRef = useRef(false);
 
   const loadPayments = useCallback(async () => {
-    // Cancelar requisição anterior se existir
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    // Evitar requisições simultâneas
+    if (isLoadingRef.current) {
+      console.log('[usePayments] Requisição já em andamento, ignorando...');
+      return;
     }
-    abortControllerRef.current = new AbortController();
 
+    isLoadingRef.current = true;
     console.log('[usePayments] Iniciando carregamento...');
     setLoading(true);
     setError(null);
 
-    // Timeout para evitar loading eterno
-    const timeoutId = setTimeout(() => {
-      console.error('[usePayments] Timeout atingido');
-      setLoading(false);
-      setError('Tempo esgotado ao carregar cobranças. Verifique sua conexão.');
-      toast({
-        title: "Timeout",
-        description: "Tempo esgotado ao carregar. Tente novamente.",
-        variant: "destructive"
-      });
-    }, LOAD_TIMEOUT_MS);
-
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('Usuário não autenticado. Faça login novamente.');
+      // Usar cache de company_id
+      if (!companyIdRef.current) {
+        companyIdRef.current = await getCompanyId();
       }
 
-      console.log('[usePayments] Usuário:', user.id);
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!profile?.company_id) {
-        throw new Error('Perfil não encontrado. Contate o suporte.');
-      }
-
-      console.log('[usePayments] Company ID:', profile.company_id);
+      console.log('[usePayments] Company ID (cached):', companyIdRef.current);
 
       const { data, error: queryError } = await supabase
         .from('payment_transactions')
@@ -125,10 +110,9 @@ export function usePayments(): UsePaymentsReturn {
             )
           )
         `)
-        .eq('company_id', profile.company_id)
-        .order('created_at', { ascending: false });
-
-      clearTimeout(timeoutId);
+        .eq('company_id', companyIdRef.current)
+        .order('created_at', { ascending: false })
+        .limit(500); // Limitar registros para performance
 
       if (queryError) {
         throw queryError;
@@ -138,15 +122,7 @@ export function usePayments(): UsePaymentsReturn {
       setPayments(data as PaymentTransaction[] || []);
       setError(null);
     } catch (err: any) {
-      clearTimeout(timeoutId);
-      
-      // Ignorar erro de abort
-      if (err.name === 'AbortError') {
-        console.log('[usePayments] Requisição cancelada');
-        return;
-      }
-
-      const errorMessage = err.message || 'Erro desconhecido ao carregar cobranças';
+      const errorMessage = err.message || 'Erro ao carregar cobranças';
       console.error('[usePayments] Erro:', errorMessage);
       
       setError(errorMessage);
@@ -158,42 +134,20 @@ export function usePayments(): UsePaymentsReturn {
         variant: "destructive"
       });
     } finally {
-      clearTimeout(timeoutId);
       setLoading(false);
+      isLoadingRef.current = false;
     }
   }, [toast]);
 
-  const createPayment = async (paymentData: {
-    client_id: string;
-    contract_id?: string;
-    transaction_type: string;
-    amount: number;
-    due_date?: string;
-    payment_gateway?: string;
-  }) => {
+  const createPayment = async (paymentData: CreatePaymentData) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('Usuário não autenticado');
-      }
+      const companyId = companyIdRef.current || await getCompanyId();
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!profile?.company_id) {
-        throw new Error('Perfil da empresa não encontrado');
-      }
-
-      // Primeiro inserir a transação
       const { data: transaction, error: insertError } = await supabase
         .from('payment_transactions')
         .insert({
           ...paymentData,
-          company_id: profile.company_id,
+          company_id: companyId,
           status: 'pending'
         })
         .select()
@@ -230,7 +184,7 @@ export function usePayments(): UsePaymentsReturn {
         description: "Cobrança gerada com sucesso!"
       });
 
-      await loadPayments(); // Recarregar a lista
+      await loadPayments();
       return { ...transaction, ...paymentResponse };
     } catch (error: any) {
       console.error('Erro ao criar pagamento:', error);
@@ -262,7 +216,7 @@ export function usePayments(): UsePaymentsReturn {
         description: "Status do pagamento atualizado!"
       });
 
-      await loadPayments(); // Recarregar a lista
+      await loadPayments();
     } catch (error: any) {
       console.error('Erro ao atualizar pagamento:', error);
       toast({
@@ -274,11 +228,16 @@ export function usePayments(): UsePaymentsReturn {
     }
   };
 
-  // Real-time subscription for payment updates
+  // Real-time subscription com debounce
   useEffect(() => {
     loadPayments();
 
-    // Subscribe to real-time changes in payment_transactions
+    // Debounce para evitar múltiplos reloads
+    const debouncedLoad = debounce(() => {
+      console.log('[usePayments] Real-time update (debounced)');
+      loadPayments();
+    }, 500);
+
     const channel = supabase
       .channel('payment-transactions-changes')
       .on(
@@ -289,9 +248,8 @@ export function usePayments(): UsePaymentsReturn {
           table: 'payment_transactions'
         },
         (payload) => {
-          console.log('Payment transaction updated:', payload);
-          // Reload payments when there's a change
-          loadPayments();
+          console.log('[usePayments] Real-time event:', payload.eventType);
+          debouncedLoad();
         }
       )
       .subscribe();
@@ -299,7 +257,7 @@ export function usePayments(): UsePaymentsReturn {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [loadPayments]);
 
   return {
     payments,
@@ -322,8 +280,7 @@ const simulatePaymentGateway = async (
   barcode?: string;
   external_id: string;
 }> => {
-  // Simular delay de API
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   const externalId = `PAY_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 

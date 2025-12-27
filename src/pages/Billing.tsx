@@ -1,15 +1,13 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, lazy, Suspense } from "react"
 import { useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, RefreshCw, WifiOff } from "lucide-react"
-import { supabase } from "@/integrations/supabase/client"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { BillingHistory } from "@/components/billing/BillingHistory"
 import { PaymentForm } from "@/components/billing/PaymentForm"
 import { BillingActions } from "@/components/billing/BillingActions"
 import { usePayments } from "@/hooks/usePayments"
@@ -18,6 +16,8 @@ import { CpfLookup } from "@/components/billing/CpfLookup"
 import { formatDateBR, daysUntil } from "@/lib/timezone"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ModernStatCard } from "@/components/ui/modern-stat-card"
+import { BillingTableSkeleton } from "@/components/billing/BillingTableSkeleton"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -33,6 +33,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+
+// Lazy load BillingHistory para carregar apenas quando acessado
+const BillingHistory = lazy(() => import("@/components/billing/BillingHistory").then(m => ({ default: m.BillingHistory })))
 
 const BillingPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -291,53 +294,45 @@ const BillingPage = () => {
               </Select>
             </div>
 
-            {/* Tabela Limpa */}
-            <div className="rounded-lg border bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Cliente</TableHead>
-                    <TableHead className="font-semibold">Plano</TableHead>
-                    <TableHead className="font-semibold text-right">Valor</TableHead>
-                    <TableHead className="font-semibold">Vencimento</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12">
-                        <div className="flex flex-col items-center gap-3">
-                          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-                          <span className="text-muted-foreground">Carregando cobranças...</span>
-                        </div>
-                      </TableCell>
+            {/* Tabela com Skeleton */}
+            {loading ? (
+              <BillingTableSkeleton rows={8} />
+            ) : error ? (
+              <div className="rounded-lg border bg-card p-12">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="p-3 rounded-full bg-destructive/10">
+                    <WifiOff className="w-6 h-6 text-destructive" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium text-foreground">Erro ao carregar</p>
+                    <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => loadPayments()}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Tentar novamente
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="font-semibold">Cliente</TableHead>
+                      <TableHead className="font-semibold">Plano</TableHead>
+                      <TableHead className="font-semibold text-right">Valor</TableHead>
+                      <TableHead className="font-semibold">Vencimento</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold text-right">Ações</TableHead>
                     </TableRow>
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="p-3 rounded-full bg-destructive/10">
-                            <WifiOff className="w-6 h-6 text-destructive" />
-                          </div>
-                          <div className="text-center">
-                            <p className="font-medium text-foreground">Erro ao carregar</p>
-                            <p className="text-sm text-muted-foreground mt-1">{error}</p>
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => loadPayments()}
-                            className="gap-2"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                            Tentar novamente
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : sortedPayments.length === 0 ? (
+                  </TableHeader>
+                  <TableBody>
+                    {sortedPayments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhuma cobrança encontrada
@@ -375,9 +370,10 @@ const BillingPage = () => {
                       </TableRow>
                     ))
                   )}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="cancelled" className="space-y-4">
@@ -433,7 +429,22 @@ const BillingPage = () => {
           </TabsContent>
 
           <TabsContent value="history">
-            <BillingHistory />
+            <Suspense fallback={
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="h-9 w-32" />
+                </div>
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-24 rounded-lg" />
+                  ))}
+                </div>
+                <Skeleton className="h-64 rounded-lg" />
+              </div>
+            }>
+              <BillingHistory />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </div>
