@@ -3,9 +3,10 @@ import { TableCell, TableRow } from "@/components/ui/table"
 
 interface ClientTableSkeletonProps {
   rows?: number
+  columns?: number
 }
 
-export function ClientTableSkeleton({ rows = 5 }: ClientTableSkeletonProps) {
+export function ClientTableSkeleton({ rows = 5, columns = 4 }: ClientTableSkeletonProps) {
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
@@ -25,6 +26,11 @@ export function ClientTableSkeleton({ rows = 5 }: ClientTableSkeletonProps) {
               <Skeleton className="h-3 w-28" />
             </div>
           </TableCell>
+          {columns >= 5 && (
+            <TableCell>
+              <Skeleton className="h-6 w-12 rounded-full" />
+            </TableCell>
+          )}
           <TableCell>
             <Skeleton className="h-6 w-16 rounded-full" />
           </TableCell>

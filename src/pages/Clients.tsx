@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX } from "lucide-react"
+import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -18,7 +18,9 @@ import { ClientForm } from "@/components/clients/ClientForm"
 import { ClientRow } from "@/components/clients/ClientRow"
 import { ClientTableSkeleton } from "@/components/clients/ClientTableSkeleton"
 import { useClients } from "@/hooks/useClients"
+import { useClientScores } from "@/hooks/useClientScore"
 import { ModernStatCard } from "@/components/ui/modern-stat-card"
+import { toast } from "sonner"
 
 const ITEMS_PER_PAGE = 15
 
@@ -29,7 +31,9 @@ const ClientsPage = () => {
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
+  const [isRecalculating, setIsRecalculating] = useState(false)
   const { clients, loading, deleteClient, toggleWhatsApp } = useClients()
+  const { scores, loading: scoresLoading, recalculateAllScores } = useClientScores()
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -84,6 +88,19 @@ const ClientsPage = () => {
   const activeCount = clients.filter(c => c.status === 'active').length
   const suspendedCount = clients.filter(c => c.status === 'suspended').length
   const inactiveCount = clients.filter(c => c.status === 'inactive').length
+
+  const handleRecalculateScores = async () => {
+    if (clients.length === 0) return
+    setIsRecalculating(true)
+    try {
+      await recalculateAllScores(clients.map(c => c.id))
+      toast.success('Scores recalculados com sucesso!')
+    } catch (error) {
+      toast.error('Erro ao recalcular scores')
+    } finally {
+      setIsRecalculating(false)
+    }
+  }
 
   return (
     <AppLayout>
@@ -172,6 +189,14 @@ const ClientsPage = () => {
                 <Filter className="w-4 h-4 mr-2" />
                 Filtros
               </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleRecalculateScores}
+                disabled={isRecalculating || loading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} />
+                {isRecalculating ? 'Calculando...' : 'Recalcular Scores'}
+              </Button>
             </div>
 
             <div className="rounded-md border">
@@ -180,16 +205,17 @@ const ClientsPage = () => {
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead className="hidden md:table-cell">Contato</TableHead>
+                    <TableHead className="w-20">Score</TableHead>
                     <TableHead className="w-24">Status</TableHead>
                     <TableHead className="w-16">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <ClientTableSkeleton rows={5} />
+                  {loading || scoresLoading ? (
+                    <ClientTableSkeleton rows={5} columns={5} />
                   ) : filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8">
+                      <TableCell colSpan={5} className="text-center py-8">
                         <div className="text-muted-foreground">
                           {searchTerm ? 'Nenhum cliente encontrado para a busca.' : 'Nenhum cliente cadastrado ainda.'}
                         </div>
@@ -199,6 +225,7 @@ const ClientsPage = () => {
                     paginatedClients.map((client) => (
                       <ClientRow
                         key={client.id}
+                        score={scores[client.id]}
                         client={client}
                         onView={handleViewClient}
                         onEdit={handleEditClient}
