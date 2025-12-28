@@ -11,7 +11,7 @@ import { CompanyLimitsDialog } from "./CompanyLimitsDialog"
 import { CompanySubscriptionDialog } from "./CompanySubscriptionDialog"
 import { CompanyPasswordDialog } from "./CompanyPasswordDialog"
 import { CompanyUsersDialog } from "./CompanyUsersDialog"
-import { Building2, Plus, Settings, Edit, CreditCard, Key, Trash2, Users, MoreHorizontal } from "lucide-react"
+import { Building2, Plus, Settings, Edit, CreditCard, Key, Trash2, Users, MoreHorizontal, Globe } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -298,6 +298,7 @@ export function CompanyManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Empresa</TableHead>
+                  <TableHead>Domínio</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Criado em</TableHead>
@@ -312,6 +313,18 @@ export function CompanyManagement() {
                         <div className="font-medium">{company.name}</div>
                         <div className="text-sm text-muted-foreground">{company.email}</div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {company.domain ? (
+                        <div className="flex items-center gap-1">
+                          <Globe className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-sm font-mono truncate max-w-[150px]" title={company.domain}>
+                            {company.domain.replace(/^https?:\/\//, '')}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

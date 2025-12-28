@@ -7,12 +7,31 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { Globe, AlertCircle } from "lucide-react"
 
 interface CompanyFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   company?: any
   onSaved: () => void
+}
+
+// Sanitizar domínio - remove protocolo e barras extras
+const sanitizeDomain = (input: string): string => {
+  if (!input || !input.trim()) return ''
+  // Remove protocolo se digitado (http, https, com variações de : e /)
+  let domain = input.replace(/^https?:+\/+/i, '').trim()
+  // Remove barras finais
+  domain = domain.replace(/\/+$/, '')
+  // Remove espaços
+  domain = domain.replace(/\s+/g, '')
+  return domain
+}
+
+// Gerar domínio completo com https://
+const getFullDomain = (domain: string): string => {
+  const sanitized = sanitizeDomain(domain)
+  return sanitized ? `https://${sanitized}` : ''
 }
 
 export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFormProps) {
@@ -25,6 +44,7 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     email: company?.email || '',
     phone: company?.phone || '',
     address: company?.address || '',
+    domain: '',
     plan_id: ''
   })
 
@@ -59,17 +79,32 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     }))
   }
 
+  const handleDomainChange = (value: string) => {
+    // Sanitizar em tempo real para preview
+    setFormData(prev => ({ ...prev, domain: value }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
+      // Sanitizar domínio antes de salvar
+      const fullDomain = getFullDomain(formData.domain)
+
       if (company) {
         // Atualizar empresa existente
         const { name, slug, email, phone, address } = formData
+        const updateData: any = { name, slug, email, phone, address }
+        
+        // Só atualiza domínio se foi preenchido
+        if (fullDomain) {
+          updateData.domain = fullDomain
+        }
+
         const { error } = await supabase
           .from('companies')
-          .update({ name, slug, email, phone, address })
+          .update(updateData)
           .eq('id', company.id)
 
         if (error) throw error
@@ -81,9 +116,16 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
       } else {
         // Criar nova empresa
         const { name, slug, email, phone, address } = formData
+        const insertData: any = { name, slug, email, phone, address }
+        
+        // Adiciona domínio se preenchido
+        if (fullDomain) {
+          insertData.domain = fullDomain
+        }
+
         const { data: newCompany, error: companyError } = await supabase
           .from('companies')
-          .insert([{ name, slug, email, phone, address }])
+          .insert([insertData])
           .select('id')
           .single()
 
@@ -121,6 +163,7 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
           email: '',
           phone: '',
           address: '',
+          domain: '',
           plan_id: ''
         })
       }
@@ -142,6 +185,13 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
     }).format(value)
   }
 
+  // Preview do link de pagamento
+  const getPaymentLinkPreview = () => {
+    const sanitized = sanitizeDomain(formData.domain)
+    if (!sanitized) return null
+    return `https://${sanitized}/checkout/[id-cobranca]`
+  }
+
   useEffect(() => {
     if (open && !company) {
       loadPlans()
@@ -151,12 +201,18 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
   // Atualizar formData quando company mudar (para edição)
   useEffect(() => {
     if (company) {
+      // Extrair domínio sem https:// para exibição
+      const domainWithoutProtocol = company.domain 
+        ? company.domain.replace(/^https?:+\/+/i, '')
+        : ''
+      
       setFormData({
         name: company.name || '',
         slug: company.slug || '',
         email: company.email || '',
         phone: company.phone || '',
         address: company.address || '',
+        domain: domainWithoutProtocol,
         plan_id: ''
       })
     } else {
@@ -166,10 +222,13 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
         email: '',
         phone: '',
         address: '',
+        domain: '',
         plan_id: ''
       })
     }
   }, [company])
+
+  const paymentPreview = getPaymentLinkPreview()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -245,6 +304,34 @@ export function CompanyForm({ open, onOpenChange, company, onSaved }: CompanyFor
               placeholder="Endereço completo"
               rows={2}
             />
+          </div>
+
+          {/* Campo de Domínio Personalizado */}
+          <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+            <Label htmlFor="domain" className="flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              Domínio Personalizado
+            </Label>
+            <Input
+              id="domain"
+              value={formData.domain}
+              onChange={(e) => handleDomainChange(e.target.value)}
+              placeholder="app.empresa.com.br"
+              className="h-9"
+            />
+            <p className="text-xs text-muted-foreground">
+              Digite apenas o domínio (sem https://). Exemplo: app.minhaempresa.com.br
+            </p>
+            
+            {paymentPreview && (
+              <div className="flex items-start gap-2 p-2 rounded bg-primary/10 border border-primary/20">
+                <AlertCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="text-xs">
+                  <p className="font-medium text-primary">Preview do link de pagamento:</p>
+                  <code className="text-foreground break-all">{paymentPreview}</code>
+                </div>
+              </div>
+            )}
           </div>
 
           {!company && (

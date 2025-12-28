@@ -55,7 +55,6 @@ const WhiteLabelPage = () => {
     logo: "",
     primaryColor: "#3b82f6",
     secondaryColor: "#f8fafc",
-    domain: "",
     favicon: ""
   })
 
@@ -174,7 +173,6 @@ const WhiteLabelPage = () => {
         logo: brandingData?.logo_url || "",
         primaryColor: brandingData?.primary_color || "#3b82f6",
         secondaryColor: brandingData?.secondary_color || "#f8fafc",
-        domain: brandingData?.subdomain || company?.domain || "",
         favicon: brandingData?.favicon_url || ""
       })
 
@@ -234,8 +232,7 @@ const WhiteLabelPage = () => {
           logo_url: branding.logo,
           primary_color: branding.primaryColor,
           secondary_color: branding.secondaryColor,
-          favicon_url: branding.favicon,
-          subdomain: branding.domain
+          favicon_url: branding.favicon
         }, { onConflict: 'company_id' })
 
       if (error) throw error
@@ -245,7 +242,6 @@ const WhiteLabelPage = () => {
         .from('companies')
         .update({ 
           name: branding.companyName,
-          domain: branding.domain,
           logo_url: branding.logo,
           slug: finalSlug
         })
@@ -449,7 +445,7 @@ const WhiteLabelPage = () => {
         <Tabs defaultValue="branding" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="branding">Identidade</TabsTrigger>
-            <TabsTrigger value="domain">Domínio</TabsTrigger>
+            <TabsTrigger value="registration">Link Cadastro</TabsTrigger>
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="messages">Mensagens</TabsTrigger>
             <TabsTrigger value="settings">Configurações</TabsTrigger>
@@ -684,52 +680,7 @@ const WhiteLabelPage = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="domain" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="w-5 h-5" />
-                  Configuração de Domínio
-                </CardTitle>
-                <CardDescription>
-                  Configure seu domínio personalizado
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="domain">Domínio Personalizado</Label>
-                  <Input
-                    id="domain"
-                    value={branding.domain}
-                    onChange={(e) => handleBrandingChange('domain', e.target.value)}
-                    placeholder="app.suaempresa.com.br"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Configure um CNAME apontando para: gestaotracker.app
-                  </p>
-                </div>
-
-                <div className="border rounded-lg p-4 bg-primary-light">
-                  <h4 className="font-medium mb-2">Instruções de Configuração DNS</h4>
-                  <ol className="text-sm space-y-2 list-decimal list-inside">
-                    <li>Acesse o painel de controle do seu provedor de domínio</li>
-                    <li>Adicione um registro CNAME:</li>
-                    <ul className="ml-4 mt-1 space-y-1">
-                      <li>• Nome: app (ou subdomínio desejado)</li>
-                      <li>• Valor: gestaotracker.app</li>
-                    </ul>
-                    <li>Aguarde a propagação (até 24h)</li>
-                    <li>Clique em "Verificar Domínio" abaixo</li>
-                  </ol>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button>Verificar Domínio</Button>
-                  <Button variant="outline">Testar Configuração</Button>
-                </div>
-              </CardContent>
-            </Card>
-
+          <TabsContent value="registration" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Link de Cadastro Público</CardTitle>
