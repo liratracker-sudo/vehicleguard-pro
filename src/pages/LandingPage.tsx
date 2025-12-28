@@ -21,9 +21,9 @@ const LandingPage = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => window.location.href = "/demo"}
+              onClick={() => window.location.href = "/auth"}
             >
-              Demonstração
+              Testar Grátis
             </Button>
             <Button
               variant="outline"
