@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { User, Session } from "@supabase/supabase-js"
 import { supabase } from "@/integrations/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,10 @@ const AuthPage = () => {
   })
   
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { toast } = useToast()
+  
+  const defaultTab = searchParams.get("tab") === "signup" ? "signup" : "signin"
 
   useEffect(() => {
     // Set up auth state listener
@@ -198,7 +201,7 @@ const AuthPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
-                <Tabs defaultValue="signin" className="w-full">
+                <Tabs defaultValue={defaultTab} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 h-9">
                     <TabsTrigger value="signin" className="text-sm">Entrar</TabsTrigger>
                     <TabsTrigger value="signup" className="text-sm">Cadastrar</TabsTrigger>

@@ -21,7 +21,7 @@ const LandingPage = () => {
             <Button
               variant="premium"
               size="sm"
-              onClick={() => window.location.href = "/auth"}
+              onClick={() => window.location.href = "/auth?tab=signup"}
             >
               Testar Grátis
             </Button>
