@@ -19,14 +19,14 @@ const LandingPage = () => {
           
           <div className="flex items-center gap-4">
             <Button
-              variant="ghost"
+              variant="premium"
               size="sm"
               onClick={() => window.location.href = "/auth"}
             >
               Testar Grátis
             </Button>
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={() => window.location.href = "/auth"}
             >
