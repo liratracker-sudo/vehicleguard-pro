@@ -105,7 +105,7 @@ serve(async (req) => {
               
               const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
               const baseUrl = companyDomain?.domain 
-                ? `https://${companyDomain.domain.replace(/^https?:\/\//, '')}` 
+                ? `https://${companyDomain.domain.replace(/^https?:+\/+/i, '')}` 
                 : defaultAppUrl;
               const paymentLink = `${baseUrl}/checkout/${metadata.payment_id}`;
               

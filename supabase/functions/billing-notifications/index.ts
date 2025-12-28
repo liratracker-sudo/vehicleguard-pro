@@ -1128,7 +1128,7 @@ async function sendSingleNotification(notification: any) {
   
   // Use company domain if configured, otherwise fallback to APP_URL
   const baseUrl = companyDomain 
-    ? `https://${companyDomain.replace(/^https?:\/\//, '')}` 
+    ? `https://${companyDomain.replace(/^https?:+\/+/i, '')}` 
     : appUrl;
   
   const paymentLink = `${baseUrl}/checkout/${payment.id}`;
