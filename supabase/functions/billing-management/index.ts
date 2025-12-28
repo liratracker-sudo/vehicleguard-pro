@@ -147,7 +147,7 @@ serve(async (req) => {
         // Use company domain if configured, otherwise fallback
         const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
         const baseUrl = company?.domain 
-          ? `https://${company.domain.replace(/^https?:\/\//, '')}` 
+          ? `https://${company.domain.replace(/^https?:+\/+/i, '')}` 
           : appUrl;
         const paymentLink = `${baseUrl}/checkout/${payment.id}`;
 

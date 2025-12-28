@@ -80,7 +80,7 @@ serve(async (req) => {
       // Build payment link using company domain
       const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
       const baseUrl = companyInfo?.domain 
-        ? `https://${companyInfo.domain.replace(/^https?:\/\//, '')}` 
+        ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
         : defaultAppUrl;
       const paymentLink = `${baseUrl}/checkout/${payment.id}`;
       console.log(`📎 Payment link for AI: ${paymentLink}`);
@@ -338,7 +338,7 @@ ${!isOverdue
         // Build payment link using company domain
         const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
         const baseUrl = companyInfo?.domain 
-          ? `https://${companyInfo.domain.replace(/^https?:\/\//, '')}` 
+          ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
           : defaultAppUrl;
         const paymentLink = `${baseUrl}/checkout/${payment.id}`;
 
