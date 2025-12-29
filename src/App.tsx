@@ -27,6 +27,7 @@ import ClientRegistrations from "./pages/ClientRegistrations";
 import ProfilePage from "./pages/Profile";
 import AIDemo from "./pages/AIDemo";
 import LandingPage from "./pages/LandingPage";
+import ApiDocsPage from "./pages/ApiDocs";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -71,6 +72,7 @@ const App = () => {
               <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
               <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
               <Route path="/billing-diagnostics" element={<AuthGuard><BillingDiagnosticsPage /></AuthGuard>} />
+              <Route path="/api-docs" element={<AuthGuard><ApiDocsPage /></AuthGuard>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
