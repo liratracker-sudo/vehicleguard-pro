@@ -206,6 +206,28 @@ export default function Checkout() {
 
       if (methodsError) throw methodsError;
 
+      // Buscar regras de gateway baseadas no valor
+      const { data: gatewayRules } = await supabase
+        .from('payment_gateway_rules')
+        .select('*')
+        .eq('company_id', paymentData.company_id)
+        .eq('is_active', true)
+        .lte('min_amount', paymentData.amount)
+        .order('priority', { ascending: true });
+
+      // Filtrar regras que se aplicam ao valor (max_amount null ou >= amount)
+      const applicableRules = (gatewayRules || []).filter(rule => 
+        rule.max_amount === null || rule.max_amount >= paymentData.amount
+      );
+      
+      const activeRule = applicableRules.length > 0 ? applicableRules[0] : null;
+      
+      console.log('Gateway rules check:', { 
+        amount: paymentData.amount, 
+        applicableRules: applicableRules.length,
+        activeRule: activeRule?.name 
+      });
+
       // Mapear para formato de UI
       const methodsMap: Record<string, PaymentMethod> = {
         'pix': { key: 'pix', label: 'PIX', icon: <QrCode className="h-5 w-5" />, gateway: '' },
@@ -220,6 +242,20 @@ export default function Checkout() {
         let methodKey = m.payment_method;
         // Unificar débito e crédito em apenas "Cartão"
         if (methodKey === 'debit_card') methodKey = 'credit_card';
+        
+        // Se há uma regra ativa, verificar se o gateway é permitido
+        if (activeRule && activeRule.allowed_gateways.length > 0) {
+          if (!activeRule.allowed_gateways.includes(m.gateway_type)) {
+            return; // Pular este método pois o gateway não é permitido
+          }
+        }
+        
+        // Se há uma regra com métodos específicos, verificar se o método é permitido
+        if (activeRule && activeRule.allowed_methods && activeRule.allowed_methods.length > 0) {
+          if (!activeRule.allowed_methods.includes(methodKey)) {
+            return; // Pular este método
+          }
+        }
         
         if (methodsMap[methodKey] && !uniqueMethods.has(methodKey)) {
           uniqueMethods.set(methodKey, {
