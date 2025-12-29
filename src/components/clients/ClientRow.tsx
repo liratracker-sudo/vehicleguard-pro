@@ -58,27 +58,27 @@ export function ClientRow({
 }: ClientRowProps) {
   return (
     <TableRow className="hover:bg-muted/50 transition-colors">
-      <TableCell>
+      <TableCell className="min-w-[180px]">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 shrink-0">
             <AvatarFallback className="bg-primary/10 text-primary font-medium">
               {getInitials(client.name)}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <p className="font-medium text-foreground truncate">{client.name}</p>
-            <p className="text-xs text-muted-foreground truncate">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground truncate max-w-[160px]">{client.name}</p>
+            <p className="text-xs text-muted-foreground truncate max-w-[160px]">
               {client.document || 'Sem documento'}
             </p>
           </div>
         </div>
       </TableCell>
 
-      <TableCell className="hidden md:table-cell">
+      <TableCell className="hidden md:table-cell min-w-[160px]">
         <div className="space-y-1">
           <div className="flex items-center text-sm text-muted-foreground">
             <Mail className="w-3 h-3 mr-1.5 shrink-0" />
-            <span className="truncate">{client.email || 'Não informado'}</span>
+            <span className="truncate max-w-[140px]">{client.email || 'Não informado'}</span>
           </div>
           <div className="flex items-center text-sm text-muted-foreground gap-1.5">
             <Phone className="w-3 h-3 shrink-0" />
@@ -115,7 +115,7 @@ export function ClientRow({
         </div>
       </TableCell>
 
-      <TableCell>
+      <TableCell className="w-20 text-center">
         <ClientScoreBadge
           score={score?.score}
           totalPayments={score?.total_payments}
@@ -127,11 +127,11 @@ export function ClientRow({
         />
       </TableCell>
 
-      <TableCell>
+      <TableCell className="w-24 text-center">
         <ClientStatus status={client.status} />
       </TableCell>
 
-      <TableCell>
+      <TableCell className="w-16 text-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted">

@@ -216,11 +216,11 @@ const ClientsPage = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="hidden md:table-cell">Contato</TableHead>
-                    <TableHead className="w-20">Score</TableHead>
-                    <TableHead className="w-24">Status</TableHead>
-                    <TableHead className="w-16">Ações</TableHead>
+                    <TableHead className="min-w-[180px]">Cliente</TableHead>
+                    <TableHead className="hidden md:table-cell min-w-[160px]">Contato</TableHead>
+                    <TableHead className="w-20 text-center">Score</TableHead>
+                    <TableHead className="w-24 text-center">Status</TableHead>
+                    <TableHead className="w-16 text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
