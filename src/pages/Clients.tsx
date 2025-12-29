@@ -71,6 +71,12 @@ const ClientsPage = () => {
     }
   }
 
+  const handleNewClient = () => {
+    setSelectedClient(null)
+    setViewMode(null)
+    setIsDialogOpen(true)
+  }
+
   const handleDialogClose = () => {
     setIsDialogOpen(false)
     setSelectedClient(null)
@@ -113,13 +119,11 @@ const ClientsPage = () => {
               Gerencie seus clientes e contratos de rastreamento
             </p>
           </div>
+          <Button className="shrink-0" onClick={handleNewClient}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Cliente
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="shrink-0" onClick={() => setIsDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Cliente
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
               <div className="p-6">
                 <ClientForm
