@@ -8,6 +8,7 @@ import { BillingNotifications } from "@/components/settings/BillingNotifications
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { LateFeeSettings } from "@/components/settings/LateFeeSettings"
 import { WhatsAppDiagnostic } from "@/components/settings/WhatsAppDiagnostic"
+import { ApiKeysManagement } from "@/components/settings/ApiKeysManagement"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -48,6 +49,7 @@ const SettingsPage = () => {
             <TabsTrigger value="billing" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Cobrança</TabsTrigger>
             <TabsTrigger value="ai" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">IA</TabsTrigger>
             <TabsTrigger value="integrations" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Integrações</TabsTrigger>
+            <TabsTrigger value="api" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">API</TabsTrigger>
           </TabsList>
 
           <TabsContent value="billing" className="space-y-6">
@@ -63,6 +65,10 @@ const SettingsPage = () => {
             <PaymentGatewayConfig />
             <IntegrationsGrid />
             <WhatsAppDiagnostic />
+          </TabsContent>
+
+          <TabsContent value="api" className="space-y-6">
+            <ApiKeysManagement />
           </TabsContent>
         </Tabs>
       </div>
