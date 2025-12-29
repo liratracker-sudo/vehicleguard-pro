@@ -1,9 +1,12 @@
+import { useRef, useState } from 'react'
+import html2pdf from 'html2pdf.js'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Book, Code, Key, Terminal } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Book, Code, Key, Terminal, Download, Loader2 } from 'lucide-react'
 
 const API_BASE_URL = 'https://mcdidffxwtnqhawqilln.supabase.co/functions/v1/tracker-api'
 
@@ -15,18 +18,72 @@ const CodeBlock = ({ children, language = 'bash' }: { children: string; language
   </ScrollArea>
 )
 
+const PdfCodeBlock = ({ children }: { children: string }) => (
+  <pre style={{ 
+    backgroundColor: '#f4f4f5', 
+    padding: '12px', 
+    borderRadius: '8px', 
+    fontSize: '11px', 
+    fontFamily: 'monospace',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    margin: '8px 0'
+  }}>
+    {children}
+  </pre>
+)
+
 const ApiDocsPage = () => {
+  const pdfContentRef = useRef<HTMLDivElement>(null)
+  const [generating, setGenerating] = useState(false)
+
+  const generatePDF = async () => {
+    if (!pdfContentRef.current) return
+    
+    setGenerating(true)
+    
+    try {
+      const opt = {
+        margin: [10, 10, 10, 10] as [number, number, number, number],
+        filename: 'API_Tracker_Documentacao.pdf',
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] as ('avoid-all' | 'css' | 'legacy')[] }
+      }
+      
+      await html2pdf().set(opt).from(pdfContentRef.current).save()
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6 max-w-4xl">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-            <Book className="h-8 w-8" />
-            Documentação da API
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            API REST para integração com plataformas de rastreamento
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+              <Book className="h-8 w-8" />
+              Documentação da API
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              API REST para integração com plataformas de rastreamento
+            </p>
+          </div>
+          <Button onClick={generatePDF} disabled={generating}>
+            {generating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Gerando...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar PDF
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Authentication */}
@@ -473,6 +530,199 @@ print_r($client);
             </Tabs>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Hidden PDF Content */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <div ref={pdfContentRef} style={{ width: '190mm', padding: '10mm', fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#1a1a1a', backgroundColor: '#fff' }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #3b82f6', paddingBottom: '15px' }}>
+            <h1 style={{ fontSize: '24px', margin: 0, color: '#1e40af' }}>📘 Documentação da API - Tracker</h1>
+            <p style={{ color: '#666', marginTop: '8px', fontSize: '11px' }}>
+              Gerado em: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}
+            </p>
+          </div>
+
+          {/* Authentication */}
+          <div style={{ marginBottom: '25px' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>🔑 Autenticação</h2>
+            <p style={{ marginBottom: '8px' }}>Todas as requisições devem incluir sua API Key no header:</p>
+            <PdfCodeBlock>{`curl -H "X-API-Key: sk_live_sua_chave_aqui" \\
+     ${API_BASE_URL}?action=client&cpf=12345678901`}</PdfCodeBlock>
+            <div style={{ backgroundColor: '#fef3c7', padding: '10px', borderRadius: '6px', marginTop: '10px', fontSize: '11px' }}>
+              <strong>⚠️ Importante:</strong> Nunca exponha sua API Key em código cliente (frontend). Use apenas em servidores backend.
+            </div>
+          </div>
+
+          {/* Base URL */}
+          <div style={{ marginBottom: '25px' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>🌐 Base URL</h2>
+            <p style={{ backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px' }}>
+              {API_BASE_URL}
+            </p>
+          </div>
+
+          {/* Endpoint: Client */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>📋 Endpoint: Buscar Cliente</h2>
+            <p><span style={{ backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>GET</span> <code>?action=client</code></p>
+            
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Parâmetros de Busca:</h4>
+            <ul style={{ fontSize: '11px', marginLeft: '20px' }}>
+              <li><code>cpf</code> - Buscar por CPF/CNPJ</li>
+              <li><code>plate</code> - Buscar por placa do veículo</li>
+              <li><code>phone</code> - Buscar por telefone</li>
+              <li><code>name</code> - Buscar por nome (parcial)</li>
+            </ul>
+
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Exemplo:</h4>
+            <PdfCodeBlock>{`curl -X GET "${API_BASE_URL}?action=client&cpf=12345678901" \\
+     -H "X-API-Key: sk_live_xxx"`}</PdfCodeBlock>
+
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Resposta:</h4>
+            <PdfCodeBlock>{`{
+  "success": true,
+  "client": {
+    "id": "uuid",
+    "name": "João Silva",
+    "document": "123.456.789-01",
+    "phone": "11999999999",
+    "email": "joao@email.com",
+    "status": "active",
+    "payment_status": "em_dia",
+    "days_overdue": 0,
+    "pending_amount": 0
+  },
+  "vehicle": {
+    "license_plate": "ABC1234",
+    "brand": "Fiat",
+    "model": "Uno",
+    "year": 2020
+  }
+}`}</PdfCodeBlock>
+          </div>
+
+          {/* Endpoint: Vehicles */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>🚗 Endpoint: Veículos</h2>
+            <p><span style={{ backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>GET</span> <code>?action=vehicles&client_id=uuid</code></p>
+            
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Parâmetros:</h4>
+            <ul style={{ fontSize: '11px', marginLeft: '20px' }}>
+              <li><code>client_id</code> - ID do cliente (obrigatório)</li>
+            </ul>
+
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Exemplo:</h4>
+            <PdfCodeBlock>{`curl -X GET "${API_BASE_URL}?action=vehicles&client_id=uuid" \\
+     -H "X-API-Key: sk_live_xxx"`}</PdfCodeBlock>
+          </div>
+
+          {/* Endpoint: Payments */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>💰 Endpoint: Pagamentos</h2>
+            <p><span style={{ backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>GET</span> <code>?action=payments&client_id=uuid</code></p>
+            
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Parâmetros:</h4>
+            <ul style={{ fontSize: '11px', marginLeft: '20px' }}>
+              <li><code>client_id</code> - ID do cliente (obrigatório)</li>
+              <li><code>status</code> - Filtrar por status: pending, paid, overdue</li>
+              <li><code>limit</code> - Limite de resultados (padrão: 50)</li>
+            </ul>
+
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Exemplo:</h4>
+            <PdfCodeBlock>{`curl -X GET "${API_BASE_URL}?action=payments&client_id=uuid&status=pending" \\
+     -H "X-API-Key: sk_live_xxx"`}</PdfCodeBlock>
+          </div>
+
+          {/* Endpoint: Create Charge */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>➕ Endpoint: Criar Cobrança</h2>
+            <p><span style={{ backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>POST</span> <code>/</code></p>
+            
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Body (JSON):</h4>
+            <PdfCodeBlock>{`{
+  "action": "create_charge",
+  "client_id": "uuid-do-cliente",
+  "amount": 150.00,
+  "due_date": "2025-02-01",
+  "description": "Mensalidade Fevereiro/2025"
+}`}</PdfCodeBlock>
+
+            <h4 style={{ marginTop: '12px', fontSize: '13px' }}>Exemplo cURL:</h4>
+            <PdfCodeBlock>{`curl -X POST "${API_BASE_URL}" \\
+     -H "X-API-Key: sk_live_xxx" \\
+     -H "Content-Type: application/json" \\
+     -d '{"action": "create_charge", "client_id": "uuid", "amount": 150.00, "due_date": "2025-02-01"}'`}</PdfCodeBlock>
+          </div>
+
+          {/* Error Codes */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>❌ Códigos de Erro</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f3f4f6' }}>
+                  <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'left' }}>Código</th>
+                  <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'left' }}>Nome</th>
+                  <th style={{ border: '1px solid #e5e7eb', padding: '8px', textAlign: 'left' }}>Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>401</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Unauthorized</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>API Key não fornecida ou inválida</td></tr>
+                <tr><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>403</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Forbidden</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>API Key não tem permissão para esta ação</td></tr>
+                <tr><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>404</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Not Found</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Cliente ou recurso não encontrado</td></tr>
+                <tr><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>400</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Bad Request</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Parâmetros obrigatórios faltando ou inválidos</td></tr>
+                <tr><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>500</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Internal Server Error</td><td style={{ border: '1px solid #e5e7eb', padding: '8px' }}>Erro interno do servidor</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* JavaScript Example */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>💻 Exemplo JavaScript/Node.js</h2>
+            <PdfCodeBlock>{`const API_KEY = 'sk_live_xxx';
+const BASE_URL = '${API_BASE_URL}';
+
+async function getClientByCPF(cpf) {
+  const response = await fetch(\`\${BASE_URL}?action=client&cpf=\${cpf}\`, {
+    headers: { 'X-API-Key': API_KEY }
+  });
+  return response.json();
+}
+
+async function createCharge(clientId, amount, dueDate) {
+  const response = await fetch(BASE_URL, {
+    method: 'POST',
+    headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'create_charge', client_id: clientId, amount, due_date: dueDate })
+  });
+  return response.json();
+}`}</PdfCodeBlock>
+          </div>
+
+          {/* Python Example */}
+          <div style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
+            <h2 style={{ fontSize: '16px', color: '#1e40af', borderBottom: '1px solid #e5e7eb', paddingBottom: '5px' }}>🐍 Exemplo Python</h2>
+            <PdfCodeBlock>{`import requests
+
+API_KEY = 'sk_live_xxx'
+BASE_URL = '${API_BASE_URL}'
+headers = {'X-API-Key': API_KEY, 'Content-Type': 'application/json'}
+
+def get_client_by_cpf(cpf):
+    return requests.get(f'{BASE_URL}?action=client&cpf={cpf}', headers=headers).json()
+
+def create_charge(client_id, amount, due_date):
+    return requests.post(BASE_URL, headers=headers, json={
+        'action': 'create_charge', 'client_id': client_id, 'amount': amount, 'due_date': due_date
+    }).json()`}</PdfCodeBlock>
+          </div>
+
+          {/* Footer */}
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '15px', marginTop: '30px', textAlign: 'center', fontSize: '10px', color: '#666' }}>
+            <p>Documentação da API Tracker - Versão 1.0</p>
+            <p>Para suporte técnico, entre em contato com nossa equipe.</p>
+          </div>
+        </div>
       </div>
     </AppLayout>
   )
