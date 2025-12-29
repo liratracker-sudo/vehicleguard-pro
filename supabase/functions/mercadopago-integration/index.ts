@@ -292,8 +292,9 @@ serve(async (req) => {
           debugLog('test_connection - Token Warning', { warning })
         }
 
-        const baseUrl = getMercadoPagoBaseUrl(testIsSandbox)
-        const apiUrl = `${baseUrl}/v1/users/me`
+        // IMPORTANTE: Para verificar credenciais, usamos api.mercadolibre.com (não api.mercadopago.com)
+        // O endpoint /users/me é parte da API do Mercado Livre, não do Mercado Pago
+        const apiUrl = 'https://api.mercadolibre.com/users/me'
         
         debugLog('test_connection - API Call', { 
           url: apiUrl,
