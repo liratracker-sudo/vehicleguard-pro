@@ -2009,6 +2009,59 @@ export type Database = {
           },
         ]
       }
+      payment_gateway_rules: {
+        Row: {
+          allowed_gateways: string[]
+          allowed_methods: string[] | null
+          company_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          max_amount: number | null
+          min_amount: number | null
+          name: string
+          priority: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          allowed_gateways?: string[]
+          allowed_methods?: string[] | null
+          company_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_amount?: number | null
+          min_amount?: number | null
+          name: string
+          priority?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          allowed_gateways?: string[]
+          allowed_methods?: string[] | null
+          company_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_amount?: number | null
+          min_amount?: number | null
+          name?: string
+          priority?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_gateway_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_notification_settings: {
         Row: {
           active: boolean
@@ -2151,6 +2204,7 @@ export type Database = {
           due_date: string | null
           external_id: string | null
           fine_amount: number | null
+          gateway_restrictions: Json | null
           id: string
           interest_amount: number | null
           invoice_id: string | null
@@ -2175,6 +2229,7 @@ export type Database = {
           due_date?: string | null
           external_id?: string | null
           fine_amount?: number | null
+          gateway_restrictions?: Json | null
           id?: string
           interest_amount?: number | null
           invoice_id?: string | null
@@ -2199,6 +2254,7 @@ export type Database = {
           due_date?: string | null
           external_id?: string | null
           fine_amount?: number | null
+          gateway_restrictions?: Json | null
           id?: string
           interest_amount?: number | null
           invoice_id?: string | null

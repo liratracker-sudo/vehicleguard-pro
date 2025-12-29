@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PaymentGatewayConfig } from "@/components/settings/PaymentGatewayConfig"
+import { PaymentGatewayRules } from "@/components/settings/PaymentGatewayRules"
 import { IntegrationsGrid } from "@/components/settings/IntegrationsGrid"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
@@ -63,6 +64,7 @@ const SettingsPage = () => {
 
           <TabsContent value="integrations" className="space-y-6">
             <PaymentGatewayConfig />
+            <PaymentGatewayRules />
             <IntegrationsGrid />
             <WhatsAppDiagnostic />
           </TabsContent>
