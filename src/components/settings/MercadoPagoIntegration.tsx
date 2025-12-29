@@ -52,10 +52,31 @@ export function MercadoPagoIntegration() {
   }, [])
 
   const handleTestConnection = async () => {
-    if (!accessToken) {
+    const cleanToken = accessToken.trim()
+    
+    if (!cleanToken) {
       toast({
         title: "Erro",
         description: "Informe o Access Token",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validação do formato do token
+    if (isSandbox && !cleanToken.startsWith('TEST-')) {
+      toast({
+        title: "Atenção",
+        description: "Você está no modo Sandbox mas o token não começa com 'TEST-'. Verifique se está usando o token de teste correto.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (!isSandbox && !cleanToken.startsWith('APP_USR-')) {
+      toast({
+        title: "Atenção",
+        description: "Você está no modo Produção mas o token não começa com 'APP_USR-'. Verifique se está usando o token correto.",
         variant: "destructive"
       })
       return
@@ -66,21 +87,35 @@ export function MercadoPagoIntegration() {
       const { data, error } = await supabase.functions.invoke('mercadopago-integration', {
         body: {
           action: 'test_connection',
-          access_token: accessToken,
+          access_token: cleanToken,
           is_sandbox: isSandbox
         }
       })
 
       if (error) throw error
 
+      // Mostrar warning se houver
+      if (data.warning) {
+        toast({
+          title: "Conexão testada com aviso",
+          description: data.warning,
+        })
+      }
+
       toast({
         title: "Conexão testada com sucesso!",
         description: `Conta: ${data.data.email}`,
       })
     } catch (error: any) {
+      // Melhorar mensagens de erro comuns
+      let errorMessage = error.message
+      if (errorMessage.includes('Si quieres conocer') || errorMessage.includes('recursos de la API')) {
+        errorMessage = 'Token inválido. Verifique se copiou corretamente e se corresponde ao ambiente selecionado.'
+      }
+      
       toast({
         title: "Erro ao testar conexão",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -150,10 +185,15 @@ export function MercadoPagoIntegration() {
           <Input
             id="accessToken"
             type="password"
-            placeholder="APP_USR-..."
+            placeholder={isSandbox ? "TEST-..." : "APP_USR-..."}
             value={accessToken}
             onChange={(e) => setAccessToken(e.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            {isSandbox 
+              ? "Token de teste deve começar com TEST-..." 
+              : "Token de produção deve começar com APP_USR-..."}
+          </p>
           <p className="text-xs text-muted-foreground">
             Obtenha seu Access Token em{" "}
             <a
