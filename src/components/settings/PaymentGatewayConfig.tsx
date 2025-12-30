@@ -14,17 +14,17 @@ interface GatewayConfig {
 }
 
 const GATEWAYS: GatewayConfig[] = [
-  { gateway: "asaas", name: "Asaas", icon: <Wallet className="h-5 w-5" />, color: "bg-blue-500" },
-  { gateway: "mercadopago", name: "Mercado Pago", icon: <Wallet className="h-5 w-5" />, color: "bg-sky-500" },
-  { gateway: "gerencianet", name: "Gerencianet", icon: <Wallet className="h-5 w-5" />, color: "bg-orange-500" },
-  { gateway: "inter", name: "Banco Inter", icon: <Wallet className="h-5 w-5" />, color: "bg-orange-600" },
+  { gateway: "asaas", name: "Asaas", icon: <Wallet className="h-3.5 w-3.5" />, color: "bg-blue-500" },
+  { gateway: "mercadopago", name: "Mercado Pago", icon: <Wallet className="h-3.5 w-3.5" />, color: "bg-sky-500" },
+  { gateway: "gerencianet", name: "Gerencianet", icon: <Wallet className="h-3.5 w-3.5" />, color: "bg-orange-500" },
+  { gateway: "inter", name: "Banco Inter", icon: <Wallet className="h-3.5 w-3.5" />, color: "bg-orange-600" },
 ];
 
 const PAYMENT_METHODS = [
-  { key: "pix", label: "PIX", icon: <QrCode className="h-4 w-4" /> },
-  { key: "boleto", label: "Boleto", icon: <Barcode className="h-4 w-4" /> },
-  { key: "credit_card", label: "Cartão Crédito", icon: <CreditCard className="h-4 w-4" /> },
-  { key: "debit_card", label: "Cartão Débito", icon: <CreditCard className="h-4 w-4" /> },
+  { key: "pix", label: "PIX", icon: <QrCode className="h-3 w-3" /> },
+  { key: "boleto", label: "Boleto", icon: <Barcode className="h-3 w-3" /> },
+  { key: "credit_card", label: "Cartão Crédito", icon: <CreditCard className="h-3 w-3" /> },
+  { key: "debit_card", label: "Cartão Débito", icon: <CreditCard className="h-3 w-3" /> },
 ];
 
 export function PaymentGatewayConfig() {
@@ -127,15 +127,15 @@ export function PaymentGatewayConfig() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Configuração de Métodos de Pagamento</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Selecione quais métodos de pagamento cada gateway processará
+        <h3 className="text-base font-medium mb-1">Métodos de Pagamento</h3>
+        <p className="text-xs text-muted-foreground">
+          Selecione os métodos por gateway
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {GATEWAYS.map((gw) => (
           <GatewayCard
             key={gw.gateway}
@@ -148,11 +148,11 @@ export function PaymentGatewayConfig() {
             {PAYMENT_METHODS.map((method) => (
               <div 
                 key={method.key} 
-                className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between py-1 px-1.5 rounded hover:bg-muted/50 transition-colors"
               >
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5">
                   <span className="text-muted-foreground">{method.icon}</span>
-                  <Label htmlFor={`${gw.gateway}-${method.key}`} className="cursor-pointer text-sm">
+                  <Label htmlFor={`${gw.gateway}-${method.key}`} className="cursor-pointer text-xs">
                     {method.label}
                   </Label>
                 </div>
@@ -161,6 +161,7 @@ export function PaymentGatewayConfig() {
                   checked={configs[gw.gateway]?.has(method.key) || false}
                   onCheckedChange={() => toggleMethod(gw.gateway, method.key)}
                   disabled={loading}
+                  className="scale-75"
                 />
               </div>
             ))}
