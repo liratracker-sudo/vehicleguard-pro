@@ -195,6 +195,53 @@ serve(async (req) => {
 
     console.log('Fee calculation:', feeCalculation);
 
+    // ======= VALIDAÇÃO DE REGRAS DE GATEWAY =======
+    const chargeValue = feeCalculation.totalAmount;
+    console.log('Checking gateway rules for amount:', chargeValue);
+
+    const { data: gatewayRules } = await supabase
+      .from('payment_gateway_rules')
+      .select('*')
+      .eq('company_id', payment.company_id)
+      .eq('is_active', true)
+      .order('priority', { ascending: true });
+
+    // Filtrar regras aplicáveis ao valor
+    const applicableRules = (gatewayRules || []).filter(rule => {
+      const minOk = rule.min_amount === null || chargeValue >= rule.min_amount;
+      const maxOk = rule.max_amount === null || chargeValue <= rule.max_amount;
+      return minOk && maxOk;
+    });
+
+    const activeRule = applicableRules.length > 0 ? applicableRules[0] : null;
+
+    if (activeRule) {
+      console.log('Active gateway rule found:', {
+        name: activeRule.name,
+        min_amount: activeRule.min_amount,
+        max_amount: activeRule.max_amount,
+        allowed_gateways: activeRule.allowed_gateways,
+        allowed_methods: activeRule.allowed_methods
+      });
+      
+      // Validar método de pagamento
+      if (activeRule.allowed_methods && activeRule.allowed_methods.length > 0) {
+        if (!activeRule.allowed_methods.includes(payment_method)) {
+          const methodLabels: Record<string, string> = {
+            'pix': 'PIX',
+            'boleto': 'Boleto',
+            'credit_card': 'Cartão de Crédito',
+            'debit_card': 'Cartão de Débito'
+          };
+          const allowedLabels = activeRule.allowed_methods.map((m: string) => methodLabels[m] || m).join(', ');
+          throw new Error(`Para valores entre R$${activeRule.min_amount || 0} e R$${activeRule.max_amount || '∞'}, apenas os seguintes métodos são permitidos: ${allowedLabels}`);
+        }
+      }
+    } else {
+      console.log('No gateway rules found for this amount');
+    }
+    // ======= FIM VALIDAÇÃO DE REGRAS =======
+
     // Determinar qual gateway usar baseado na configuração
     console.log('Looking for gateway config:', { 
       company_id: payment.company_id, 
@@ -224,6 +271,20 @@ serve(async (req) => {
     const gateway = gatewayConfig.gateway_type;
     console.log(`Using gateway: ${gateway} for method: ${payment_method}`);
 
+    // Validar gateway contra regra ativa
+    if (activeRule && activeRule.allowed_gateways && activeRule.allowed_gateways.length > 0) {
+      if (!activeRule.allowed_gateways.includes(gateway)) {
+        const gatewayLabels: Record<string, string> = {
+          'asaas': 'Asaas',
+          'mercadopago': 'Mercado Pago',
+          'inter': 'Inter',
+          'gerencianet': 'Gerencianet'
+        };
+        const allowedLabels = activeRule.allowed_gateways.map((g: string) => gatewayLabels[g] || g).join(', ');
+        throw new Error(`Para este valor, apenas os seguintes gateways são permitidos: ${allowedLabels}. Por favor, escolha outro método de pagamento.`);
+      }
+    }
+
     // Preparar dados do cliente
     const clientData = {
       name: payment.clients.name || client_data?.name,
@@ -236,9 +297,6 @@ serve(async (req) => {
 
     const billingType = getBillingType(payment_method);
     let chargeData: any;
-
-    // Usar o valor total com multa/juros
-    const chargeValue = feeCalculation.totalAmount;
 
     // Para Asaas, precisamos criar cliente primeiro e usar customerId
     if (gateway === 'asaas') {
