@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw, X } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -32,14 +36,33 @@ const ClientsPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
   const [isRecalculating, setIsRecalculating] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [courtesyFilter, setCourtesyFilter] = useState("all")
   const { clients, loading, deleteClient, toggleWhatsApp } = useClients()
   const { scores, loading: scoresLoading, recalculateAllScores } = useClientScores()
 
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (client.document && client.document.includes(searchTerm))
-  )
+  const hasActiveFilters = statusFilter !== "all" || courtesyFilter !== "all"
+  const activeFilterCount = [statusFilter !== "all", courtesyFilter !== "all"].filter(Boolean).length
+
+  const clearFilters = () => {
+    setStatusFilter("all")
+    setCourtesyFilter("all")
+  }
+
+  const filteredClients = clients.filter(client => {
+    const matchesSearch = 
+      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (client.document && client.document.includes(searchTerm))
+    
+    if (!matchesSearch) return false
+    if (statusFilter !== "all" && client.status !== statusFilter) return false
+    if (courtesyFilter === "yes" && !client.is_courtesy) return false
+    if (courtesyFilter === "no" && client.is_courtesy) return false
+    
+    return true
+  })
 
   const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -198,10 +221,58 @@ const ClientsPage = () => {
                   </button>
                 )}
               </div>
-              <Button variant="outline">
-                <Filter className="w-4 h-4 mr-2" />
-                Filtros
-              </Button>
+              <Popover open={showFilters} onOpenChange={setShowFilters}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={hasActiveFilters ? "border-primary" : ""}>
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filtros
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                        {activeFilterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72" align="end">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="active">Ativo</SelectItem>
+                          <SelectItem value="suspended">Suspenso</SelectItem>
+                          <SelectItem value="inactive">Inativo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Cortesia</Label>
+                      <Select value={courtesyFilter} onValueChange={setCourtesyFilter}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="yes">Apenas Cortesia</SelectItem>
+                          <SelectItem value="no">Sem Cortesia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {hasActiveFilters && (
+                      <Button variant="ghost" onClick={clearFilters} className="w-full">
+                        <X className="w-4 h-4 mr-2" />
+                        Limpar Filtros
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Button 
                 variant="outline" 
                 onClick={handleRecalculateScores}
