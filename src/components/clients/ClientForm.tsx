@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, MessageSquare, MessageSquareOff, Ban } from "lucide-react"
+import { AlertCircle, MessageSquare, MessageSquareOff, Ban, Gift } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -61,7 +61,8 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
     whatsapp_opt_out: false,
     whatsapp_blocked: false,
     whatsapp_block_reason: "",
-    whatsapp_failures: 0
+    whatsapp_failures: 0,
+    is_courtesy: false
   })
   
   const [loading, setLoading] = useState(false)
@@ -108,7 +109,8 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
         whatsapp_opt_out: data.whatsapp_opt_out || false,
         whatsapp_blocked: data.whatsapp_blocked || false,
         whatsapp_block_reason: data.whatsapp_block_reason || "",
-        whatsapp_failures: data.whatsapp_failures || 0
+        whatsapp_failures: data.whatsapp_failures || 0,
+        is_courtesy: data.is_courtesy || false
       })
     } catch (error: any) {
       console.error('Erro ao carregar cliente:', error)
@@ -225,7 +227,8 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
         address: formattedAddress,
         status: formData.status,
         company_id: profile.company_id,
-        whatsapp_opt_out: formData.whatsapp_opt_out
+        whatsapp_opt_out: formData.whatsapp_opt_out,
+        is_courtesy: formData.is_courtesy
       }
 
       const { error } = clientId 
@@ -258,7 +261,15 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
       <Card>
         <CardHeader className="p-4 pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Dados do Cliente</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">Dados do Cliente</CardTitle>
+              {formData.is_courtesy && (
+                <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
+                  <Gift className="w-3 h-3 mr-1" />
+                  Cortesia
+                </Badge>
+              )}
+            </div>
             {getStatusBadge(formData.status)}
           </div>
         </CardHeader>
@@ -351,6 +362,17 @@ export function ClientForm({ onSuccess, onCancel, clientId, readOnly = false }: 
                   <SelectItem value="inactive">Inativo</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <Switch
+                id="is_courtesy"
+                checked={formData.is_courtesy}
+                onCheckedChange={(checked) => setFormData({...formData, is_courtesy: checked})}
+              />
+              <Label htmlFor="is_courtesy" className="text-sm flex items-center gap-1.5 cursor-pointer">
+                <Gift className="w-4 h-4 text-purple-400" />
+                Cortesia
+              </Label>
             </div>
           </div>
 

@@ -771,6 +771,7 @@ export type Database = {
           emergency_contact_phone: string | null
           emergency_contact_relationship: string | null
           id: string
+          is_courtesy: boolean | null
           name: string
           neighborhood: string | null
           number: string | null
@@ -798,6 +799,7 @@ export type Database = {
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           id?: string
+          is_courtesy?: boolean | null
           name: string
           neighborhood?: string | null
           number?: string | null
@@ -825,6 +827,7 @@ export type Database = {
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           id?: string
+          is_courtesy?: boolean | null
           name?: string
           neighborhood?: string | null
           number?: string | null

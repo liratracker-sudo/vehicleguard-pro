@@ -1,5 +1,6 @@
-import { Phone, Mail, MoreHorizontal, Edit, Trash2, FileText, History, Eye, MessageSquare, MessageSquareOff, Ban } from "lucide-react"
+import { Phone, Mail, MoreHorizontal, Edit, Trash2, FileText, History, Eye, MessageSquare, MessageSquareOff, Ban, Gift } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ interface Client {
   whatsapp_opt_out: boolean | null
   whatsapp_blocked: boolean | null
   whatsapp_block_reason: string | null
+  is_courtesy: boolean | null
 }
 
 interface ClientRowProps {
@@ -66,7 +68,15 @@ export function ClientRow({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-foreground truncate max-w-[160px]">{client.name}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-medium text-foreground truncate max-w-[130px]">{client.name}</p>
+              {client.is_courtesy && (
+                <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] px-1.5 py-0 h-4">
+                  <Gift className="w-2.5 h-2.5 mr-0.5" />
+                  Cortesia
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground truncate max-w-[160px]">
               {client.document || 'Sem documento'}
             </p>

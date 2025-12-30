@@ -17,6 +17,7 @@ export interface Client {
   whatsapp_blocked: boolean | null;
   whatsapp_block_reason: string | null;
   whatsapp_failures: number | null;
+  is_courtesy: boolean | null;
 }
 
 export function useClients() {
