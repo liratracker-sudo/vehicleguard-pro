@@ -223,22 +223,29 @@ const ClientsPage = () => {
               </div>
               <Popover open={showFilters} onOpenChange={setShowFilters}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={hasActiveFilters ? "border-primary" : ""}>
+                  <Button 
+                    variant="outline" 
+                    className={hasActiveFilters ? "border-primary bg-primary/5" : ""}
+                  >
                     <Filter className="w-4 h-4 mr-2" />
                     Filtros
                     {hasActiveFilters && (
-                      <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
                         {activeFilterCount}
                       </Badge>
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-72" align="end">
+                <PopoverContent 
+                  className="w-56 p-4" 
+                  align="end"
+                  sideOffset={8}
+                >
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label className="text-sm font-medium">Status</Label>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -251,9 +258,9 @@ const ClientsPage = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label>Cortesia</Label>
+                      <Label className="text-sm font-medium">Cortesia</Label>
                       <Select value={courtesyFilter} onValueChange={setCourtesyFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -265,8 +272,13 @@ const ClientsPage = () => {
                     </div>
                     
                     {hasActiveFilters && (
-                      <Button variant="ghost" onClick={clearFilters} className="w-full">
-                        <X className="w-4 h-4 mr-2" />
+                      <Button 
+                        variant="ghost" 
+                        onClick={clearFilters} 
+                        className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
+                        size="sm"
+                      >
+                        <X className="w-3 h-3 mr-2" />
                         Limpar Filtros
                       </Button>
                     )}
