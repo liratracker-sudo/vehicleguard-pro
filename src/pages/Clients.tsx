@@ -4,10 +4,8 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw, X, Gift } from "lucide-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Plus, Search, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -35,19 +33,9 @@ const ClientsPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
   const [isRecalculating, setIsRecalculating] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
   const [statusFilter, setStatusFilter] = useState("all")
-  const [courtesyFilter, setCourtesyFilter] = useState("all")
   const { clients, loading, deleteClient, toggleWhatsApp } = useClients()
   const { scores, loading: scoresLoading, recalculateAllScores } = useClientScores()
-
-  const hasActiveFilters = statusFilter !== "all" || courtesyFilter !== "all"
-  const activeFilterCount = [statusFilter !== "all", courtesyFilter !== "all"].filter(Boolean).length
-
-  const clearFilters = () => {
-    setStatusFilter("all")
-    setCourtesyFilter("all")
-  }
 
   const filteredClients = clients.filter(client => {
     const matchesSearch = 
@@ -56,9 +44,10 @@ const ClientsPage = () => {
       (client.document && client.document.includes(searchTerm))
     
     if (!matchesSearch) return false
-    if (statusFilter !== "all" && client.status !== statusFilter) return false
-    if (courtesyFilter === "yes" && !client.is_courtesy) return false
-    if (courtesyFilter === "no" && client.is_courtesy) return false
+    if (statusFilter === "active" && client.status !== "active") return false
+    if (statusFilter === "suspended" && client.status !== "suspended") return false
+    if (statusFilter === "inactive" && client.status !== "inactive") return false
+    if (statusFilter === "courtesy" && !client.is_courtesy) return false
     
     return true
   })
@@ -220,102 +209,18 @@ const ClientsPage = () => {
                   </button>
                 )}
               </div>
-              <Popover open={showFilters} onOpenChange={setShowFilters}>
-                <PopoverTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className={cn(
-                      "h-9 gap-2",
-                      hasActiveFilters && "border-primary bg-primary/10 text-primary"
-                    )}
-                  >
-                    <Filter className="w-4 h-4" />
-                    Filtros
-                    {hasActiveFilters && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-52 p-0 shadow-lg border-border/50" 
-                  align="end"
-                  sideOffset={4}
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
-                    <span className="text-sm font-medium">Filtros</span>
-                    {hasActiveFilters && (
-                      <button 
-                        onClick={clearFilters}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Filter Body */}
-                  <div className="p-3 space-y-3">
-                    {/* Status Filter */}
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Status
-                      </label>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-8 text-sm bg-secondary/50 border-0 focus:ring-1 focus:ring-primary">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="min-w-[180px]">
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="active">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-green-500" />
-                              Ativo
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="suspended">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                              Suspenso
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="inactive">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-gray-500" />
-                              Inativo
-                            </span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Courtesy Filter */}
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Cortesia
-                      </label>
-                      <Select value={courtesyFilter} onValueChange={setCourtesyFilter}>
-                        <SelectTrigger className="h-8 text-sm bg-secondary/50 border-0 focus:ring-1 focus:ring-primary">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="min-w-[180px]">
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="yes">
-                            <span className="flex items-center gap-2">
-                              <Gift className="w-3 h-3 text-purple-500" />
-                              Apenas Cortesia
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="no">Sem Cortesia</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px] h-10">
+                  <SelectValue placeholder="Filtrar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="suspended">Suspenso</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                  <SelectItem value="courtesy">Cortesia</SelectItem>
+                </SelectContent>
+              </Select>
               <Button 
                 variant="outline" 
                 onClick={handleRecalculateScores}
