@@ -4,11 +4,10 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw, X } from "lucide-react"
+import { Plus, Search, Filter, ChevronLeft, ChevronRight, Users, UserCheck, UserMinus, UserX, RefreshCw, X, Gift } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -225,63 +224,95 @@ const ClientsPage = () => {
                 <PopoverTrigger asChild>
                   <Button 
                     variant="outline" 
-                    className={hasActiveFilters ? "border-primary bg-primary/5" : ""}
+                    size="sm"
+                    className={cn(
+                      "h-9 gap-2",
+                      hasActiveFilters && "border-primary bg-primary/10 text-primary"
+                    )}
                   >
-                    <Filter className="w-4 h-4 mr-2" />
+                    <Filter className="w-4 h-4" />
                     Filtros
                     {hasActiveFilters && (
-                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
                         {activeFilterCount}
-                      </Badge>
+                      </span>
                     )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent 
-                  className="w-56 p-4" 
+                  className="w-52 p-0 shadow-lg border-border/50" 
                   align="end"
-                  sideOffset={8}
+                  sideOffset={4}
                 >
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Status</Label>
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
+                    <span className="text-sm font-medium">Filtros</span>
+                    {hasActiveFilters && (
+                      <button 
+                        onClick={clearFilters}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Filter Body */}
+                  <div className="p-3 space-y-3">
+                    {/* Status Filter */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Status
+                      </label>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-9">
+                        <SelectTrigger className="h-8 text-sm bg-secondary/50 border-0 focus:ring-1 focus:ring-primary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="min-w-[180px]">
                           <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="active">Ativo</SelectItem>
-                          <SelectItem value="suspended">Suspenso</SelectItem>
-                          <SelectItem value="inactive">Inativo</SelectItem>
+                          <SelectItem value="active">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-green-500" />
+                              Ativo
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="suspended">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                              Suspenso
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="inactive">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-gray-500" />
+                              Inativo
+                            </span>
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Cortesia</Label>
+                    {/* Courtesy Filter */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Cortesia
+                      </label>
                       <Select value={courtesyFilter} onValueChange={setCourtesyFilter}>
-                        <SelectTrigger className="h-9">
+                        <SelectTrigger className="h-8 text-sm bg-secondary/50 border-0 focus:ring-1 focus:ring-primary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="min-w-[180px]">
                           <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="yes">Apenas Cortesia</SelectItem>
+                          <SelectItem value="yes">
+                            <span className="flex items-center gap-2">
+                              <Gift className="w-3 h-3 text-purple-500" />
+                              Apenas Cortesia
+                            </span>
+                          </SelectItem>
                           <SelectItem value="no">Sem Cortesia</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    {hasActiveFilters && (
-                      <Button 
-                        variant="ghost" 
-                        onClick={clearFilters} 
-                        className="w-full h-8 text-sm text-muted-foreground hover:text-foreground"
-                        size="sm"
-                      >
-                        <X className="w-3 h-3 mr-2" />
-                        Limpar Filtros
-                      </Button>
-                    )}
                   </div>
                 </PopoverContent>
               </Popover>
