@@ -17,8 +17,36 @@ serve(async (req) => {
   }
 
   try {
-    const webhookData = await req.json();
-    console.log('Received Asaas webhook:', JSON.stringify(webhookData, null, 2));
+    let webhookData: any;
+    
+    const contentType = req.headers.get('content-type') || '';
+    console.log('=== ASAAS WEBHOOK RECEBIDO ===');
+    console.log('Content-Type:', contentType);
+    
+    // Verificar o formato dos dados recebidos
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // Asaas envia como form-urlencoded
+      const text = await req.text();
+      console.log('Form-urlencoded data recebido:', text.substring(0, 300));
+      
+      const params = new URLSearchParams(text);
+      const dataParam = params.get('data');
+      
+      if (dataParam) {
+        webhookData = JSON.parse(dataParam);
+        console.log('JSON extraído do parâmetro data');
+      } else {
+        // Tentar parsear todos os parâmetros como objeto
+        webhookData = Object.fromEntries(params.entries());
+        console.log('Dados parseados de form entries');
+      }
+    } else {
+      // Formato JSON padrão
+      webhookData = await req.json();
+      console.log('JSON recebido diretamente');
+    }
+    
+    console.log('Webhook parseado:', JSON.stringify(webhookData, null, 2));
 
     const { event, payment } = webhookData;
 
