@@ -207,13 +207,18 @@ export default function Checkout() {
       if (methodsError) throw methodsError;
 
       // Buscar regras de gateway baseadas no valor
-      const { data: gatewayRules } = await supabase
+      const { data: gatewayRules, error: rulesError } = await supabase
         .from('payment_gateway_rules')
         .select('*')
         .eq('company_id', paymentData.company_id)
         .eq('is_active', true)
         .lte('min_amount', paymentData.amount)
         .order('priority', { ascending: true });
+
+      // Log de erro se houver problema na busca de regras
+      if (rulesError) {
+        console.error('Error fetching gateway rules:', rulesError);
+      }
 
       // Filtrar regras que se aplicam ao valor (max_amount null ou >= amount)
       const applicableRules = (gatewayRules || []).filter(rule => 
@@ -222,10 +227,18 @@ export default function Checkout() {
       
       const activeRule = applicableRules.length > 0 ? applicableRules[0] : null;
       
+      // Log detalhado das regras para debug
       console.log('Gateway rules check:', { 
         amount: paymentData.amount, 
+        rulesFound: gatewayRules?.length || 0,
         applicableRules: applicableRules.length,
-        activeRule: activeRule?.name 
+        activeRule: activeRule ? {
+          name: activeRule.name,
+          allowed_gateways: activeRule.allowed_gateways,
+          allowed_methods: activeRule.allowed_methods,
+          min_amount: activeRule.min_amount,
+          max_amount: activeRule.max_amount
+        } : null
       });
 
       // Mapear para formato de UI
@@ -243,21 +256,31 @@ export default function Checkout() {
         // Unificar débito e crédito em apenas "Cartão"
         if (methodKey === 'debit_card') methodKey = 'credit_card';
         
-        // Se há uma regra ativa, verificar se o gateway é permitido
-        if (activeRule && activeRule.allowed_gateways.length > 0) {
-          if (!activeRule.allowed_gateways.includes(m.gateway_type)) {
+        // Se há uma regra ativa, aplicar filtros de gateway e método
+        if (activeRule) {
+          // Verificar se o gateway é permitido (null-safe check)
+          const hasGatewayRestriction = activeRule.allowed_gateways && 
+                                         Array.isArray(activeRule.allowed_gateways) && 
+                                         activeRule.allowed_gateways.length > 0;
+          
+          if (hasGatewayRestriction && !activeRule.allowed_gateways.includes(m.gateway_type)) {
+            console.log(`Blocking ${m.payment_method} - gateway ${m.gateway_type} not in allowed list:`, activeRule.allowed_gateways);
             return; // Pular este método pois o gateway não é permitido
           }
-        }
-        
-        // Se há uma regra com métodos específicos, verificar se o método é permitido
-        if (activeRule && activeRule.allowed_methods && activeRule.allowed_methods.length > 0) {
-          if (!activeRule.allowed_methods.includes(methodKey)) {
+          
+          // Verificar se o método é permitido (null-safe check)
+          const hasMethodRestriction = activeRule.allowed_methods && 
+                                        Array.isArray(activeRule.allowed_methods) && 
+                                        activeRule.allowed_methods.length > 0;
+          
+          if (hasMethodRestriction && !activeRule.allowed_methods.includes(methodKey)) {
+            console.log(`Blocking ${methodKey} - method not in allowed list:`, activeRule.allowed_methods);
             return; // Pular este método
           }
         }
         
         if (methodsMap[methodKey] && !uniqueMethods.has(methodKey)) {
+          console.log(`Adding method ${methodKey} from gateway ${m.gateway_type}`);
           uniqueMethods.set(methodKey, {
             ...methodsMap[methodKey],
             gateway: m.gateway_type
