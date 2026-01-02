@@ -4,7 +4,8 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle } from "lucide-react"
+import { CriticalDelinquencyPanel } from "@/components/billing/CriticalDelinquencyPanel"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -274,6 +275,9 @@ const BillingPage = () => {
           </TabsList>
 
           <TabsContent value="manage" className="space-y-4">
+            {/* Painel de Inadimplência Crítica */}
+            <CriticalDelinquencyPanel />
+            
             {/* Filtro de cliente (se ativo) */}
             {clientIdFilter && (
               <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md text-sm">
