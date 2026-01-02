@@ -503,6 +503,73 @@ export type Database = {
           },
         ]
       }
+      client_escalation_history: {
+        Row: {
+          action_details: string | null
+          action_type: string
+          client_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          days_overdue: number
+          escalation_level: number
+          id: string
+          new_status: string
+          payment_id: string | null
+          previous_status: string | null
+        }
+        Insert: {
+          action_details?: string | null
+          action_type: string
+          client_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          days_overdue: number
+          escalation_level?: number
+          id?: string
+          new_status: string
+          payment_id?: string | null
+          previous_status?: string | null
+        }
+        Update: {
+          action_details?: string | null
+          action_type?: string
+          client_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          days_overdue?: number
+          escalation_level?: number
+          id?: string
+          new_status?: string
+          payment_id?: string | null
+          previous_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_escalation_history_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_escalation_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_escalation_history_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_registration_vehicles: {
         Row: {
           created_at: string | null
@@ -776,6 +843,7 @@ export type Database = {
           neighborhood: string | null
           number: string | null
           phone: string
+          service_status: string | null
           state: string | null
           status: string | null
           street: string | null
@@ -804,6 +872,7 @@ export type Database = {
           neighborhood?: string | null
           number?: string | null
           phone: string
+          service_status?: string | null
           state?: string | null
           status?: string | null
           street?: string | null
@@ -832,6 +901,7 @@ export type Database = {
           neighborhood?: string | null
           number?: string | null
           phone?: string
+          service_status?: string | null
           state?: string | null
           status?: string | null
           street?: string | null
@@ -2068,6 +2138,7 @@ export type Database = {
       payment_notification_settings: {
         Row: {
           active: boolean
+          auto_suspension_enabled: boolean | null
           company_id: string
           created_at: string
           id: string
@@ -2076,13 +2147,19 @@ export type Database = {
           post_due_days: number[]
           pre_due_days: number[]
           send_hour: string
+          suspension_after_days: number | null
           template_on_due: string
           template_post_due: string
+          template_post_due_final: string | null
+          template_post_due_urgent: string | null
+          template_post_due_warning: string | null
           template_pre_due: string
+          template_suspended: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          auto_suspension_enabled?: boolean | null
           company_id: string
           created_at?: string
           id?: string
@@ -2091,13 +2168,19 @@ export type Database = {
           post_due_days?: number[]
           pre_due_days?: number[]
           send_hour?: string
+          suspension_after_days?: number | null
           template_on_due?: string
           template_post_due?: string
+          template_post_due_final?: string | null
+          template_post_due_urgent?: string | null
+          template_post_due_warning?: string | null
           template_pre_due?: string
+          template_suspended?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          auto_suspension_enabled?: boolean | null
           company_id?: string
           created_at?: string
           id?: string
@@ -2106,9 +2189,14 @@ export type Database = {
           post_due_days?: number[]
           pre_due_days?: number[]
           send_hour?: string
+          suspension_after_days?: number | null
           template_on_due?: string
           template_post_due?: string
+          template_post_due_final?: string | null
+          template_post_due_urgent?: string | null
+          template_post_due_warning?: string | null
           template_pre_due?: string
+          template_suspended?: string | null
           updated_at?: string
         }
         Relationships: [
