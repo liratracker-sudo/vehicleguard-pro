@@ -3,9 +3,6 @@ project_id = "mcdidffxwtnqhawqilln"
 [functions.asaas-import-customers]
 verify_jwt = true
 
-[functions.cron-management]
-verify_jwt = true
-
 [functions.process-client-registration]
 verify_jwt = false
 

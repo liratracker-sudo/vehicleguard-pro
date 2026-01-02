@@ -10,7 +10,6 @@ import { AICollectionSettings } from "@/components/settings/AICollectionSettings
 import { LateFeeSettings } from "@/components/settings/LateFeeSettings"
 import { WhatsAppDiagnostic } from "@/components/settings/WhatsAppDiagnostic"
 import { ApiKeysManagement } from "@/components/settings/ApiKeysManagement"
-import { CronJobsManagement } from "@/components/settings/CronJobsManagement"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -50,7 +49,6 @@ const SettingsPage = () => {
           <TabsList className="w-full inline-flex h-auto flex-wrap sm:flex-nowrap gap-1 sm:gap-0 p-1 justify-start overflow-x-auto">
             <TabsTrigger value="billing" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Cobrança</TabsTrigger>
             <TabsTrigger value="ai" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">IA</TabsTrigger>
-            <TabsTrigger value="automations" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Automações</TabsTrigger>
             <TabsTrigger value="integrations" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">Integrações</TabsTrigger>
             <TabsTrigger value="api" className="flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3">API</TabsTrigger>
           </TabsList>
@@ -62,10 +60,6 @@ const SettingsPage = () => {
 
           <TabsContent value="ai" className="space-y-6">
             <AICollectionSettings />
-          </TabsContent>
-
-          <TabsContent value="automations" className="space-y-6">
-            <CronJobsManagement />
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
