@@ -350,22 +350,22 @@ export function CriticalDelinquencyPanel() {
           </CollapsibleTrigger>
         </CardHeader>
         
-        <CollapsibleContent>
-          <CardContent className="pt-0">
+        <CollapsibleContent className="overflow-visible">
+          <CardContent className="pt-0 overflow-visible">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="rounded-lg border overflow-hidden">
+              <div className="rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-destructive/10">
-                      <TableHead className="font-semibold">Cliente</TableHead>
-                      <TableHead className="font-semibold text-right">Valor</TableHead>
-                      <TableHead className="font-semibold">Atraso</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold text-right">Ações</TableHead>
+                      <TableHead className="font-semibold w-[30%]">Cliente</TableHead>
+                      <TableHead className="font-semibold text-right w-[15%]">Valor</TableHead>
+                      <TableHead className="font-semibold w-[15%]">Atraso</TableHead>
+                      <TableHead className="font-semibold w-[15%]">Status</TableHead>
+                      <TableHead className="font-semibold text-right w-[25%]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -386,8 +386,8 @@ export function CriticalDelinquencyPanel() {
                           {getStatusBadge(payment.client_service_status)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <TooltipProvider>
-                            <div className="flex items-center justify-end gap-1">
+                          <TooltipProvider delayDuration={0}>
+                            <div className="flex items-center justify-end gap-0.5 flex-wrap">
                               {/* WhatsApp Manual */}
                               {payment.client_phone && (
                                 <Tooltip>
@@ -406,7 +406,7 @@ export function CriticalDelinquencyPanel() {
                                       <MessageSquare className="h-4 w-4" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>WhatsApp Manual</TooltipContent>
+                                  <TooltipContent className="z-50">WhatsApp Manual</TooltipContent>
                                 </Tooltip>
                               )}
 
@@ -422,7 +422,7 @@ export function CriticalDelinquencyPanel() {
                                     <RefreshCw className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Reenviar Notificação</TooltipContent>
+                                <TooltipContent className="z-50">Reenviar Notificação</TooltipContent>
                               </Tooltip>
 
                               {/* Link de Pagamento */}
@@ -438,7 +438,7 @@ export function CriticalDelinquencyPanel() {
                                       <ExternalLink className="h-4 w-4" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Abrir Link</TooltipContent>
+                                  <TooltipContent className="z-50">Abrir Link</TooltipContent>
                                 </Tooltip>
                               )}
 
@@ -458,7 +458,7 @@ export function CriticalDelinquencyPanel() {
                                     <History className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Histórico</TooltipContent>
+                                <TooltipContent className="z-50">Histórico</TooltipContent>
                               </Tooltip>
 
                               {/* Suspender/Reativar */}
@@ -474,7 +474,7 @@ export function CriticalDelinquencyPanel() {
                                       <RefreshCw className="h-4 w-4" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Reativar Serviço</TooltipContent>
+                                  <TooltipContent className="z-50">Reativar Serviço</TooltipContent>
                                 </Tooltip>
                               ) : (
                                 <Tooltip>
@@ -491,7 +491,7 @@ export function CriticalDelinquencyPanel() {
                                       <Ban className="h-4 w-4" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Suspender Serviço</TooltipContent>
+                                  <TooltipContent className="z-50">Suspender Serviço</TooltipContent>
                                 </Tooltip>
                               )}
                             </div>
