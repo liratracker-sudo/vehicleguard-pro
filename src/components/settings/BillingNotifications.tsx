@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Clock, Users, Calendar, History, Activity, Play } from "lucide-react";
+import { Bell, Clock, Users, Calendar, History, Activity, Play, AlertTriangle } from "lucide-react";
 import { NotificationHistory } from "@/components/billing/NotificationHistory";
 import { NotificationSystemStatus } from "@/components/billing/NotificationSystemStatus";
 import { BillingNotificationsModal } from "./BillingNotificationsModal";
@@ -22,6 +22,13 @@ interface NotificationSettings {
   template_pre_due: string;
   template_on_due: string;
   template_post_due: string;
+  // Escalation fields
+  template_post_due_warning: string;
+  template_post_due_urgent: string;
+  template_post_due_final: string;
+  template_suspended: string;
+  auto_suspension_enabled: boolean;
+  suspension_after_days: number;
 }
 
 export function BillingNotifications() {
@@ -148,7 +155,9 @@ _Evite juros e multas! — {{empresa}}_`
         pre_due_days: updatedSettings.pre_due_days,
         on_due: updatedSettings.on_due,
         post_due_days: updatedSettings.post_due_days,
-        send_hour: updatedSettings.send_hour
+        send_hour: updatedSettings.send_hour,
+        auto_suspension_enabled: updatedSettings.auto_suspension_enabled,
+        suspension_after_days: updatedSettings.suspension_after_days
       });
 
       const { error } = await supabase
@@ -161,7 +170,13 @@ _Evite juros e multas! — {{empresa}}_`
           send_hour: updatedSettings.send_hour,
           template_pre_due: updatedSettings.template_pre_due,
           template_on_due: updatedSettings.template_on_due,
-          template_post_due: updatedSettings.template_post_due
+          template_post_due: updatedSettings.template_post_due,
+          template_post_due_warning: updatedSettings.template_post_due_warning,
+          template_post_due_urgent: updatedSettings.template_post_due_urgent,
+          template_post_due_final: updatedSettings.template_post_due_final,
+          template_suspended: updatedSettings.template_suspended,
+          auto_suspension_enabled: updatedSettings.auto_suspension_enabled,
+          suspension_after_days: updatedSettings.suspension_after_days
         })
         .eq('id', updatedSettings.id);
 
@@ -382,6 +397,28 @@ _Evite juros e multas! — {{empresa}}_`
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {settings.on_paid ? 'WhatsApp automático PIX' : 'Desativado'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className={`hover:shadow-md transition-shadow ${settings.auto_suspension_enabled ? 'border-amber-500/30' : ''}`}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Escalada Automática
+                </CardTitle>
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full ${settings.auto_suspension_enabled ? 'bg-amber-500/10' : 'bg-muted'}`}>
+                  <AlertTriangle className={`h-4 w-4 ${settings.auto_suspension_enabled ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${settings.auto_suspension_enabled ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                  {settings.auto_suspension_enabled ? 'Ativo' : 'Inativo'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {settings.auto_suspension_enabled 
+                    ? `Suspende após ${settings.suspension_after_days || 21} dias`
+                    : 'Suspensão manual'
+                  }
                 </p>
               </CardContent>
             </Card>
