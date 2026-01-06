@@ -51,6 +51,19 @@ serve(async (req) => {
         .eq('is_active', true)
         .maybeSingle();
 
+      // Buscar templates escalonados da empresa
+      const { data: notificationSettings } = await supabase
+        .from('payment_notification_settings')
+        .select(`
+          template_post_due,
+          template_post_due_warning,
+          template_post_due_urgent,
+          template_post_due_final,
+          template_suspended
+        `)
+        .eq('company_id', payment.company_id)
+        .single();
+
       // Usar configurações padrão se não estiverem configuradas
       const settings = aiSettings || {
         openai_model: 'gpt-4o-mini',
@@ -106,12 +119,60 @@ serve(async (req) => {
         paymentHistory = latePayments.length > 1 ? 'Atrasos Recorrentes' : 'Histórico Regular';
       }
 
-      // Determinar tom e contexto baseado no status
+      // Função para formatar data no padrão BR
+      const formatDateBR = (date: Date): string => {
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      };
+
+      // Determinar nível de escalada e template baseado nos dias de atraso
+      let escalatedTemplate: string | null = null;
+      let escalationLevel = 'normal';
+
+      if (isOverdue && notificationSettings) {
+        if (daysOverdue >= 21) {
+          escalatedTemplate = notificationSettings.template_suspended;
+          escalationLevel = 'suspension';
+        } else if (daysOverdue >= 16) {
+          escalatedTemplate = notificationSettings.template_post_due_final;
+          escalationLevel = 'final';
+        } else if (daysOverdue >= 11) {
+          escalatedTemplate = notificationSettings.template_post_due_urgent;
+          escalationLevel = 'urgent';
+        } else if (daysOverdue >= 6) {
+          escalatedTemplate = notificationSettings.template_post_due_warning;
+          escalationLevel = 'warning';
+        }
+      }
+
+      console.log(`📊 Escalation level: ${escalationLevel}, days overdue: ${daysOverdue}`);
+
+      // Se temos um template escalonado, processá-lo para usar como base
+      let templateInstruction = '';
+      if (escalatedTemplate) {
+        const processedTemplate = escalatedTemplate
+          .replace(/\{\{cliente\}\}/gi, client.name)
+          .replace(/\{\{valor\}\}/gi, `R$${payment.amount.toFixed(2)}`)
+          .replace(/\{\{dias\}\}/gi, String(daysOverdue))
+          .replace(/\{\{vencimento\}\}/gi, formatDateBR(dueDate))
+          .replace(/\{\{empresa\}\}/gi, companyName);
+        
+        templateInstruction = `
+**🎯 TEMPLATE BASE OBRIGATÓRIO:**
+Use este template como BASE da mensagem, mantendo o TOM e URGÊNCIA, mas adicione variações naturais para evitar spam:
+
+"${processedTemplate}"
+
+Você pode variar a saudação e reorganizar levemente, mas MANTENHA a seriedade e urgência do template original.
+`;
+        console.log(`📝 Usando template escalonado: ${escalationLevel}`);
+      }
+
+      // Determinar tom e contexto baseado no status e nível de escalada
       let toneInstruction = '';
       let contextDescription = '';
       
       if (!isOverdue) {
-        // Notificação PRÉ-VENCIMENTO - melhorar texto para "vence hoje" e "vence amanhã"
+        // Notificação PRÉ-VENCIMENTO
         const dueDateText = daysUntilDue === 0 
           ? 'HOJE' 
           : daysUntilDue === 1 
@@ -125,15 +186,24 @@ serve(async (req) => {
           contextDescription = `IMPORTANTE: Este é um LEMBRETE de cobrança que ainda NÃO está vencida. O vencimento é ${dueDateText}.`;
           toneInstruction = 'Use um TOM AMIGÁVEL E PREVENTIVO. Foque em lembrar sobre o vencimento próximo para evitar esquecimento. Não mencione atraso ou consequências.';
         }
-      } else if (daysOverdue <= 7) {
+      } else if (escalationLevel === 'suspension') {
+        contextDescription = `CRÍTICO: Cliente com ${daysOverdue} dias de atraso - SERVIÇO SUSPENSO ou prestes a suspender.`;
+        toneInstruction = 'Use um TOM MUITO FIRME E DIRETO. Mencione suspensão do serviço. Não seja agressivo, mas seja claro sobre as consequências. A situação é GRAVE.';
+      } else if (escalationLevel === 'final') {
+        contextDescription = `ALERTA FINAL: Cliente com ${daysOverdue} dias de atraso - último aviso antes da suspensão.`;
+        toneInstruction = 'Use um TOM URGENTE E SÉRIO. Este é o ÚLTIMO AVISO. Enfatize que a suspensão é iminente (24-48h). Seja assertivo.';
+      } else if (escalationLevel === 'urgent') {
+        contextDescription = `URGENTE: Cliente com ${daysOverdue} dias de atraso - situação crítica.`;
+        toneInstruction = 'Use um TOM PROFISSIONAL E ASSERTIVO. Deixe claro a gravidade da situação e possíveis consequências próximas.';
+      } else if (escalationLevel === 'warning') {
+        contextDescription = `AVISO: Cliente com ${daysOverdue} dias de atraso.`;
+        toneInstruction = 'Use um TOM OBJETIVO E DIRETO. Mencione que o atraso está se prolongando e precisa de atenção imediata.';
+      } else if (daysOverdue <= 5) {
         contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dia(s).`;
         toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento. O foco é apenas o lembrete.';
-      } else if (daysOverdue <= 30) {
-        contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dias.`;
-        toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço e ofereça opções de renegociação se aplicável.';
       } else {
         contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dias.`;
-        toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
+        toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço.';
       }
 
       // Se o gestor especificou um tom customizado, sobrescrever o tom padrão
@@ -177,7 +247,7 @@ serve(async (req) => {
       const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
 
 **IMPORTANTE:** NÃO inclua nenhum link na mensagem. O link de pagamento será enviado em uma mensagem separada logo após esta.
-
+${templateInstruction}
 ${antiSpamInstructions}
 
 **CONTEXTO CRÍTICO DA COBRANÇA:**
@@ -302,6 +372,19 @@ ${!isOverdue
         .eq('is_active', true)
         .maybeSingle();
 
+      // Buscar templates escalonados da empresa
+      const { data: notificationSettings } = await supabase
+        .from('payment_notification_settings')
+        .select(`
+          template_post_due,
+          template_post_due_warning,
+          template_post_due_urgent,
+          template_post_due_final,
+          template_suspended
+        `)
+        .eq('company_id', company_id)
+        .single();
+
       // Usar configurações padrão se não estiverem configuradas
       const settings = aiSettings || {
         openai_model: 'gpt-4o-mini',
@@ -309,6 +392,11 @@ ${!isOverdue
       };
 
       console.log('Process overdue - Usando configurações:', aiSettings ? 'personalizadas' : 'padrão');
+
+      // Função para formatar data no padrão BR
+      const formatDateBR = (date: Date): string => {
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      };
 
       const results = [];
 
@@ -322,8 +410,9 @@ ${!isOverdue
         }
 
         // Calcular dias de atraso
+        const dueDate = new Date(payment.due_date);
         const daysOverdue = Math.floor(
-          (new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24)
+          (new Date().getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
         );
 
         // Buscar informações da empresa (incluindo domínio)
@@ -363,14 +452,70 @@ ${!isOverdue
           paymentHistory = latePayments.length > 1 ? 'Atrasos Recorrentes' : 'Histórico Regular';
         }
 
-        // Determinar tom baseado em dias de atraso
+        // Determinar nível de escalada e template baseado nos dias de atraso
+        let escalatedTemplate: string | null = null;
+        let escalationLevel = 'normal';
+
+        if (notificationSettings) {
+          if (daysOverdue >= 21) {
+            escalatedTemplate = notificationSettings.template_suspended;
+            escalationLevel = 'suspension';
+          } else if (daysOverdue >= 16) {
+            escalatedTemplate = notificationSettings.template_post_due_final;
+            escalationLevel = 'final';
+          } else if (daysOverdue >= 11) {
+            escalatedTemplate = notificationSettings.template_post_due_urgent;
+            escalationLevel = 'urgent';
+          } else if (daysOverdue >= 6) {
+            escalatedTemplate = notificationSettings.template_post_due_warning;
+            escalationLevel = 'warning';
+          }
+        }
+
+        console.log(`📊 Processing ${client.name} - Escalation: ${escalationLevel}, days: ${daysOverdue}`);
+
+        // Se temos um template escalonado, processá-lo para usar como base
+        let templateInstruction = '';
+        if (escalatedTemplate) {
+          const processedTemplate = escalatedTemplate
+            .replace(/\{\{cliente\}\}/gi, client.name)
+            .replace(/\{\{valor\}\}/gi, `R$${payment.amount.toFixed(2)}`)
+            .replace(/\{\{dias\}\}/gi, String(daysOverdue))
+            .replace(/\{\{vencimento\}\}/gi, formatDateBR(dueDate))
+            .replace(/\{\{empresa\}\}/gi, companyName);
+          
+          templateInstruction = `
+**🎯 TEMPLATE BASE OBRIGATÓRIO:**
+Use este template como BASE da mensagem, mantendo o TOM e URGÊNCIA, mas adicione variações naturais para evitar spam:
+
+"${processedTemplate}"
+
+Você pode variar a saudação e reorganizar levemente, mas MANTENHA a seriedade e urgência do template original.
+`;
+        }
+
+        // Determinar tom baseado em nível de escalada
         let toneInstruction = '';
-        if (daysOverdue <= 7) {
-          toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento. O foco é apenas o lembrete.';
-        } else if (daysOverdue <= 30) {
-          toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço e ofereça opções de renegociação se aplicável.';
+        let contextDescription = '';
+
+        if (escalationLevel === 'suspension') {
+          contextDescription = `CRÍTICO: Cliente com ${daysOverdue} dias de atraso - SERVIÇO SUSPENSO ou prestes a suspender.`;
+          toneInstruction = 'Use um TOM MUITO FIRME E DIRETO. Mencione suspensão do serviço. Não seja agressivo, mas seja claro sobre as consequências.';
+        } else if (escalationLevel === 'final') {
+          contextDescription = `ALERTA FINAL: Cliente com ${daysOverdue} dias de atraso - último aviso antes da suspensão.`;
+          toneInstruction = 'Use um TOM URGENTE E SÉRIO. Este é o ÚLTIMO AVISO. Enfatize que a suspensão é iminente.';
+        } else if (escalationLevel === 'urgent') {
+          contextDescription = `URGENTE: Cliente com ${daysOverdue} dias de atraso - situação crítica.`;
+          toneInstruction = 'Use um TOM PROFISSIONAL E ASSERTIVO. Deixe claro a gravidade da situação.';
+        } else if (escalationLevel === 'warning') {
+          contextDescription = `AVISO: Cliente com ${daysOverdue} dias de atraso.`;
+          toneInstruction = 'Use um TOM OBJETIVO E DIRETO. Mencione que o atraso está se prolongando.';
+        } else if (daysOverdue <= 5) {
+          contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dia(s).`;
+          toneInstruction = 'Use um TOM CORDIAL E EMPÁTICO. Sugira que pode ter sido um esquecimento.';
         } else {
-          toneInstruction = 'Use um TOM FORMAL E FIRME. Mencione as consequências da suspensão do serviço e possíveis impactos no crédito.';
+          contextDescription = `A cobrança está VENCIDA há ${daysOverdue} dias.`;
+          toneInstruction = 'Use um TOM PROFISSIONAL E OBJETIVO. Mencione a importância do serviço.';
         }
 
         try {
@@ -388,8 +533,11 @@ ${!isOverdue
           const prompt = `**INSTRUÇÃO:** Crie uma mensagem de notificação de cobrança para WhatsApp. O texto deve ser focado, direto ao ponto e otimizado para a leitura no canal escolhido.
 
 **IMPORTANTE:** NÃO inclua nenhum link na mensagem. O link de pagamento será enviado em uma mensagem separada logo após esta.
-
+${templateInstruction}
 ${antiSpamInstructions}
+
+**CONTEXTO CRÍTICO DA COBRANÇA:**
+${contextDescription}
 
 **DADOS DO CLIENTE E CONTEXTO:**
 1. Nome do Cliente: ${client.name}
