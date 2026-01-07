@@ -44,13 +44,14 @@ export function useBillingManagement() {
     }
   };
 
-  const deletePayment = async (paymentId: string) => {
+  const deletePayment = async (paymentId: string, reason?: string) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('billing-management', {
         body: {
           action: 'delete_payment',
-          payment_id: paymentId
+          payment_id: paymentId,
+          data: { cancellation_reason: reason }
         }
       });
 

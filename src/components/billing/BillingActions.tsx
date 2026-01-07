@@ -11,11 +11,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { 
   CheckCircle, 
   XCircle, 
@@ -27,6 +44,7 @@ import {
 import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateBR } from "@/lib/timezone";
 
 interface BillingActionsProps {
   payment: PaymentTransaction;
@@ -34,9 +52,20 @@ interface BillingActionsProps {
   showDeletePermanently?: boolean;
 }
 
+const CANCELLATION_REASONS = [
+  { value: "cliente_solicitou", label: "Cliente solicitou cancelamento" },
+  { value: "cobranca_duplicada", label: "Cobrança duplicada" },
+  { value: "erro_valor", label: "Erro no valor/dados" },
+  { value: "acordo_pagamento", label: "Acordo de pagamento" },
+  { value: "outro", label: "Outro motivo" },
+];
+
 export function BillingActions({ payment, onUpdate, showDeletePermanently = false }: BillingActionsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showPaidDialog, setShowPaidDialog] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
   const { toast } = useToast();
   const { 
     loading,
@@ -56,13 +85,43 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     }
   };
 
-  const handleDelete = async () => {
+  const handleCancel = async () => {
+    if (!selectedReason) {
+      toast({
+        title: "Erro",
+        description: "Selecione um motivo para o cancelamento",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (selectedReason === "outro" && !customReason.trim()) {
+      toast({
+        title: "Erro",
+        description: "Descreva o motivo do cancelamento",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const reason = selectedReason === "outro" 
+      ? customReason.trim()
+      : CANCELLATION_REASONS.find(r => r.value === selectedReason)?.label || selectedReason;
+
     try {
-      if (showDeletePermanently) {
-        await deletePermanently(payment.id);
-      } else {
-        await deletePayment(payment.id);
-      }
+      await deletePayment(payment.id, reason);
+      setShowCancelDialog(false);
+      setSelectedReason("");
+      setCustomReason("");
+      onUpdate();
+    } catch (error) {
+      console.error('Error cancelling payment:', error);
+    }
+  };
+
+  const handleDeletePermanently = async () => {
+    try {
+      await deletePermanently(payment.id);
       setShowDeleteDialog(false);
       onUpdate();
     } catch (error) {
@@ -93,6 +152,12 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
       title: "Copiado!",
       description: `${label} copiado para a área de transferência`
     });
+  };
+
+  const resetCancelDialog = () => {
+    setShowCancelDialog(false);
+    setSelectedReason("");
+    setCustomReason("");
   };
 
   // Para cobranças canceladas, mostrar apenas excluir permanentemente
@@ -126,7 +191,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction 
-                  onClick={handleDelete}
+                  onClick={handleDeletePermanently}
                   disabled={loading}
                   className="bg-destructive hover:bg-destructive/90"
                 >
@@ -223,7 +288,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
                 size="icon" 
                 variant="ghost" 
                 className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => setShowDeleteDialog(true)}
+                onClick={() => setShowCancelDialog(true)}
                 disabled={loading}
               >
                 <XCircle className="h-4 w-4" />
@@ -255,27 +320,71 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Dialog de confirmação - Cancelar */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancelar Cobrança</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Voltar</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleDelete}
-                disabled={loading}
-                className="bg-destructive hover:bg-destructive/90"
+        {/* Dialog de confirmação - Cancelar com motivo */}
+        <Dialog open={showCancelDialog} onOpenChange={resetCancelDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancelar Cobrança</DialogTitle>
+              <DialogDescription>
+                Informe o motivo do cancelamento para registro e auditoria.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {/* Info da cobrança */}
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                <p className="text-sm font-medium">{payment.clients?.name || 'Cliente'}</p>
+                <p className="text-sm text-muted-foreground">
+                  R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Vencimento: {payment.due_date ? formatDateBR(payment.due_date) : '-'}
+                </p>
+              </div>
+
+              {/* Seleção do motivo */}
+              <div className="space-y-2">
+                <Label htmlFor="reason">Motivo do cancelamento *</Label>
+                <Select value={selectedReason} onValueChange={setSelectedReason}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um motivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CANCELLATION_REASONS.map((reason) => (
+                      <SelectItem key={reason.value} value={reason.value}>
+                        {reason.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Campo de texto para "Outro" */}
+              {selectedReason === "outro" && (
+                <div className="space-y-2">
+                  <Label htmlFor="customReason">Descreva o motivo *</Label>
+                  <Textarea
+                    id="customReason"
+                    placeholder="Descreva o motivo do cancelamento..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    className="min-h-[80px]"
+                  />
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={resetCancelDialog}>
+                Voltar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancel}
+                disabled={loading || !selectedReason || (selectedReason === "outro" && !customReason.trim())}
               >
-                Cancelar Cobrança
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                Confirmar Cancelamento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

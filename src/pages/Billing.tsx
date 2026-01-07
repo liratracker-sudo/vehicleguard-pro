@@ -412,6 +412,7 @@ const BillingPage = () => {
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
                     <TableHead className="font-semibold">Cliente</TableHead>
                     <TableHead className="font-semibold text-right">Valor</TableHead>
+                    <TableHead className="font-semibold">Motivo</TableHead>
                     <TableHead className="font-semibold">Cancelado em</TableHead>
                     <TableHead className="font-semibold text-right">Ações</TableHead>
                   </TableRow>
@@ -419,7 +420,7 @@ const BillingPage = () => {
                 <TableBody>
                   {payments.filter(p => p.status === 'cancelled').length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         Nenhuma cobrança cancelada
                       </TableCell>
                     </TableRow>
@@ -432,8 +433,11 @@ const BillingPage = () => {
                         <TableCell className="text-right font-semibold tabular-nums">
                           R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
+                        <TableCell className="text-muted-foreground max-w-[200px] truncate" title={(payment as any).cancellation_reason || ''}>
+                          {(payment as any).cancellation_reason || <span className="text-muted-foreground/50 italic">Não informado</span>}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {formatDateBR(payment.updated_at)}
+                          {(payment as any).cancelled_at ? formatDateBR((payment as any).cancelled_at) : formatDateBR(payment.updated_at)}
                         </TableCell>
                         <TableCell className="text-right">
                           <BillingActions 
