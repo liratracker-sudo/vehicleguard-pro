@@ -88,17 +88,24 @@ serve(async (req) => {
           throw new Error('Payment ID is required');
         }
 
-        // Soft delete by updating status
+        const { cancellation_reason } = data || {};
+
+        // Soft delete by updating status with cancellation details
         const { error } = await supabase
           .from('payment_transactions')
           .update({
             status: 'cancelled',
+            cancellation_reason: cancellation_reason || null,
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: user.id,
             updated_at: new Date().toISOString()
           })
           .eq('id', payment_id)
           .eq('company_id', userCompanyId);
 
         if (error) throw error;
+
+        console.log(`Payment ${payment_id} cancelled by user ${user.id} with reason: ${cancellation_reason || 'not provided'}`);
 
         return new Response(
           JSON.stringify({ success: true, message: 'Payment cancelled successfully' }),

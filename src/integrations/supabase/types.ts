@@ -2286,6 +2286,9 @@ export type Database = {
         Row: {
           amount: number
           barcode: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           client_id: string
           company_id: string
           contract_id: string | null
@@ -2311,6 +2314,9 @@ export type Database = {
         Insert: {
           amount: number
           barcode?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_id: string
           company_id: string
           contract_id?: string | null
@@ -2336,6 +2342,9 @@ export type Database = {
         Update: {
           amount?: number
           barcode?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_id?: string
           company_id?: string
           contract_id?: string | null
