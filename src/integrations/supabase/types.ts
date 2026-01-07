@@ -1550,6 +1550,119 @@ export type Database = {
           },
         ]
       }
+      expense_notification_logs: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          error_message: string | null
+          expense_id: string | null
+          id: string
+          message: string
+          notification_type: string
+          recipient_name: string | null
+          recipient_phone: string
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          error_message?: string | null
+          expense_id?: string | null
+          id?: string
+          message: string
+          notification_type: string
+          recipient_name?: string | null
+          recipient_phone: string
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          expense_id?: string | null
+          id?: string
+          message?: string
+          notification_type?: string
+          recipient_name?: string | null
+          recipient_phone?: string
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_notification_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_notification_logs_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_notification_settings: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          notify_on_due: boolean | null
+          post_due_days: number[] | null
+          pre_due_days: number[] | null
+          send_daily_summary: boolean | null
+          send_hour: string | null
+          template_on_due: string | null
+          template_post_due: string | null
+          template_pre_due: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          notify_on_due?: boolean | null
+          post_due_days?: number[] | null
+          pre_due_days?: number[] | null
+          send_daily_summary?: boolean | null
+          send_hour?: string | null
+          template_on_due?: string | null
+          template_post_due?: string | null
+          template_pre_due?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          notify_on_due?: boolean | null
+          post_due_days?: number[] | null
+          pre_due_days?: number[] | null
+          send_daily_summary?: boolean | null
+          send_hour?: string | null
+          template_on_due?: string | null
+          template_post_due?: string | null
+          template_pre_due?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_notification_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
