@@ -171,6 +171,14 @@ export const useExpenses = () => {
 
   const markAsPaid = useMutation({
     mutationFn: async ({ id, bankAccountId, paymentMethod }: { id: string; bankAccountId?: string; paymentMethod?: string }) => {
+      // 1. Fetch expense to check recurrence_type
+      const { data: expense } = await supabase
+        .from("expenses")
+        .select("recurrence_type")
+        .eq("id", id)
+        .single();
+
+      // 2. Mark as paid
       const { data, error } = await supabase
         .from("expenses")
         .update({
@@ -184,6 +192,18 @@ export const useExpenses = () => {
         .single();
 
       if (error) throw error;
+
+      // 3. If recurring, generate next expense
+      if (expense?.recurrence_type && expense.recurrence_type !== 'none') {
+        try {
+          await supabase.functions.invoke('generate-next-expense', {
+            body: { expense_id: id }
+          });
+        } catch (err) {
+          console.error('Failed to generate next expense:', err);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
