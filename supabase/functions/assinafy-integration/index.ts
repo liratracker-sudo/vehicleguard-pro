@@ -476,7 +476,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
       } catch (createError: any) {
         // If creation fails because signer already exists, retry get
         if (createError.message?.includes("já existe")) {
-          console.log("🔄 Signer already exists, retrying get...");
+          console.log("🔄 Signer already exists, retrying get for email:", email);
           const retrySignerResponse = await makeAssinafyRequest(
             `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(email)}`,
             'GET',
@@ -484,8 +484,24 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
           );
           
           const retrySignerData = await retrySignerResponse.json();
+          console.log("📋 Retry results count:", retrySignerData.data?.length || 0);
+          console.log("📧 Retry emails found:", retrySignerData.data?.map((s: any) => s.email));
+          
           if (retrySignerData.data && retrySignerData.data.length > 0) {
-            return retrySignerData.data[0].id;
+            // CRITICAL FIX: Validate email match before returning signer ID
+            const matchingSigner = retrySignerData.data.find(
+              (signer: any) => signer.email?.toLowerCase() === email.toLowerCase()
+            );
+            
+            if (matchingSigner) {
+              console.log("✅ Found exact email match in retry:", matchingSigner.id, matchingSigner.email);
+              return matchingSigner.id;
+            } else {
+              console.error("❌ CRITICAL: No exact email match found in retry!");
+              console.error("🔍 Looking for:", email);
+              console.error("📋 Available emails:", retrySignerData.data.map((s: any) => s.email));
+              throw new Error(`Signer already exists but email mismatch. Expected: ${email}`);
+            }
           }
         }
         throw createError;
