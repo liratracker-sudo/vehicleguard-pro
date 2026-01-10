@@ -46,7 +46,8 @@ import { supabase } from "@/integrations/supabase/client"
 import { useClientRegistrations } from "@/hooks/useClientRegistrations"
 import { cn } from "@/lib/utils"
 
-// Menu groups with logical organization
+// Menu groups with logical organization following the operational flow:
+// Cliente → Veículos → Contrato → Cobrança
 const menuGroups = [
   {
     label: "Principal",
@@ -57,19 +58,19 @@ const menuGroups = [
     ]
   },
   {
-    label: "Financeiro",
+    label: "Gestão",
     items: [
+      { title: "Veículos", url: "/vehicles", icon: Car },
+      { title: "Contratos", url: "/contracts", icon: FileText },
       { title: "Planos", url: "/plans", icon: CreditCard },
-      { title: "Cobrança", url: "/billing", icon: DollarSign },
-      { title: "Financeiro", url: "/financial", icon: BarChart3 },
-      { title: "Contas a Pagar", url: "/expenses", icon: Receipt },
     ]
   },
   {
-    label: "Gestão",
+    label: "Financeiro",
     items: [
-      { title: "Contratos", url: "/contracts", icon: FileText },
-      { title: "Veículos", url: "/vehicles", icon: Car },
+      { title: "Cobrança", url: "/billing", icon: DollarSign },
+      { title: "Financeiro", url: "/financial", icon: BarChart3 },
+      { title: "Contas a Pagar", url: "/expenses", icon: Receipt },
       { title: "Relatórios", url: "/reports", icon: FileText },
     ]
   },
