@@ -326,12 +326,22 @@ serve(async (req) => {
 
       console.log('Customer created with ID:', customerId);
 
+      // FIX: Para pagamentos vencidos, usar data de hoje (Asaas não aceita datas passadas)
+      const todayStr = new Date().toISOString().split('T')[0];
+      const effectiveDueDate = feeCalculation.isOverdue ? todayStr : payment.due_date;
+      
+      console.log('📅 Due date calculation:', {
+        original_due_date: payment.due_date,
+        is_overdue: feeCalculation.isOverdue,
+        effective_due_date: effectiveDueDate
+      });
+
       // Preparar dados da cobrança com multa/juros nativos do Asaas (para cobranças futuras)
       const asaasChargeData: any = {
         customerId: customerId,
         billingType: billingType,
         value: chargeValue,
-        dueDate: payment.due_date,
+        dueDate: effectiveDueDate,
         description: `Pagamento - ${payment.companies.name}`,
         externalReference: payment.id
       };
@@ -347,6 +357,16 @@ serve(async (req) => {
         data: asaasChargeData
       };
     } else {
+      // FIX: Para pagamentos vencidos, usar data de hoje
+      const todayStr = new Date().toISOString().split('T')[0];
+      const effectiveDueDate = feeCalculation.isOverdue ? todayStr : payment.due_date;
+      
+      console.log('📅 Due date calculation (non-Asaas):', {
+        original_due_date: payment.due_date,
+        is_overdue: feeCalculation.isOverdue,
+        effective_due_date: effectiveDueDate
+      });
+
       // Para outros gateways (MercadoPago, Inter, Gerencianet), passar dados do cliente diretamente
       chargeData = {
         action: 'create_charge',
@@ -354,7 +374,7 @@ serve(async (req) => {
         data: {
           billingType: billingType,
           value: chargeValue,
-          dueDate: payment.due_date,
+          dueDate: effectiveDueDate,
           description: feeCalculation.isOverdue && feeCalculation.fineAmount > 0
             ? `Pagamento - ${payment.companies.name} (inclui multa/juros por atraso)`
             : `Pagamento - ${payment.companies.name}`,
