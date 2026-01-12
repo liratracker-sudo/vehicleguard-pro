@@ -228,18 +228,20 @@ export default function Checkout() {
       const activeRule = applicableRules.length > 0 ? applicableRules[0] : null;
       
       // Log detalhado das regras para debug
-      console.log('Gateway rules check:', { 
-        amount: paymentData.amount, 
-        rulesFound: gatewayRules?.length || 0,
-        applicableRules: applicableRules.length,
-        activeRule: activeRule ? {
-          name: activeRule.name,
-          allowed_gateways: activeRule.allowed_gateways,
-          allowed_methods: activeRule.allowed_methods,
-          min_amount: activeRule.min_amount,
-          max_amount: activeRule.max_amount
-        } : null
-      });
+      console.log('=== GATEWAY RULES DEBUG ===');
+      console.log('Payment amount:', paymentData.amount);
+      console.log('All rules from DB:', gatewayRules);
+      console.log('Applicable rules after max_amount filter:', applicableRules);
+      console.log('Active rule selected:', activeRule ? {
+        name: activeRule.name,
+        allowed_gateways: activeRule.allowed_gateways,
+        allowed_methods: activeRule.allowed_methods,
+        min_amount: activeRule.min_amount,
+        max_amount: activeRule.max_amount,
+        priority: activeRule.priority
+      } : 'NONE');
+      console.log('Available payment methods from DB:', methods);
+      console.log('===========================');
 
       // Mapear para formato de UI
       const methodsMap: Record<string, PaymentMethod> = {
