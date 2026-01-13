@@ -61,6 +61,7 @@ export function BillingHistory() {
         .from('payment_transactions')
         .select('amount, status, created_at, due_date')
         .eq('company_id', profile.company_id)
+        .neq('status', 'cancelled')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: true });
@@ -86,7 +87,7 @@ export function BillingHistory() {
         };
       }
 
-      // Process payments
+      // Process payments - use status directly from database
       payments?.forEach(payment => {
         const monthKey = payment.created_at.substring(0, 7);
         if (monthlyData[monthKey]) {
@@ -98,11 +99,7 @@ export function BillingHistory() {
               monthlyData[monthKey].received += amount;
               break;
             case 'pending':
-              if (payment.due_date && payment.due_date < new Date().toISOString().split('T')[0]) {
-                monthlyData[monthKey].overdue += amount;
-              } else {
-                monthlyData[monthKey].pending += amount;
-              }
+              monthlyData[monthKey].pending += amount;
               break;
             case 'overdue':
               monthlyData[monthKey].overdue += amount;
@@ -111,7 +108,8 @@ export function BillingHistory() {
         }
       });
 
-      setHistoryData(Object.values(monthlyData));
+      // Filter out months with no data
+      setHistoryData(Object.values(monthlyData).filter(m => m.total > 0));
     } catch (error: any) {
       console.error('Error loading history data:', error);
       toast({
@@ -151,10 +149,11 @@ export function BillingHistory() {
   const totalPending = historyData.reduce((sum, item) => sum + item.pending, 0);
   const totalOverdue = historyData.reduce((sum, item) => sum + item.overdue, 0);
 
-  // Calculate trends
+  // Calculate trends - only if there are 2+ months and first month has data
   const recentMonths = historyData.slice(-2);
-  const receivedTrend = recentMonths.length === 2 ? 
-    ((recentMonths[1].received - recentMonths[0].received) / recentMonths[0].received) * 100 : 0;
+  const receivedTrend = recentMonths.length === 2 && recentMonths[0].received > 0
+    ? ((recentMonths[1].received - recentMonths[0].received) / recentMonths[0].received) * 100 
+    : 0;
 
   return (
     <div className="space-y-6">
