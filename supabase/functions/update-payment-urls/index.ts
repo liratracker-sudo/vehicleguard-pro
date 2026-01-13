@@ -33,17 +33,15 @@ serve(async (req) => {
 
     console.log(`Found ${payments?.length || 0} payments with URLs`);
 
-    let updated = 0;
+    let updatedGateway = 0;
+    let updatedDomain = 0;
     let skipped = 0;
 
     for (const payment of payments || []) {
-      // Check if URL is already a payment URL with public domain
-      if (payment.payment_url?.includes('/payment/') || payment.payment_url?.includes('/checkout/')) {
-        skipped++;
-        continue;
-      }
+      let needsUpdate = false;
+      let newUrl = payment.payment_url;
 
-      // Check if it's a gateway URL (asaas.com, mercadopago, etc)
+      // Case 1: Gateway direct URL (asaas.com, mercadopago, etc)
       const isGatewayUrl = 
         payment.payment_url?.includes('asaas.com') ||
         payment.payment_url?.includes('mercadopago') ||
@@ -51,13 +49,24 @@ serve(async (req) => {
         payment.payment_url?.includes('bancointer');
 
       if (isGatewayUrl) {
-        // Update to checkout URL with public domain
-        const checkoutUrl = `${appUrl}/checkout/${payment.id}`;
-        
+        newUrl = `${appUrl}/checkout/${payment.id}`;
+        needsUpdate = true;
+      }
+      
+      // Case 2: Old domain URL (vehicleguard-pro)
+      if (payment.payment_url?.includes('vehicleguard-pro.lovable.app')) {
+        newUrl = payment.payment_url.replace(
+          'vehicleguard-pro.lovable.app', 
+          'gestaotracker.lovable.app'
+        );
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
         const { error: updateError } = await supabase
           .from('payment_transactions')
           .update({
-            payment_url: checkoutUrl,
+            payment_url: newUrl,
             updated_at: new Date().toISOString()
           })
           .eq('id', payment.id);
@@ -65,21 +74,30 @@ serve(async (req) => {
         if (updateError) {
           console.error(`Error updating payment ${payment.id}:`, updateError);
         } else {
-          updated++;
-          console.log(`Updated payment ${payment.id} to checkout URL`);
+          if (isGatewayUrl) {
+            updatedGateway++;
+          } else {
+            updatedDomain++;
+          }
+          console.log(`Updated payment ${payment.id}: ${payment.payment_url} -> ${newUrl}`);
         }
       } else {
         skipped++;
       }
     }
 
-    console.log(`Update completed: ${updated} updated, ${skipped} skipped`);
+    console.log(`Update completed: ${updatedGateway} gateway URLs, ${updatedDomain} domain URLs, ${skipped} skipped`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        updated,
+        updated_gateway: updatedGateway,
+        updated_domain: updatedDomain,
         skipped,
+        total: payments?.length || 0
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
         total: payments?.length || 0
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
