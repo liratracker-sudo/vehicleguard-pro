@@ -91,7 +91,7 @@ serve(async (req) => {
       const companyName = companyInfo?.name || 'Lira Tracker';
 
       // Build payment link using company domain
-      const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+      const defaultAppUrl = Deno.env.get('APP_URL') || 'https://gestaotracker.lovable.app';
       const baseUrl = companyInfo?.domain 
         ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
         : defaultAppUrl;
@@ -425,7 +425,7 @@ ${!isOverdue
         const companyName = companyInfo?.name || 'Lira Tracker';
 
         // Build payment link using company domain
-        const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+        const defaultAppUrl = Deno.env.get('APP_URL') || 'https://gestaotracker.lovable.app';
         const baseUrl = companyInfo?.domain 
           ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
           : defaultAppUrl;
