@@ -393,6 +393,113 @@ serve(async (req) => {
         );
       }
 
+      case 'protest_payment': {
+        if (!payment_id) {
+          throw new Error('Payment ID is required');
+        }
+
+        // Buscar cobrança
+        const { data: payment, error: paymentError } = await supabase
+          .from('payment_transactions')
+          .select('id, due_date, status, protested_at')
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId)
+          .single();
+
+        if (paymentError || !payment) {
+          throw new Error('Cobrança não encontrada');
+        }
+
+        // Validar se já está protestada
+        if (payment.protested_at) {
+          throw new Error('Esta cobrança já foi protestada');
+        }
+
+        // Validar status (só overdue pode ser protestado)
+        if (payment.status !== 'overdue') {
+          throw new Error('Apenas cobranças vencidas podem ser protestadas');
+        }
+
+        // Validar regra de 15 dias
+        const dueDate = new Date(payment.due_date);
+        const today = new Date();
+        const diffDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 15) {
+          throw new Error(`Cobrança precisa estar vencida há pelo menos 15 dias. Dias em atraso: ${diffDays}`);
+        }
+
+        // Marcar como protestada
+        const { error: updateError } = await supabase
+          .from('payment_transactions')
+          .update({
+            protested_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId);
+
+        if (updateError) throw updateError;
+
+        // Cancelar notificações pendentes usando service client
+        await supabaseService
+          .from('payment_notifications')
+          .update({
+            status: 'skipped',
+            last_error: 'Cobrança protestada'
+          })
+          .eq('payment_id', payment_id)
+          .eq('status', 'pending');
+
+        console.log(`Payment ${payment_id} protested by user ${user.id}`);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Cobrança protestada com sucesso' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'undo_protest': {
+        if (!payment_id) {
+          throw new Error('Payment ID is required');
+        }
+
+        // Verificar se a cobrança está protestada
+        const { data: payment, error: paymentError } = await supabase
+          .from('payment_transactions')
+          .select('id, protested_at')
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId)
+          .single();
+
+        if (paymentError || !payment) {
+          throw new Error('Cobrança não encontrada');
+        }
+
+        if (!payment.protested_at) {
+          throw new Error('Esta cobrança não está protestada');
+        }
+
+        // Remover protesto
+        const { error } = await supabase
+          .from('payment_transactions')
+          .update({
+            protested_at: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId);
+
+        if (error) throw error;
+
+        console.log(`Protest removed from payment ${payment_id} by user ${user.id}`);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Protesto removido com sucesso' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

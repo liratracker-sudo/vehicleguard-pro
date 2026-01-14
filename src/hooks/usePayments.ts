@@ -19,6 +19,7 @@ export interface PaymentTransaction {
   barcode: string | null;
   external_id: string | null;
   paid_at: string | null;
+  protested_at: string | null;
   created_at: string;
   updated_at: string;
   description?: string | null;

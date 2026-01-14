@@ -39,7 +39,9 @@ import {
   MessageSquare, 
   Trash2,
   Copy,
-  ExternalLink 
+  ExternalLink,
+  Scale,
+  Undo2
 } from "lucide-react";
 import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
@@ -67,13 +69,29 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
   const { toast } = useToast();
+  const [showProtestDialog, setShowProtestDialog] = useState(false);
+  const [showUndoProtestDialog, setShowUndoProtestDialog] = useState(false);
   const { 
     loading,
     updatePaymentStatus,
     deletePayment,
     deletePermanently,
     resendNotification,
+    protestPayment,
+    undoProtest,
   } = useBillingManagement();
+
+  // Calcular dias de atraso
+  const getDaysOverdue = () => {
+    if (!payment.due_date) return 0;
+    const dueDate = new Date(payment.due_date);
+    const today = new Date();
+    return Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const daysOverdue = getDaysOverdue();
+  const canProtest = payment.status === 'overdue' && daysOverdue >= 15 && !payment.protested_at;
+  const isProtested = !!payment.protested_at;
 
   const handleMarkAsPaid = async () => {
     try {
@@ -126,6 +144,26 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
       onUpdate();
     } catch (error) {
       console.error('Error deleting payment:', error);
+    }
+  };
+
+  const handleProtest = async () => {
+    try {
+      await protestPayment(payment.id);
+      setShowProtestDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error protesting payment:', error);
+    }
+  };
+
+  const handleUndoProtest = async () => {
+    try {
+      await undoProtest(payment.id);
+      setShowUndoProtestDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error undoing protest:', error);
     }
   };
 
@@ -280,8 +318,44 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
           </Tooltip>
         )}
 
-        {/* Cancelar cobrança - apenas se não estiver pago/cancelado */}
-        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+        {/* Protestar cobrança - apenas se overdue com 15+ dias e não protestada */}
+        {canProtest && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                onClick={() => setShowProtestDialog(true)}
+                disabled={loading}
+              >
+                <Scale className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Protestar ({daysOverdue} dias em atraso)</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Desfazer protesto - apenas se está protestada */}
+        {isProtested && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                onClick={() => setShowUndoProtestDialog(true)}
+                disabled={loading}
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Desfazer protesto</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Cancelar cobrança - apenas se não estiver pago/cancelado/protestado */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && !isProtested && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
@@ -385,6 +459,85 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de confirmação - Protestar */}
+        <AlertDialog open={showProtestDialog} onOpenChange={setShowProtestDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Scale className="h-5 w-5 text-purple-600" />
+                Protestar Cobrança
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                  <p className="text-sm font-medium text-foreground">{payment.clients?.name || 'Cliente'}</p>
+                  <p className="text-sm">
+                    R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • {daysOverdue} dias em atraso
+                  </p>
+                </div>
+                <div className="text-sm space-y-2">
+                  <p><strong>Ao protestar esta cobrança:</strong></p>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>As notificações automáticas serão <strong>pausadas</strong></li>
+                    <li>O valor será <strong>excluído dos gráficos</strong> financeiros</li>
+                    <li>A cobrança ficará marcada como "Protestada"</li>
+                  </ul>
+                  <p className="text-muted-foreground">Você pode desfazer o protesto a qualquer momento.</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleProtest}
+                disabled={loading}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Scale className="h-4 w-4 mr-2" />
+                Protestar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog de confirmação - Desfazer Protesto */}
+        <AlertDialog open={showUndoProtestDialog} onOpenChange={setShowUndoProtestDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Undo2 className="h-5 w-5 text-orange-600" />
+                Desfazer Protesto
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                  <p className="text-sm font-medium text-foreground">{payment.clients?.name || 'Cliente'}</p>
+                  <p className="text-sm">
+                    R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="text-sm space-y-2">
+                  <p><strong>Ao remover o protesto:</strong></p>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>As notificações automáticas serão <strong>retomadas</strong></li>
+                    <li>O valor voltará a ser <strong>contabilizado</strong> nos gráficos</li>
+                    <li>A cobrança voltará ao status "Vencido"</li>
+                  </ul>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleUndoProtest}
+                disabled={loading}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                <Undo2 className="h-4 w-4 mr-2" />
+                Remover Protesto
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TooltipProvider>
   );

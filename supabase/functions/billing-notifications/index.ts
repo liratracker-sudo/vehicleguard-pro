@@ -660,12 +660,13 @@ async function recreateOverdueNotifications() {
   const BATCH_LIMIT = 30; // Limitar processamento por execução
   
   try {
-    // Buscar pagamentos já vencidos COM LIMITE
+    // Buscar pagamentos já vencidos COM LIMITE (excluindo protestados)
     const { data: overduePayments, error: paymentsError } = await supabase
       .from('payment_transactions')
-      .select('id, company_id, client_id, due_date, status')
+      .select('id, company_id, client_id, due_date, status, protested_at')
       .lt('due_date', now.toISOString())
       .in('status', ['pending', 'overdue'])
+      .is('protested_at', null) // Excluir cobranças protestadas
       .limit(BATCH_LIMIT);
     
     if (paymentsError) {

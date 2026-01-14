@@ -2420,6 +2420,7 @@ export type Database = {
           payment_gateway: string | null
           payment_url: string | null
           pix_code: string | null
+          protested_at: string | null
           status: string
           transaction_type: string
           updated_at: string
@@ -2448,6 +2449,7 @@ export type Database = {
           payment_gateway?: string | null
           payment_url?: string | null
           pix_code?: string | null
+          protested_at?: string | null
           status?: string
           transaction_type: string
           updated_at?: string
@@ -2476,6 +2478,7 @@ export type Database = {
           payment_gateway?: string | null
           payment_url?: string | null
           pix_code?: string | null
+          protested_at?: string | null
           status?: string
           transaction_type?: string
           updated_at?: string
