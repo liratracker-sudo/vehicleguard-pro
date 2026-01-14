@@ -118,6 +118,11 @@ serve(async (req) => {
 
     let newStatus = transaction.status;
     let paidAt = transaction.paid_at;
+    let statusPreserved = false;
+
+    // IMPORTANTE: Se já está pago, NÃO permite regredir para outro status
+    // Isso evita que webhooks de cobranças duplicadas (boleto vs PIX) sobrescrevam
+    const isPaid = transaction.status === 'paid';
 
     // Map Asaas payment status to our status
     switch (event) {
@@ -128,7 +133,13 @@ serve(async (req) => {
         break;
       
       case 'PAYMENT_OVERDUE':
-        newStatus = 'overdue';
+        // Só marca como overdue se NÃO estiver pago
+        if (!isPaid) {
+          newStatus = 'overdue';
+        } else {
+          console.log(`Ignorando PAYMENT_OVERDUE - pagamento ${transaction.id} já está pago`);
+          statusPreserved = true;
+        }
         break;
       
       case 'PAYMENT_DELETED':
@@ -138,7 +149,12 @@ serve(async (req) => {
       
       case 'PAYMENT_CREATED':
       case 'PAYMENT_AWAITING_PAYMENT':
-        newStatus = 'pending';
+        // Só muda para pending se não estiver pago
+        if (!isPaid) {
+          newStatus = 'pending';
+        } else {
+          statusPreserved = true;
+        }
         break;
     }
 
@@ -177,7 +193,12 @@ serve(async (req) => {
       operation_type: 'webhook',
       status: 'success',
       request_data: webhookData,
-      response_data: { payment_id: transaction.id, new_status: newStatus, event }
+      response_data: { 
+        payment_id: transaction.id, 
+        new_status: newStatus, 
+        event,
+        status_preserved: statusPreserved 
+      }
     });
 
     return new Response(
