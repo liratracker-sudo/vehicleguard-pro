@@ -233,6 +233,74 @@ export function useBillingManagement() {
     }
   };
 
+  const protestPayment = async (paymentId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-management', {
+        body: {
+          action: 'protest_payment',
+          payment_id: paymentId
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.message || data?.error || 'Falha ao protestar cobrança');
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Cobrança protestada com sucesso! Notificações automáticas foram pausadas."
+      });
+
+      return data;
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const undoProtest = async (paymentId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-management', {
+        body: {
+          action: 'undo_protest',
+          payment_id: paymentId
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.message || data?.error || 'Falha ao remover protesto');
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Protesto removido! Notificações automáticas serão retomadas."
+      });
+
+      return data;
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     updatePaymentStatus,
@@ -241,6 +309,8 @@ export function useBillingManagement() {
     resendNotification,
     generateSecondCopy,
     getCompanyBalance,
-    generateAutomaticCharges
+    generateAutomaticCharges,
+    protestPayment,
+    undoProtest
   };
 }

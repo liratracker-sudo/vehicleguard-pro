@@ -59,9 +59,10 @@ export function BillingHistory() {
 
       const { data: payments, error } = await supabase
         .from('payment_transactions')
-        .select('amount, status, created_at, due_date')
+        .select('amount, status, created_at, due_date, protested_at')
         .eq('company_id', profile.company_id)
         .neq('status', 'cancelled')
+        .is('protested_at', null) // Excluir cobranças protestadas dos gráficos
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: true });
