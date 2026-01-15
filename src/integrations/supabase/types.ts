@@ -2608,6 +2608,137 @@ export type Database = {
           },
         ]
       }
+      protest_contact_history: {
+        Row: {
+          client_id: string
+          company_id: string
+          contact_result: string
+          contact_type: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          payment_id: string
+        }
+        Insert: {
+          client_id: string
+          company_id: string
+          contact_result: string
+          contact_type: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          payment_id: string
+        }
+        Update: {
+          client_id?: string
+          company_id?: string
+          contact_result?: string
+          contact_type?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protest_contact_history_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protest_contact_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protest_contact_history_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      protest_negotiations: {
+        Row: {
+          accepted_at: string | null
+          client_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          discount_percent: number | null
+          final_amount: number
+          id: string
+          installment_value: number
+          installments: number | null
+          notes: string | null
+          original_amount: number
+          payment_id: string
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          client_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          discount_percent?: number | null
+          final_amount: number
+          id?: string
+          installment_value: number
+          installments?: number | null
+          notes?: string | null
+          original_amount: number
+          payment_id: string
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          client_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          discount_percent?: number | null
+          final_amount?: number
+          id?: string
+          installment_value?: number
+          installments?: number | null
+          notes?: string | null
+          original_amount?: number
+          payment_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protest_negotiations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protest_negotiations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protest_negotiations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reengagement_email_logs: {
         Row: {
           admin_name: string | null

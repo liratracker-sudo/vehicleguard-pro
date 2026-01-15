@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle, Scale } from "lucide-react"
 import { CriticalDelinquencyPanel } from "@/components/billing/CriticalDelinquencyPanel"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -35,8 +35,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Lazy load BillingHistory para carregar apenas quando acessado
+// Lazy load BillingHistory e ProtestedPaymentsTab para carregar apenas quando acessados
 const BillingHistory = lazy(() => import("@/components/billing/BillingHistory").then(m => ({ default: m.BillingHistory })))
+const ProtestedPaymentsTab = lazy(() => import("@/components/billing/ProtestedPaymentsTab").then(m => ({ default: m.ProtestedPaymentsTab })))
 
 const BillingPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -270,6 +271,10 @@ const BillingPage = () => {
           <TabsList className="h-9">
             <TabsTrigger value="manage" className="text-xs">Cobranças</TabsTrigger>
             <TabsTrigger value="cancelled" className="text-xs">Canceladas</TabsTrigger>
+            <TabsTrigger value="protested" className="text-xs">
+              <Scale className="h-3 w-3 mr-1" />
+              Protestos
+            </TabsTrigger>
             <TabsTrigger value="cpf-lookup" className="text-xs">Consultar CPF</TabsTrigger>
             <TabsTrigger value="history" className="text-xs">Histórico</TabsTrigger>
           </TabsList>
@@ -455,6 +460,22 @@ const BillingPage = () => {
                 </TableBody>
               </Table>
             </div>
+          </TabsContent>
+
+          <TabsContent value="protested">
+            <Suspense fallback={
+              <div className="space-y-4">
+                <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-20 rounded-lg" />
+                  ))}
+                </div>
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-64 rounded-lg" />
+              </div>
+            }>
+              <ProtestedPaymentsTab />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="cpf-lookup">
