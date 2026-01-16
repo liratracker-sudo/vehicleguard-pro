@@ -60,7 +60,7 @@ export default function PublicClientRegistration() {
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([createEmptyVehicle()])
 
-  const MAX_VEHICLES = 5
+  const MAX_VEHICLES = 15
 
   useEffect(() => {
     loadCompanyInfo()
