@@ -289,20 +289,32 @@ export default function PublicClientRegistration() {
                   />
                 </div>
                 <div>
-                  <Label>CPF *</Label>
+                  <Label>CPF/CNPJ *</Label>
                   <Input
                     value={formData.document}
                     onChange={(e) => {
-                      let value = e.target.value.replace(/\D/g, '')
-                      if (value.length <= 11) {
-                        value = value.replace(/(\d{3})(\d)/, '$1.$2')
-                        value = value.replace(/(\d{3})(\d)/, '$1.$2')
-                        value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+                      const digits = e.target.value.replace(/\D/g, '')
+                      let formatted = ''
+                      
+                      if (digits.length <= 11) {
+                        // Formato CPF: 000.000.000-00
+                        formatted = digits
+                        if (digits.length > 3) formatted = digits.slice(0, 3) + '.' + digits.slice(3)
+                        if (digits.length > 6) formatted = formatted.slice(0, 7) + '.' + digits.slice(6)
+                        if (digits.length > 9) formatted = formatted.slice(0, 11) + '-' + digits.slice(9)
+                      } else {
+                        // Formato CNPJ: 00.000.000/0000-00
+                        formatted = digits.slice(0, 2)
+                        if (digits.length > 2) formatted += '.' + digits.slice(2, 5)
+                        if (digits.length > 5) formatted += '.' + digits.slice(5, 8)
+                        if (digits.length > 8) formatted += '/' + digits.slice(8, 12)
+                        if (digits.length > 12) formatted += '-' + digits.slice(12, 14)
                       }
-                      setFormData({ ...formData, document: value })
+                      
+                      setFormData({ ...formData, document: formatted })
                     }}
-                    placeholder="000.000.000-00"
-                    maxLength={14}
+                    placeholder="CPF ou CNPJ"
+                    maxLength={18}
                     required
                   />
                 </div>
