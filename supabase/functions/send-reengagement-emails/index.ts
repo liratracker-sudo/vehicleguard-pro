@@ -12,7 +12,8 @@ const corsHeaders = {
 interface ReengagementRequest {
   company_ids?: string[]; // Se vazio, envia para todas empresas inativas
   min_days_inactive?: number; // Mínimo de dias desde cadastro (default: 3)
-  template_type?: string; // Tipo de template (default: 'first_reminder')
+  template_type?: 'first_reminder' | 'second_reminder' | 'last_chance'; // Tipo de template
+  force_send?: boolean; // Se true, ignora verificação de already_sent
   dry_run?: boolean; // Se true, apenas lista empresas sem enviar
 }
 
@@ -46,10 +47,11 @@ serve(async (req) => {
       company_ids, 
       min_days_inactive = 3, 
       template_type = 'first_reminder',
+      force_send = false,
       dry_run = false 
     }: ReengagementRequest = await req.json();
 
-    console.log(`📧 Reengagement email request - dry_run: ${dry_run}, min_days: ${min_days_inactive}`);
+    console.log(`📧 Reengagement email request - dry_run: ${dry_run}, min_days: ${min_days_inactive}, template: ${template_type}, force: ${force_send}`);
 
     console.log('🔍 Iniciando busca otimizada com batch queries...');
 
@@ -218,8 +220,8 @@ serve(async (req) => {
         continue;
       }
       
-      // Pular se já recebeu
-      if (company.already_sent) {
+      // Pular se já recebeu (exceto se force_send = true)
+      if (company.already_sent && !force_send) {
         results.skipped++;
         results.details.push({
           company_id: company.id,
@@ -233,8 +235,9 @@ serve(async (req) => {
       // Aguardar 1 segundo ANTES de cada envio para evitar rate limit
       await sleep(1000);
 
-      // Gerar HTML do email
-      const emailHtml = generateReengagementEmail(recipientName, company.name, appUrl);
+      // Gerar HTML do email baseado no template
+      const emailHtml = generateReengagementEmail(recipientName, company.name, appUrl, template_type);
+      const emailSubject = getEmailSubject(recipientName, template_type);
       
       // Retry com backoff exponencial para rate limit
       let attempts = 0;
@@ -249,7 +252,7 @@ serve(async (req) => {
           const { error: emailError } = await resend.emails.send({
             from: "GestaoTracker <suporte@liratracker.com.br>",
             to: [recipientEmail],
-            subject: `🚀 ${recipientName}, seu GestaoTracker está te esperando!`,
+            subject: emailSubject,
             html: emailHtml,
           });
 
@@ -343,16 +346,144 @@ serve(async (req) => {
   }
 });
 
-function generateReengagementEmail(userName: string, companyName: string, appUrl: string): string {
-  return `
+function getEmailSubject(userName: string, templateType: string): string {
+  switch (templateType) {
+    case 'second_reminder':
+      return `⏰ ${userName}, ainda estamos aqui para ajudar!`;
+    case 'last_chance':
+      return `⚠️ ${userName}, última chance de ativar sua conta!`;
+    default:
+      return `🚀 ${userName}, seu GestaoTracker está te esperando!`;
+  }
+}
+
+function generateReengagementEmail(userName: string, companyName: string, appUrl: string, templateType: string = 'first_reminder'): string {
+  const header = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f5f5f5;">
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f5f5f5;">`;
+
+  const footer = `
+      <!-- Footer -->
+      <div style="padding: 25px 30px; text-align: center; background: #f9fafb;">
+        <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
+          Este email foi enviado para ${userName} (${companyName})
+        </p>
+        <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+          © ${new Date().getFullYear()} GestaoTracker - Sistema de Gestão de Rastreamento
+        </p>
+      </div>
+    </body>
+    </html>`;
+
+  if (templateType === 'second_reminder') {
+    return `${header}
+      <!-- Header -->
+      <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
+          ⏰ Lembrete Especial
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+          Seu GestaoTracker ainda está esperando por você
+        </p>
+      </div>
       
+      <div style="background: white; padding: 40px 30px;">
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">
+          Olá novamente, ${userName}! 👋
+        </h2>
+        
+        <p style="font-size: 16px; color: #4b5563; margin-bottom: 20px;">
+          Entramos em contato há alguns dias e notamos que você ainda não conseguiu configurar sua conta.
+          <strong>Estamos aqui para ajudar!</strong>
+        </p>
+        
+        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #f59e0b;">
+          <p style="margin: 0; color: #92400e; font-size: 15px;">
+            💡 <strong>Dica:</strong> Muitos clientes conseguem cadastrar seus primeiros dados em menos de 5 minutos com nossa ajuda gratuita!
+          </p>
+        </div>
+        
+        <p style="font-size: 16px; color: #4b5563; margin-bottom: 25px;">
+          Entendemos que a rotina é corrida. Por isso, oferecemos <strong>suporte gratuito via WhatsApp</strong> para configurar tudo para você:
+        </p>
+        
+        <div style="text-align: center; margin-bottom: 30px;">
+          <a href="https://wa.me/5521992081803?text=Ol%C3%A1!%20Preciso%20de%20ajuda%20para%20configurar%20minha%20conta%20GestaoTracker.%20%C3%89%20meu%20segundo%20contato." 
+             style="display: inline-block; background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);">
+            💬 Falar com Suporte Agora
+          </a>
+        </div>
+        
+        <div style="background: #eff6ff; padding: 20px; border-radius: 8px; text-align: center;">
+          <p style="margin: 0; color: #1e40af; font-size: 14px;">
+            📞 Nosso time está disponível de segunda a sexta, das 9h às 18h
+          </p>
+        </div>
+      </div>
+      ${footer}`;
+  }
+
+  if (templateType === 'last_chance') {
+    return `${header}
+      <!-- Header -->
+      <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
+          ⚠️ Última Chance
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+          Sua conta pode ser desativada por inatividade
+        </p>
+      </div>
+      
+      <div style="background: white; padding: 40px 30px;">
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">
+          ${userName}, precisamos conversar... 😔
+        </h2>
+        
+        <p style="font-size: 16px; color: #4b5563; margin-bottom: 20px;">
+          Esta é nossa última tentativa de contato. Notamos que sua conta no GestaoTracker permanece inativa desde a criação.
+        </p>
+        
+        <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #ef4444;">
+          <p style="margin: 0; color: #991b1b; font-size: 15px;">
+            ⚠️ <strong>Importante:</strong> Contas inativas por muito tempo podem ser desativadas para liberação de recursos do sistema.
+          </p>
+        </div>
+        
+        <p style="font-size: 16px; color: #4b5563; margin-bottom: 20px;">
+          Se você está enfrentando dificuldades ou tem dúvidas, <strong>queremos muito te ajudar</strong>. Basta clicar no botão abaixo:
+        </p>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+          <a href="https://wa.me/5521992081803?text=Ol%C3%A1!%20Recebi%20o%20aviso%20de%20%C3%BAltima%20chance%20e%20preciso%20de%20ajuda%20urgente%20para%20configurar%20minha%20conta." 
+             style="display: inline-block; background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);">
+            💬 Preciso de Ajuda Urgente
+          </a>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: 30px;">
+          <a href="${appUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">
+            🚀 Acessar Minha Conta Agora
+          </a>
+        </div>
+        
+        <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; text-align: center;">
+          <p style="margin: 0; color: #166534; font-size: 14px;">
+            ✅ Se você não deseja mais receber nossos emails, basta responder "CANCELAR"
+          </p>
+        </div>
+      </div>
+      ${footer}`;
+  }
+
+  // Default: first_reminder
+  return `${header}
       <!-- Header -->
       <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 40px 30px; text-align: center;">
         <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
@@ -363,9 +494,7 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
         </p>
       </div>
       
-      <!-- Main Content -->
       <div style="background: white; padding: 40px 30px;">
-        
         <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">
           Olá, ${userName}! 👋
         </h2>
@@ -382,14 +511,11 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
         
         <!-- Features Grid -->
         <div style="margin-bottom: 30px;">
-          
           <div style="display: flex; align-items: flex-start; margin-bottom: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
             <div style="margin-right: 15px; font-size: 24px;">👥</div>
             <div>
               <strong style="color: #1f2937;">Gestão de Clientes</strong>
-              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-                Cadastre e gerencie todos os seus clientes em um só lugar
-              </p>
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Cadastre e gerencie todos os seus clientes em um só lugar</p>
             </div>
           </div>
           
@@ -397,9 +523,7 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
             <div style="margin-right: 15px; font-size: 24px;">🚗</div>
             <div>
               <strong style="color: #1f2937;">Controle de Veículos</strong>
-              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-                Registre veículos com rastreadores instalados e acompanhe o status
-              </p>
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Registre veículos com rastreadores instalados e acompanhe o status</p>
             </div>
           </div>
           
@@ -407,9 +531,7 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
             <div style="margin-right: 15px; font-size: 24px;">📄</div>
             <div>
               <strong style="color: #1f2937;">Contratos Digitais</strong>
-              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-                Crie contratos profissionais e gerencie assinaturas digitais
-              </p>
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Crie contratos profissionais e gerencie assinaturas digitais</p>
             </div>
           </div>
           
@@ -417,9 +539,7 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
             <div style="margin-right: 15px; font-size: 24px;">💰</div>
             <div>
               <strong style="color: #1f2937;">Cobranças Automáticas</strong>
-              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-                Gere boletos e PIX automaticamente com integração bancária
-              </p>
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Gere boletos e PIX automaticamente com integração bancária</p>
             </div>
           </div>
           
@@ -427,19 +547,14 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
             <div style="margin-right: 15px; font-size: 24px;">📱</div>
             <div>
               <strong style="color: #1f2937;">WhatsApp Integrado</strong>
-              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-                Envie lembretes e cobranças automáticas via WhatsApp
-              </p>
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Envie lembretes e cobranças automáticas via WhatsApp</p>
             </div>
           </div>
-          
         </div>
         
         <!-- Steps -->
         <div style="background: #f9fafb; padding: 25px; border-radius: 12px; margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 18px;">
-            ⚡ Comece em 3 passos simples:
-          </h3>
+          <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 18px;">⚡ Comece em 3 passos simples:</h3>
           <ol style="margin: 0; padding-left: 20px; color: #4b5563;">
             <li style="margin-bottom: 10px;"><strong>Cadastre seu primeiro cliente</strong> - Leva menos de 1 minuto</li>
             <li style="margin-bottom: 10px;"><strong>Adicione um veículo</strong> - Vincule ao cliente</li>
@@ -455,26 +570,11 @@ function generateReengagementEmail(userName: string, companyName: string, appUrl
           </a>
         </div>
         
-        <!-- Support -->
         <div style="background: #eff6ff; padding: 20px; border-radius: 8px; text-align: center;">
           <p style="margin: 0; color: #1e40af; font-size: 14px;">
             💬 Precisa de ajuda? Responda este email ou entre em contato conosco!
           </p>
         </div>
-        
       </div>
-      
-      <!-- Footer -->
-      <div style="padding: 25px 30px; text-align: center; background: #f9fafb;">
-        <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
-          Este email foi enviado para ${userName} (${companyName})
-        </p>
-        <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-          © ${new Date().getFullYear()} GestaoTracker - Sistema de Gestão de Rastreamento
-        </p>
-      </div>
-      
-    </body>
-    </html>
-  `;
+      ${footer}`;
 }
