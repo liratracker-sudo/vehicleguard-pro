@@ -68,45 +68,49 @@ const AdminPage = () => {
                     {statsLoading ? '--' : stats.totalCompanies}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {statsLoading ? '' : `${stats.activeCompanies} ativas`}
+                    {statsLoading ? '' : `${stats.activeCompanies} ligadas`}
                   </p>
                 </CardContent>
               </Card>
               
+              <Card className="border-emerald-500/30 bg-emerald-500/5">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Usando Ativamente</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-emerald-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-emerald-400">
+                    {statsLoading ? '--' : stats.activelyUsing}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Atividade nos últimos 7 dias</p>
+                </CardContent>
+              </Card>
+              
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Usuários</CardTitle>
+                  <CardTitle className="text-sm font-medium">Empresas Vazias</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {statsLoading ? '--' : stats.totalUsers}
+                  <div className="text-2xl font-bold text-muted-foreground">
+                    {statsLoading ? '--' : stats.emptyCompanies}
                   </div>
-                  <p className="text-xs text-muted-foreground">Usuários cadastrados</p>
+                  <p className="text-xs text-muted-foreground">Nunca cadastraram dados</p>
                 </CardContent>
               </Card>
               
-              <Card>
+              <Card className="border-primary/30 bg-primary/5">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
+                  <CreditCard className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">R$ --</div>
-                  <p className="text-xs text-muted-foreground">Faturamento mensal</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Atividade</CardTitle>
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {statsLoading ? '--' : stats.recentActivity.length}
+                  <div className="text-2xl font-bold text-primary">
+                    {statsLoading ? 'R$ --' : stats.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </div>
-                  <p className="text-xs text-muted-foreground">Atividades recentes</p>
+                  <p className="text-xs text-muted-foreground">
+                    {statsLoading ? '' : `${stats.activePlansCount} plano${stats.activePlansCount !== 1 ? 's' : ''} ativo${stats.activePlansCount !== 1 ? 's' : ''}`}
+                  </p>
                 </CardContent>
               </Card>
             </div>
