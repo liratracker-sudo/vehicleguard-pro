@@ -124,18 +124,45 @@ export function CompanyManagement() {
     setShowUsersDialog(true)
   }
 
-  const deleteCompany = async (company: CompanyMetrics) => {
-    if (!confirm(`Tem certeza que deseja excluir a empresa "${company.name}"? Esta ação não pode ser desfeita.`)) {
+  const deleteCompany = async (company: CompanyMetrics, forceDelete = false) => {
+    if (!forceDelete && !confirm(`Tem certeza que deseja excluir a empresa "${company.name}"? Esta ação não pode ser desfeita.`)) {
       return
     }
 
     try {
-      const { error } = await supabase
-        .from('companies')
-        .delete()
-        .eq('id', company.id)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Não autenticado')
+
+      const { data, error } = await supabase.functions.invoke('admin-company-management', {
+        body: {
+          action: 'delete_company',
+          company_id: company.id,
+          force_delete: forceDelete
+        }
+      })
 
       if (error) throw error
+
+      // Check if company has linked data
+      if (data?.error === 'has_linked_data') {
+        const proceed = confirm(
+          `Esta empresa possui dados vinculados:\n` +
+          `- ${data.data.clients} clientes\n` +
+          `- ${data.data.vehicles} veículos\n` +
+          `- ${data.data.payments} cobranças\n\n` +
+          `Deseja excluir TODOS os dados permanentemente?`
+        )
+        
+        if (proceed) {
+          // Retry with force_delete
+          await deleteCompany(company, true)
+        }
+        return
+      }
+
+      if (data?.error) {
+        throw new Error(data.error)
+      }
 
       toast({
         title: "Sucesso",
