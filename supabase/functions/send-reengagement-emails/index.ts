@@ -14,6 +14,7 @@ interface ReengagementRequest {
   min_days_inactive?: number; // Mínimo de dias desde cadastro (default: 3)
   template_type?: 'first_reminder' | 'second_reminder' | 'last_chance'; // Tipo de template
   force_send?: boolean; // Se true, ignora verificação de already_sent
+  channel?: 'email' | 'whatsapp' | 'both'; // Canal de envio (default: email)
   dry_run?: boolean; // Se true, apenas lista empresas sem enviar
 }
 
@@ -21,11 +22,14 @@ interface InactiveCompany {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
   admin_name: string | null;
   admin_email: string | null;
+  admin_phone: string | null;
   created_at: string;
   days_since_signup: number;
-  already_sent: boolean;
+  already_sent_email: boolean;
+  already_sent_whatsapp: boolean;
 }
 
 // Helper function to add delay between emails (avoid rate limit)
@@ -48,10 +52,11 @@ serve(async (req) => {
       min_days_inactive = 3, 
       template_type = 'first_reminder',
       force_send = false,
+      channel = 'email',
       dry_run = false 
     }: ReengagementRequest = await req.json();
 
-    console.log(`📧 Reengagement email request - dry_run: ${dry_run}, min_days: ${min_days_inactive}, template: ${template_type}, force: ${force_send}`);
+    console.log(`📧 Reengagement request - dry_run: ${dry_run}, min_days: ${min_days_inactive}, template: ${template_type}, force: ${force_send}, channel: ${channel}`);
 
     console.log('🔍 Iniciando busca otimizada com batch queries...');
 
@@ -62,6 +67,7 @@ serve(async (req) => {
         id,
         name,
         email,
+        phone,
         created_at,
         clients(count),
         vehicles(count),
@@ -119,34 +125,48 @@ serve(async (req) => {
     console.log('📥 Buscando perfis de admin em batch...');
     const { data: allProfiles } = await supabase
       .from('profiles')
-      .select('company_id, full_name, email')
+      .select('company_id, full_name, email, phone')
       .in('company_id', companyIds)
       .eq('role', 'admin');
 
     // Criar mapa para acesso O(1)
-    const profileMap = new Map<string, { full_name: string | null; email: string | null }>();
+    const profileMap = new Map<string, { full_name: string | null; email: string | null; phone: string | null }>();
     for (const profile of allProfiles || []) {
       if (!profileMap.has(profile.company_id)) {
         profileMap.set(profile.company_id, { 
           full_name: profile.full_name, 
-          email: profile.email 
+          email: profile.email,
+          phone: profile.phone
         });
       }
     }
     console.log(`✅ ${profileMap.size} perfis de admin encontrados`);
 
-    // ETAPA 4: BATCH - Verificar emails já enviados de uma vez (1 query em vez de N)
-    console.log('📥 Verificando logs de emails em batch...');
-    const { data: existingLogs } = await supabase
+    // ETAPA 4: BATCH - Verificar mensagens já enviadas de uma vez (1-2 queries)
+    console.log('📥 Verificando logs de mensagens em batch...');
+    
+    // Verificar emails enviados
+    const { data: existingEmailLogs } = await supabase
       .from('reengagement_email_logs')
       .select('company_id')
       .in('company_id', companyIds)
       .eq('template_type', template_type)
-      .eq('status', 'sent');
+      .eq('status', 'sent')
+      .or('channel.is.null,channel.eq.email');
 
-    // Criar Set para verificação O(1)
-    const sentCompanyIds = new Set((existingLogs || []).map(l => l.company_id));
-    console.log(`✅ ${sentCompanyIds.size} empresas já receberam email`);
+    const sentEmailCompanyIds = new Set((existingEmailLogs || []).map(l => l.company_id));
+    console.log(`✅ ${sentEmailCompanyIds.size} empresas já receberam email`);
+
+    // Verificar WhatsApps enviados
+    const { data: existingWhatsAppLogs } = await supabase
+      .from('reengagement_email_logs')
+      .select('company_id')
+      .in('company_id', companyIds)
+      .eq('template_type', template_type)
+      .eq('status', 'sent')
+      .eq('channel', 'whatsapp');
+
+    const sentWhatsAppCompanyIds = new Set((existingWhatsAppLogs || []).map(l => l.company_id));
 
     // ETAPA 5: Montar lista final sem queries adicionais
     const inactiveCompanies: InactiveCompany[] = potentiallyInactive.map(company => {
@@ -159,11 +179,14 @@ serve(async (req) => {
         id: company.id,
         name: company.name,
         email: company.email,
+        phone: company.phone || null,
         admin_name: profile?.full_name || null,
         admin_email: profile?.email || null,
+        admin_phone: profile?.phone || null,
         created_at: company.created_at,
         days_since_signup: daysSinceSignup,
-        already_sent: sentCompanyIds.has(company.id)
+        already_sent_email: sentEmailCompanyIds.has(company.id),
+        already_sent_whatsapp: sentWhatsAppCompanyIds.has(company.id)
       };
     });
 
@@ -180,11 +203,14 @@ serve(async (req) => {
             id: c.id,
             name: c.name,
             email: c.email,
+            phone: c.phone,
             admin_name: c.admin_name,
             admin_email: c.admin_email,
+            admin_phone: c.admin_phone,
             created_at: c.created_at,
             days_inactive: c.days_since_signup,
-            already_sent: c.already_sent,
+            already_sent_email: c.already_sent_email,
+            already_sent_whatsapp: c.already_sent_whatsapp,
             clients_count: 0,
             vehicles_count: 0,
             contracts_count: 0
@@ -194,7 +220,7 @@ serve(async (req) => {
       );
     }
 
-    // Enviar emails
+    // Enviar mensagens
     const results = {
       sent: 0,
       skipped: 0,
@@ -203,127 +229,254 @@ serve(async (req) => {
     };
 
     const appUrl = Deno.env.get("APP_URL") || "https://gestaotracker.lovable.app";
+    
+    // Buscar configurações do WhatsApp global (se necessário)
+    let whatsappSettings: any = null;
+    if (channel === 'whatsapp' || channel === 'both') {
+      // Usar configurações do WhatsApp do sistema (admin)
+      const { data: settings } = await supabase
+        .from('whatsapp_settings')
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+      
+      whatsappSettings = settings;
+      
+      if (!whatsappSettings) {
+        console.warn('⚠️ WhatsApp não configurado - apenas emails serão enviados');
+      }
+    }
 
     for (const company of inactiveCompanies) {
       const recipientEmail = company.admin_email || company.email;
+      const recipientPhone = company.admin_phone || company.phone;
       const recipientName = company.admin_name || company.name;
       
-      // Pular se não tem email
-      if (!recipientEmail) {
-        results.skipped++;
-        results.details.push({
-          company_id: company.id,
-          company_name: company.name,
-          status: 'skipped',
-          reason: 'no_email'
-        });
-        continue;
-      }
-      
-      // Pular se já recebeu (exceto se force_send = true)
-      if (company.already_sent && !force_send) {
-        results.skipped++;
-        results.details.push({
-          company_id: company.id,
-          company_name: company.name,
-          status: 'skipped',
-          reason: 'already_sent'
-        });
-        continue;
-      }
-
-      // Aguardar 1 segundo ANTES de cada envio para evitar rate limit
-      await sleep(1000);
-
-      // Gerar HTML do email baseado no template
-      const emailHtml = generateReengagementEmail(recipientName, company.name, appUrl, template_type);
-      const emailSubject = getEmailSubject(recipientName, template_type);
-      
-      // Retry com backoff exponencial para rate limit
-      let attempts = 0;
-      const maxAttempts = 3;
-      let lastError: any = null;
-      let emailSent = false;
-
-      while (attempts < maxAttempts && !emailSent) {
-        try {
-          console.log(`📤 Tentativa ${attempts + 1}/${maxAttempts} para ${recipientEmail}...`);
-          
-          const { error: emailError } = await resend.emails.send({
-            from: "GestaoTracker <suporte@liratracker.com.br>",
-            to: [recipientEmail],
-            subject: emailSubject,
-            html: emailHtml,
-          });
-
-          if (emailError) {
-            throw emailError;
-          }
-
-          emailSent = true;
-
-          // Logar envio bem-sucedido
-          await supabase.from('reengagement_email_logs').insert({
-            company_id: company.id,
-            email: recipientEmail,
-            admin_name: recipientName,
-            template_type,
-            status: 'sent'
-          });
-
-          results.sent++;
+      // ===== ENVIO DE EMAIL =====
+      if (channel === 'email' || channel === 'both') {
+        // Pular se não tem email
+        if (!recipientEmail) {
+          results.skipped++;
           results.details.push({
             company_id: company.id,
             company_name: company.name,
-            email: recipientEmail,
-            status: 'sent'
+            status: 'skipped',
+            reason: 'no_email',
+            channel: 'email'
           });
+        } else if (company.already_sent_email && !force_send) {
+          // Pular se já recebeu (exceto se force_send = true)
+          results.skipped++;
+          results.details.push({
+            company_id: company.id,
+            company_name: company.name,
+            status: 'skipped',
+            reason: 'already_sent',
+            channel: 'email'
+          });
+        } else {
+          // Aguardar 1 segundo ANTES de cada envio para evitar rate limit
+          await sleep(1000);
 
-          console.log(`✅ Email enviado para ${recipientEmail} (${company.name})`);
+          // Gerar HTML do email baseado no template
+          const emailHtml = generateReengagementEmail(recipientName, company.name, appUrl, template_type);
+          const emailSubject = getEmailSubject(recipientName, template_type);
+          
+          // Retry com backoff exponencial para rate limit
+          let attempts = 0;
+          const maxAttempts = 3;
+          let lastError: any = null;
+          let emailSent = false;
 
-        } catch (error: any) {
-          lastError = error;
-          attempts++;
-          
-          // Verificar se é rate limit (429)
-          const isRateLimit = error?.statusCode === 429 || 
-                              error?.message?.includes('rate_limit') ||
-                              error?.name === 'rate_limit_exceeded';
-          
-          if (isRateLimit && attempts < maxAttempts) {
-            // Backoff exponencial: 2s, 4s, 6s
-            const waitTime = attempts * 2000;
-            console.log(`⏳ Rate limit detectado! Aguardando ${waitTime}ms antes de retry ${attempts}/${maxAttempts}...`);
-            await sleep(waitTime);
-          } else if (!isRateLimit) {
-            // Erro não é rate limit, não fazer retry
-            console.error(`❌ Erro não-recuperável para ${recipientEmail}:`, error);
-            break;
+          while (attempts < maxAttempts && !emailSent) {
+            try {
+              console.log(`📤 Email tentativa ${attempts + 1}/${maxAttempts} para ${recipientEmail}...`);
+              
+              const { error: emailError } = await resend.emails.send({
+                from: "GestaoTracker <suporte@liratracker.com.br>",
+                to: [recipientEmail],
+                subject: emailSubject,
+                html: emailHtml,
+              });
+
+              if (emailError) {
+                throw emailError;
+              }
+
+              emailSent = true;
+
+              // Logar envio bem-sucedido
+              await supabase.from('reengagement_email_logs').insert({
+                company_id: company.id,
+                email: recipientEmail,
+                admin_name: recipientName,
+                template_type,
+                status: 'sent',
+                channel: 'email'
+              });
+
+              results.sent++;
+              results.details.push({
+                company_id: company.id,
+                company_name: company.name,
+                email: recipientEmail,
+                status: 'sent',
+                channel: 'email'
+              });
+
+              console.log(`✅ Email enviado para ${recipientEmail} (${company.name})`);
+
+            } catch (error: any) {
+              lastError = error;
+              attempts++;
+              
+              // Verificar se é rate limit (429)
+              const isRateLimit = error?.statusCode === 429 || 
+                                  error?.message?.includes('rate_limit') ||
+                                  error?.name === 'rate_limit_exceeded';
+              
+              if (isRateLimit && attempts < maxAttempts) {
+                // Backoff exponencial: 2s, 4s, 6s
+                const waitTime = attempts * 2000;
+                console.log(`⏳ Rate limit detectado! Aguardando ${waitTime}ms antes de retry ${attempts}/${maxAttempts}...`);
+                await sleep(waitTime);
+              } else if (!isRateLimit) {
+                // Erro não é rate limit, não fazer retry
+                console.error(`❌ Erro não-recuperável para ${recipientEmail}:`, error);
+                break;
+              }
+            }
+          }
+
+          // Se todas as tentativas falharam, logar erro
+          if (!emailSent) {
+            console.error(`❌ Falha após ${attempts} tentativas para ${recipientEmail}:`, lastError);
+            
+            await supabase.from('reengagement_email_logs').insert({
+              company_id: company.id,
+              email: recipientEmail,
+              admin_name: recipientName,
+              template_type,
+              status: 'failed',
+              error_message: lastError?.message || 'Unknown error after max retries',
+              channel: 'email'
+            });
+
+            results.failed++;
+            results.details.push({
+              company_id: company.id,
+              company_name: company.name,
+              email: recipientEmail,
+              status: 'failed',
+              error: lastError?.message || 'Unknown error after max retries',
+              channel: 'email'
+            });
           }
         }
       }
 
-      // Se todas as tentativas falharam, logar erro
-      if (!emailSent) {
-        console.error(`❌ Falha após ${attempts} tentativas para ${recipientEmail}:`, lastError);
-        
-        await supabase.from('reengagement_email_logs').insert({
-          company_id: company.id,
-          email: recipientEmail,
-          admin_name: recipientName,
-          template_type,
-          status: 'failed',
-          error_message: lastError?.message || 'Unknown error after max retries'
-        });
+      // ===== ENVIO DE WHATSAPP =====
+      if ((channel === 'whatsapp' || channel === 'both') && whatsappSettings) {
+        // Pular se não tem telefone
+        if (!recipientPhone) {
+          results.skipped++;
+          results.details.push({
+            company_id: company.id,
+            company_name: company.name,
+            status: 'skipped',
+            reason: 'no_phone',
+            channel: 'whatsapp'
+          });
+        } else if (company.already_sent_whatsapp && !force_send) {
+          // Pular se já recebeu (exceto se force_send = true)
+          results.skipped++;
+          results.details.push({
+            company_id: company.id,
+            company_name: company.name,
+            status: 'skipped',
+            reason: 'already_sent',
+            channel: 'whatsapp'
+          });
+        } else {
+          // Aguardar antes de enviar WhatsApp (anti-ban)
+          await sleep(3000);
+          
+          try {
+            // Gerar mensagem de texto para WhatsApp
+            const whatsappMessage = generateWhatsAppMessage(recipientName, company.name, template_type);
+            
+            // Chamar a função whatsapp-evolution
+            const whatsappResponse = await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-evolution`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
+                },
+                body: JSON.stringify({
+                  action: 'send_message',
+                  instance_url: whatsappSettings.instance_url || Deno.env.get('WHATSAPP_EVOLUTION_URL'),
+                  api_token: whatsappSettings.api_token || Deno.env.get('WHATSAPP_EVOLUTION_TOKEN'),
+                  instance_name: whatsappSettings.instance_name,
+                  phone_number: recipientPhone,
+                  message: whatsappMessage,
+                  company_id: whatsappSettings.company_id
+                })
+              }
+            );
 
-        results.failed++;
-        results.details.push({
-          company_id: company.id,
-          company_name: company.name,
-          email: recipientEmail,
-          status: 'failed',
-          error: lastError?.message || 'Unknown error after max retries'
-        });
+            const whatsappResult = await whatsappResponse.json();
+
+            if (whatsappResult.success) {
+              // Logar envio bem-sucedido
+              await supabase.from('reengagement_email_logs').insert({
+                company_id: company.id,
+                email: recipientPhone, // Usando campo email para armazenar telefone
+                admin_name: recipientName,
+                template_type,
+                status: 'sent',
+                channel: 'whatsapp'
+              });
+
+              results.sent++;
+              results.details.push({
+                company_id: company.id,
+                company_name: company.name,
+                phone: recipientPhone,
+                status: 'sent',
+                channel: 'whatsapp'
+              });
+
+              console.log(`✅ WhatsApp enviado para ${recipientPhone} (${company.name})`);
+            } else {
+              throw new Error(whatsappResult.error || 'Falha ao enviar WhatsApp');
+            }
+          } catch (error: any) {
+            console.error(`❌ Erro ao enviar WhatsApp para ${recipientPhone}:`, error);
+            
+            await supabase.from('reengagement_email_logs').insert({
+              company_id: company.id,
+              email: recipientPhone,
+              admin_name: recipientName,
+              template_type,
+              status: 'failed',
+              error_message: error?.message || 'Unknown error',
+              channel: 'whatsapp'
+            });
+
+            results.failed++;
+            results.details.push({
+              company_id: company.id,
+              company_name: company.name,
+              phone: recipientPhone,
+              status: 'failed',
+              error: error?.message || 'Unknown error',
+              channel: 'whatsapp'
+            });
+          }
+        }
       }
     }
 
@@ -354,6 +507,62 @@ function getEmailSubject(userName: string, templateType: string): string {
       return `⚠️ ${userName}, última chance de ativar sua conta!`;
     default:
       return `🚀 ${userName}, seu GestaoTracker está te esperando!`;
+  }
+}
+
+function generateWhatsAppMessage(userName: string, companyName: string, templateType: string): string {
+  switch (templateType) {
+    case 'second_reminder':
+      return `⏰ Olá novamente, ${userName}!
+
+Entramos em contato há alguns dias e notamos que você ainda não conseguiu configurar sua conta no *GestaoTracker*.
+
+Estamos aqui para ajudar! 🤝
+
+💡 *Dica:* Muitos clientes conseguem cadastrar seus primeiros dados em menos de 5 minutos com nossa ajuda gratuita.
+
+Entendemos que a rotina é corrida, por isso oferecemos *suporte gratuito* para configurar tudo para você.
+
+👉 Responda esta mensagem e um de nossos especialistas vai te ajudar!
+
+📱 Acesse: https://gestaotracker.lovable.app`;
+
+    case 'last_chance':
+      return `⚠️ *ÚLTIMA CHANCE* - ${userName}
+
+Esta é nossa última tentativa de contato.
+
+Notamos que sua conta no *GestaoTracker* permanece inativa desde a criação.
+
+⚠️ *Importante:* Contas inativas por muito tempo podem ser desativadas para liberação de recursos do sistema.
+
+Se você está enfrentando dificuldades ou tem dúvidas, *queremos muito te ajudar!*
+
+👉 Responda *SIM* agora e vamos configurar tudo para você gratuitamente.
+
+📱 Acesse sua conta: https://gestaotracker.lovable.app`;
+
+    default: // first_reminder
+      return `🚀 Olá, ${userName}!
+
+Notamos que você criou sua conta no *GestaoTracker* mas ainda não começou a usar o sistema.
+
+Queremos ajudá-lo a dar os primeiros passos! 
+
+✅ *Com o GestaoTracker você pode:*
+• Gerenciar clientes e veículos
+• Criar contratos digitais
+• Gerar cobranças automáticas via Pix/Boleto
+• Enviar lembretes automáticos por WhatsApp
+
+⚡ *Comece em 3 passos simples:*
+1️⃣ Cadastre seu primeiro cliente
+2️⃣ Adicione um veículo
+3️⃣ Crie um contrato - o sistema gera cobranças automaticamente!
+
+👉 Precisa de ajuda? Responda esta mensagem que vamos te ajudar gratuitamente!
+
+📱 Acesse: https://gestaotracker.lovable.app`;
   }
 }
 

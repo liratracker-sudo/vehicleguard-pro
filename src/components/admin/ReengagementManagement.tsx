@@ -5,9 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useReengagement } from '@/hooks/useReengagement';
+import { useReengagement, ChannelType } from '@/hooks/useReengagement';
 import { formatDateBR } from '@/lib/timezone';
-import { Mail, Send, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Users, RotateCcw } from 'lucide-react';
+import { Mail, Send, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Users, RotateCcw, MessageCircle, Phone } from 'lucide-react';
 
 type TemplateType = 'first_reminder' | 'second_reminder' | 'last_chance';
 
@@ -21,6 +21,7 @@ export function ReengagementManagement() {
   const { inactiveCompanies, emailLogs, stats, loading, sending, loadData, sendEmails } = useReengagement();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('first_reminder');
+  const [selectedChannel, setSelectedChannel] = useState<ChannelType>('email');
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => 
@@ -42,14 +43,14 @@ export function ReengagementManagement() {
 
   const handleSendSelected = (forceSend: boolean = false) => {
     if (selectedIds.length === 0) return;
-    sendEmails(selectedIds, selectedTemplate, forceSend);
+    sendEmails(selectedIds, selectedTemplate, forceSend, selectedChannel);
     setSelectedIds([]);
   };
 
   const handleSendAll = (forceSend: boolean = false) => {
     const allIds = inactiveCompanies.map(c => c.id);
     if (allIds.length === 0) return;
-    sendEmails(allIds, selectedTemplate, forceSend);
+    sendEmails(allIds, selectedTemplate, forceSend, selectedChannel);
   };
 
   const getStatusBadge = (status: string) => {
@@ -78,6 +79,16 @@ export function ReengagementManagement() {
     }
   };
 
+  const getChannelBadge = (channel?: string) => {
+    if (channel === 'whatsapp') {
+      return <Badge variant="outline" className="gap-1 border-green-500 text-green-600"><MessageCircle className="w-3 h-3" /> WhatsApp</Badge>;
+    }
+    return <Badge variant="outline" className="gap-1"><Mail className="w-3 h-3" /> Email</Badge>;
+  };
+
+  // Contar empresas com telefone
+  const companiesWithPhone = inactiveCompanies.filter(c => c.admin_phone || c.phone).length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -89,7 +100,7 @@ export function ReengagementManagement() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Empresas Inativas</CardTitle>
@@ -114,6 +125,17 @@ export function ReengagementManagement() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">WhatsApp Enviados</CardTitle>
+            <MessageCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.whatsappSentThisMonth}</div>
+            <p className="text-xs text-muted-foreground">Este mês</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Último Envio</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -121,7 +143,7 @@ export function ReengagementManagement() {
             <div className="text-2xl font-bold">
               {stats.lastSentAt ? formatDateBR(stats.lastSentAt) : 'Nunca'}
             </div>
-            <p className="text-xs text-muted-foreground">Data do último email</p>
+            <p className="text-xs text-muted-foreground">Data da última mensagem</p>
           </CardContent>
         </Card>
       </div>
@@ -156,8 +178,8 @@ export function ReengagementManagement() {
             </div>
           ) : (
             <>
-              {/* Template Selector */}
-              <div className="flex items-center gap-4 mb-4 p-4 bg-muted/50 rounded-lg">
+              {/* Template & Channel Selector */}
+              <div className="flex flex-wrap items-center gap-4 mb-4 p-4 bg-muted/50 rounded-lg">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">Template:</span>
                   <Select value={selectedTemplate} onValueChange={(v) => setSelectedTemplate(v as TemplateType)}>
@@ -171,12 +193,48 @@ export function ReengagementManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Canal:</span>
+                  <Select value={selectedChannel} onValueChange={(v) => setSelectedChannel(v as ChannelType)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="email">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4" /> Email
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="whatsapp">
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="w-4 h-4 text-green-600" /> WhatsApp
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="both">
+                        <div className="flex items-center gap-2">
+                          <Send className="w-4 h-4" /> Ambos
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="text-xs text-muted-foreground">
-                  {selectedTemplate === 'first_reminder' && 'Email de boas-vindas e primeiros passos'}
+                  {selectedTemplate === 'first_reminder' && 'Mensagem de boas-vindas e primeiros passos'}
                   {selectedTemplate === 'second_reminder' && 'Lembrete amigável com oferta de ajuda'}
                   {selectedTemplate === 'last_chance' && 'Aviso de possível desativação da conta'}
                 </div>
               </div>
+
+              {selectedChannel !== 'email' && (
+                <div className="flex items-center gap-2 mb-4 p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                  <Phone className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700 dark:text-green-300">
+                    <strong>{companiesWithPhone}</strong> de {inactiveCompanies.length} empresas têm telefone cadastrado para WhatsApp
+                  </span>
+                </div>
+              )}
 
               <div className="rounded-md border">
                 <Table>
@@ -190,6 +248,7 @@ export function ReengagementManagement() {
                       </TableHead>
                       <TableHead>Empresa</TableHead>
                       <TableHead>Email Admin</TableHead>
+                      <TableHead>Telefone</TableHead>
                       <TableHead>Cadastro</TableHead>
                       <TableHead>Dias Inativo</TableHead>
                       <TableHead>Status</TableHead>
@@ -206,6 +265,16 @@ export function ReengagementManagement() {
                         </TableCell>
                         <TableCell className="font-medium">{company.name}</TableCell>
                         <TableCell>{company.admin_email || '-'}</TableCell>
+                        <TableCell>
+                          {company.admin_phone || company.phone ? (
+                            <span className="flex items-center gap-1 text-green-600">
+                              <Phone className="w-3 h-3" />
+                              {company.admin_phone || company.phone}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell>{formatDateBR(company.created_at)}</TableCell>
                         <TableCell>
                           <Badge variant={company.days_inactive > 7 ? 'destructive' : 'secondary'}>
@@ -213,15 +282,28 @@ export function ReengagementManagement() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {company.already_sent ? (
-                            <Badge variant="outline" className="gap-1">
-                              <CheckCircle className="w-3 h-3" /> Já enviado
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="gap-1">
-                              <AlertCircle className="w-3 h-3" /> Pendente
-                            </Badge>
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {company.already_sent_email ? (
+                              <Badge variant="outline" className="gap-1 text-xs">
+                                <Mail className="w-3 h-3" /> Enviado
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <Mail className="w-3 h-3" /> Pendente
+                              </Badge>
+                            )}
+                            {(company.admin_phone || company.phone) && (
+                              company.already_sent_whatsapp ? (
+                                <Badge variant="outline" className="gap-1 text-xs border-green-500 text-green-600">
+                                  <MessageCircle className="w-3 h-3" /> Enviado
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="gap-1 text-xs">
+                                  <MessageCircle className="w-3 h-3" /> Pendente
+                                </Badge>
+                              )
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -242,7 +324,11 @@ export function ReengagementManagement() {
                   onClick={() => handleSendAll(false)}
                   disabled={sending || inactiveCompanies.length === 0}
                 >
-                  <Mail className="w-4 h-4 mr-2" />
+                  {selectedChannel === 'whatsapp' ? (
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Mail className="w-4 h-4 mr-2" />
+                  )}
                   Enviar para Todos
                 </Button>
                 <Button 
@@ -269,18 +355,18 @@ export function ReengagementManagement() {
         </CardContent>
       </Card>
 
-      {/* Email History */}
+      {/* Message History */}
       <Card>
         <CardHeader>
           <CardTitle>Histórico de Envios</CardTitle>
           <CardDescription>
-            Últimos emails de reengajamento enviados
+            Últimas mensagens de reengajamento enviadas (Email e WhatsApp)
           </CardDescription>
         </CardHeader>
         <CardContent>
           {emailLogs.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              Nenhum email enviado ainda
+              Nenhuma mensagem enviada ainda
             </p>
           ) : (
             <div className="rounded-md border">
@@ -288,7 +374,8 @@ export function ReengagementManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Empresa</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Contato</TableHead>
+                    <TableHead>Canal</TableHead>
                     <TableHead>Template</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Status</TableHead>
@@ -298,7 +385,8 @@ export function ReengagementManagement() {
                   {emailLogs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="font-medium">{log.company_name}</TableCell>
-                      <TableCell>{log.email}</TableCell>
+                      <TableCell>{log.channel === 'whatsapp' ? log.phone : log.email}</TableCell>
+                      <TableCell>{getChannelBadge(log.channel)}</TableCell>
                       <TableCell>{getTemplateBadge(log.template_type)}</TableCell>
                       <TableCell>{log.sent_at ? formatDateBR(log.sent_at) : '-'}</TableCell>
                       <TableCell>{getStatusBadge(log.status)}</TableCell>

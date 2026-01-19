@@ -6,6 +6,7 @@ interface InactiveCompany {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
   created_at: string;
   days_inactive: number;
   clients_count: number;
@@ -13,7 +14,9 @@ interface InactiveCompany {
   contracts_count: number;
   admin_email: string | null;
   admin_name: string | null;
-  already_sent: boolean;
+  admin_phone: string | null;
+  already_sent_email: boolean;
+  already_sent_whatsapp: boolean;
 }
 
 interface EmailLog {
@@ -26,13 +29,18 @@ interface EmailLog {
   sent_at: string | null;
   error_message: string | null;
   company_name?: string;
+  channel?: 'email' | 'whatsapp';
+  phone?: string;
 }
 
 interface ReengagementStats {
   totalInactive: number;
   emailsSentThisMonth: number;
+  whatsappSentThisMonth: number;
   lastSentAt: string | null;
 }
+
+export type ChannelType = 'email' | 'whatsapp' | 'both';
 
 export function useReengagement() {
   const [inactiveCompanies, setInactiveCompanies] = useState<InactiveCompany[]>([]);
@@ -40,6 +48,7 @@ export function useReengagement() {
   const [stats, setStats] = useState<ReengagementStats>({
     totalInactive: 0,
     emailsSentThisMonth: 0,
+    whatsappSentThisMonth: 0,
     lastSentAt: null
   });
   const [loading, setLoading] = useState(true);
@@ -93,7 +102,9 @@ export function useReengagement() {
         
         setEmailLogs(logs.map(log => ({
           ...log,
-          company_name: companyMap.get(log.company_id) || 'Empresa desconhecida'
+          company_name: companyMap.get(log.company_id) || 'Empresa desconhecida',
+          channel: (log as any).channel || 'email',
+          phone: (log as any).phone
         })));
 
         // Calculate stats
@@ -105,13 +116,17 @@ export function useReengagement() {
           l.status === 'sent' && 
           l.sent_at && 
           new Date(l.sent_at) >= thisMonth
-        ).length;
+        );
+
+        const emailsSent = sentThisMonth.filter(l => !(l as any).channel || (l as any).channel === 'email').length;
+        const whatsappSent = sentThisMonth.filter(l => (l as any).channel === 'whatsapp').length;
 
         const lastSent = logs.find(l => l.status === 'sent')?.sent_at || null;
 
         setStats(prev => ({
           ...prev,
-          emailsSentThisMonth: sentThisMonth,
+          emailsSentThisMonth: emailsSent,
+          whatsappSentThisMonth: whatsappSent,
           lastSentAt: lastSent
         }));
       }
@@ -123,7 +138,12 @@ export function useReengagement() {
     }
   };
 
-  const sendEmails = async (companyIds?: string[], templateType: string = 'first_reminder', forceSend: boolean = false) => {
+  const sendEmails = async (
+    companyIds?: string[], 
+    templateType: string = 'first_reminder', 
+    forceSend: boolean = false,
+    channel: ChannelType = 'email'
+  ) => {
     setSending(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -142,6 +162,7 @@ export function useReengagement() {
             min_days_inactive: 3,
             template_type: templateType,
             force_send: forceSend,
+            channel: channel,
             dry_run: false
           })
         }
@@ -158,21 +179,23 @@ export function useReengagement() {
       const skipped = results.filter((r: any) => r.status === 'skipped').length;
       const failed = results.filter((r: any) => r.status === 'failed').length;
 
+      const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'both' ? 'mensagem(ns)' : 'email(s)';
+
       if (sent > 0) {
-        toast.success(`${sent} email(s) enviado(s) com sucesso!`);
+        toast.success(`${sent} ${channelLabel} enviado(s) com sucesso!`);
       }
       if (skipped > 0) {
-        toast.info(`${skipped} empresa(s) puladas (sem email ou já enviado)`);
+        toast.info(`${skipped} empresa(s) puladas (sem contato ou já enviado)`);
       }
       if (failed > 0) {
-        toast.error(`${failed} email(s) falharam ao enviar`);
+        toast.error(`${failed} ${channelLabel} falharam ao enviar`);
       }
 
       // Reload data
       await loadData();
     } catch (error: any) {
-      console.error('Error sending reengagement emails:', error);
-      toast.error(error.message || 'Erro ao enviar emails de reengajamento');
+      console.error('Error sending reengagement messages:', error);
+      toast.error(error.message || 'Erro ao enviar mensagens de reengajamento');
     } finally {
       setSending(false);
     }
