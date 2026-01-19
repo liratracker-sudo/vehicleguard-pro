@@ -11,7 +11,11 @@ import { CompanyLimitsDialog } from "./CompanyLimitsDialog"
 import { CompanySubscriptionDialog } from "./CompanySubscriptionDialog"
 import { CompanyPasswordDialog } from "./CompanyPasswordDialog"
 import { CompanyUsersDialog } from "./CompanyUsersDialog"
-import { Building2, Plus, Settings, Edit, CreditCard, Key, Trash2, Users, MoreHorizontal, Globe } from "lucide-react"
+import { useCompanyAdmin, type CompanyMetrics } from "@/hooks/useCompanyAdmin"
+import { 
+  Building2, Plus, Settings, Edit, CreditCard, Key, Trash2, Users, MoreHorizontal, Globe,
+  UserCheck, Car, Receipt, Activity, TrendingUp, AlertCircle, Clock, Ghost
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,89 +23,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-
-interface Company {
-  id: string
-  name: string
-  slug: string
-  email: string
-  phone: string
-  domain: string
-  is_active: boolean
-  created_at: string
-  subscription?: {
-    plan_name: string
-    status: string
-  }
-  limits?: {
-    max_vehicles: number
-    max_users: number
-    is_active: boolean
-  }
-}
+import { Progress } from "@/components/ui/progress"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function CompanyManagement() {
   const { toast } = useToast()
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+  const { 
+    companies, 
+    stats, 
+    loading, 
+    loadStats,
+    activityFilter,
+    setActivityFilter,
+    planFilter,
+    setPlanFilter
+  } = useCompanyAdmin()
+  
+  const [selectedCompany, setSelectedCompany] = useState<CompanyMetrics | null>(null)
   const [showLimitsDialog, setShowLimitsDialog] = useState(false)
   const [showCompanyForm, setShowCompanyForm] = useState(false)
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false)
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [showUsersDialog, setShowUsersDialog] = useState(false)
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null)
+  const [editingCompany, setEditingCompany] = useState<CompanyMetrics | null>(null)
   const [companyHasPassword, setCompanyHasPassword] = useState(false)
-
-  const loadCompanies = async () => {
-    try {
-      const { data: companiesData, error } = await supabase
-        .from('companies')
-        .select(`
-          *,
-          company_subscriptions (
-            subscription_plans (
-              name
-            ),
-            status
-          ),
-          company_limits (
-            max_vehicles,
-            max_users,
-            is_active
-          )
-        `)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      const formattedData = companiesData?.map(company => ({
-        ...company,
-        subscription: company.company_subscriptions?.[0] ? {
-          plan_name: company.company_subscriptions[0].subscription_plans?.name || 'Sem plano',
-          status: company.company_subscriptions[0].status
-        } : null,
-        limits: company.company_limits?.[0] || null
-      })) || []
-
-      setCompanies(formattedData)
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const toggleCompanyStatus = async (companyId: string, newStatus: boolean) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Não autenticado')
 
-      // Use the edge function for immediate effect
       const response = await supabase.functions.invoke('admin-company-management', {
         body: {
           company_id: companyId,
@@ -115,11 +66,11 @@ export function CompanyManagement() {
 
       if (response.error) throw response.error
 
-      await loadCompanies()
+      await loadStats()
       
       toast({
         title: "Sucesso",
-        description: `Empresa ${newStatus ? 'ativada' : 'desativada'} com sucesso e efeito imediato`
+        description: `Empresa ${newStatus ? 'ativada' : 'desativada'} com sucesso`
       })
     } catch (error: any) {
       toast({
@@ -130,7 +81,7 @@ export function CompanyManagement() {
     }
   }
 
-  const openLimitsSettings = (company: Company) => {
+  const openLimitsSettings = (company: CompanyMetrics) => {
     setSelectedCompany(company)
     setShowLimitsDialog(true)
   }
@@ -140,53 +91,19 @@ export function CompanyManagement() {
     setShowCompanyForm(true)
   }
 
-  const handleEditCompany = (company: Company) => {
+  const handleEditCompany = (company: CompanyMetrics) => {
     setEditingCompany(company)
     setShowCompanyForm(true)
   }
 
-  const openSubscriptionSettings = (company: Company) => {
+  const openSubscriptionSettings = (company: CompanyMetrics) => {
     setSelectedCompany(company)
     setShowSubscriptionDialog(true)
   }
 
-  const assignPlanToCompany = async (companyId: string, planId: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Não autenticado')
-
-      const response = await supabase.functions.invoke('admin-company-management', {
-        body: {
-          action: 'assign_plan',
-          company_id: companyId,
-          plan_id: planId
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      })
-
-      if (response.error) throw response.error
-
-      toast({
-        title: "Sucesso",
-        description: "Plano associado com sucesso! Mudanças ativas imediatamente."
-      })
-
-      await loadCompanies()
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
-  }
-
-  const openPasswordSettings = async (company: Company) => {
+  const openPasswordSettings = async (company: CompanyMetrics) => {
     setSelectedCompany(company)
     
-    // Verificar se a empresa já tem senha
     try {
       const { data, error } = await supabase
         .from('company_credentials')
@@ -202,12 +119,12 @@ export function CompanyManagement() {
     setShowPasswordDialog(true)
   }
 
-  const openUsersSettings = (company: Company) => {
+  const openUsersSettings = (company: CompanyMetrics) => {
     setSelectedCompany(company)
     setShowUsersDialog(true)
   }
 
-  const deleteCompany = async (company: Company) => {
+  const deleteCompany = async (company: CompanyMetrics) => {
     if (!confirm(`Tem certeza que deseja excluir a empresa "${company.name}"? Esta ação não pode ser desfeita.`)) {
       return
     }
@@ -225,7 +142,7 @@ export function CompanyManagement() {
         description: "Empresa excluída com sucesso"
       })
 
-      await loadCompanies()
+      await loadStats()
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -235,26 +152,59 @@ export function CompanyManagement() {
     }
   }
 
-  useEffect(() => {
-    loadCompanies()
-
-    // Realtime subscription
-    const channel = supabase
-      .channel('company-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'companies' },
-        () => loadCompanies()
-      )
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'company_limits' },
-        () => loadCompanies()
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
+  const getActivityStatusBadge = (status: CompanyMetrics['activity_status']) => {
+    switch (status) {
+      case 'active':
+        return (
+          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
+            <Activity className="w-3 h-3" />
+            Ativa
+          </Badge>
+        )
+      case 'idle':
+        return (
+          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 gap-1">
+            <Clock className="w-3 h-3" />
+            Ociosa
+          </Badge>
+        )
+      case 'abandoned':
+        return (
+          <Badge className="bg-red-500/20 text-red-400 border-red-500/30 gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Abandonada
+          </Badge>
+        )
+      case 'empty':
+        return (
+          <Badge className="bg-muted text-muted-foreground border-border gap-1">
+            <Ghost className="w-3 h-3" />
+            Vazia
+          </Badge>
+        )
     }
-  }, [])
+  }
+
+  const getHealthScoreColor = (score: number) => {
+    if (score >= 75) return 'bg-emerald-500'
+    if (score >= 50) return 'bg-yellow-500'
+    if (score >= 25) return 'bg-orange-500'
+    return 'bg-red-500'
+  }
+
+  const formatLastActivity = (date: string | null) => {
+    if (!date) return 'Nunca'
+    
+    const now = new Date()
+    const activityDate = new Date(date)
+    const diffDays = Math.floor((now.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) return 'Hoje'
+    if (diffDays === 1) return 'Ontem'
+    if (diffDays < 7) return `${diffDays} dias`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} sem.`
+    return `${Math.floor(diffDays / 30)} mês${Math.floor(diffDays / 30) > 1 ? 'es' : ''}`
+  }
 
   if (loading) {
     return (
@@ -271,12 +221,68 @@ export function CompanyManagement() {
     )
   }
 
-
   return (
     <div className="space-y-6">
+      {/* Cards de estatísticas */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-border/50">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Empresas</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalCompanies}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.activeCompanies} ligadas • {stats.totalCompanies - stats.activeCompanies} desligadas
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Usando Ativamente</CardTitle>
+            <TrendingUp className="h-4 w-4 text-emerald-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-400">{stats.activelyUsing}</div>
+            <p className="text-xs text-muted-foreground">
+              Atividade nos últimos 7 dias
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-muted">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Empresas Vazias</CardTitle>
+            <Ghost className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-muted-foreground">{stats.emptyCompanies}</div>
+            <p className="text-xs text-muted-foreground">
+              Nunca cadastraram dados
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
+            <CreditCard className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {stats.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {stats.activePlansCount} plano{stats.activePlansCount !== 1 ? 's' : ''} ativo{stats.activePlansCount !== 1 ? 's' : ''}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5" />
@@ -291,17 +297,124 @@ export function CompanyManagement() {
               Nova Empresa
             </Button>
           </div>
+
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-2 pt-4">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mr-2">
+              Atividade:
+            </div>
+            <Button
+              variant={activityFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActivityFilter('all')}
+            >
+              Todas ({stats.totalCompanies})
+            </Button>
+            <Button
+              variant={activityFilter === 'active' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActivityFilter('active')}
+              className={activityFilter === 'active' ? '' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}
+            >
+              <Activity className="w-3 h-3 mr-1" />
+              Ativas ({stats.activelyUsing})
+            </Button>
+            <Button
+              variant={activityFilter === 'idle' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActivityFilter('idle')}
+              className={activityFilter === 'idle' ? '' : 'border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10'}
+            >
+              <Clock className="w-3 h-3 mr-1" />
+              Ociosas ({stats.idleCompanies})
+            </Button>
+            <Button
+              variant={activityFilter === 'abandoned' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActivityFilter('abandoned')}
+              className={activityFilter === 'abandoned' ? '' : 'border-red-500/30 text-red-400 hover:bg-red-500/10'}
+            >
+              <AlertCircle className="w-3 h-3 mr-1" />
+              Abandonadas ({stats.abandonedCompanies})
+            </Button>
+            <Button
+              variant={activityFilter === 'empty' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActivityFilter('empty')}
+            >
+              <Ghost className="w-3 h-3 mr-1" />
+              Vazias ({stats.emptyCompanies})
+            </Button>
+
+            <div className="w-px h-6 bg-border mx-2" />
+
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mr-2">
+              Plano:
+            </div>
+            <Button
+              variant={planFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPlanFilter('all')}
+            >
+              Todos
+            </Button>
+            <Button
+              variant={planFilter === 'with_plan' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPlanFilter('with_plan')}
+            >
+              Com plano
+            </Button>
+            <Button
+              variant={planFilter === 'without_plan' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPlanFilter('without_plan')}
+            >
+              Sem plano
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Empresa</TableHead>
-                  <TableHead>Domínio</TableHead>
-                  <TableHead>Plano</TableHead>
+                  <TableHead className="text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 justify-center">
+                          <UserCheck className="w-4 h-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>Clientes</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 justify-center">
+                          <Car className="w-4 h-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>Veículos</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 justify-center">
+                          <Receipt className="w-4 h-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>Cobranças</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead>Última Atividade</TableHead>
+                  <TableHead>Saúde</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Criado em</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Ativa</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -311,26 +424,63 @@ export function CompanyManagement() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{company.name}</div>
-                        <div className="text-sm text-muted-foreground">{company.email}</div>
+                        <div className="text-xs text-muted-foreground">{company.email || '-'}</div>
                       </div>
                     </TableCell>
+                    <TableCell className="text-center">
+                      <span className={company.total_clients > 0 ? 'font-medium' : 'text-muted-foreground'}>
+                        {company.total_clients}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className={company.total_vehicles > 0 ? 'font-medium' : 'text-muted-foreground'}>
+                        {company.total_vehicles}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className={company.total_payments > 0 ? 'font-medium' : 'text-muted-foreground'}>
+                        {company.total_payments}
+                      </span>
+                    </TableCell>
                     <TableCell>
-                      {company.domain ? (
-                        <div className="flex items-center gap-1">
-                          <Globe className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-sm font-mono truncate max-w-[150px]" title={company.domain}>
-                            {company.domain.replace(/^https?:\/\//, '')}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
+                      <span className={company.last_activity ? '' : 'text-muted-foreground'}>
+                        {formatLastActivity(company.last_activity)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2">
+                              <Progress 
+                                value={company.health_score} 
+                                className="h-2 w-16"
+                                indicatorClassName={getHealthScoreColor(company.health_score)}
+                              />
+                              <span className="text-xs text-muted-foreground w-8">
+                                {company.health_score}%
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="text-xs">
+                              <p>Clientes: {company.total_clients > 0 ? '✓' : '✗'} (+25%)</p>
+                              <p>Veículos: {company.total_vehicles > 0 ? '✓' : '✗'} (+25%)</p>
+                              <p>Cobranças: {company.total_payments > 0 ? '✓' : '✗'} (+25%)</p>
+                              <p>Atividade recente: {company.activity_status === 'active' ? '✓' : '✗'} (+25%)</p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    <TableCell>
+                      {getActivityStatusBadge(company.activity_status)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {company.subscription ? (
-                          <Badge variant={company.subscription.status === 'active' ? 'default' : 'secondary'}>
-                            {company.subscription.plan_name}
+                        {company.plan_name ? (
+                          <Badge variant={company.subscription_status === 'active' ? 'default' : 'secondary'}>
+                            {company.plan_name}
                           </Badge>
                         ) : (
                           <Badge variant="outline">Sem plano</Badge>
@@ -351,13 +501,7 @@ export function CompanyManagement() {
                           checked={company.is_active}
                           onCheckedChange={(checked) => toggleCompanyStatus(company.id, checked)}
                         />
-                        <span className="text-sm">
-                          {company.is_active ? 'Ativa' : 'Inativa'}
-                        </span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(company.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -403,10 +547,13 @@ export function CompanyManagement() {
               <div className="text-center py-12">
                 <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-muted-foreground">
-                  Nenhuma empresa cadastrada
+                  Nenhuma empresa encontrada
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  As empresas aparecerão aqui quando se cadastrarem no sistema
+                  {activityFilter !== 'all' || planFilter !== 'all' 
+                    ? 'Tente ajustar os filtros' 
+                    : 'As empresas aparecerão aqui quando se cadastrarem no sistema'
+                  }
                 </p>
               </div>
             )}
@@ -419,7 +566,7 @@ export function CompanyManagement() {
         open={showCompanyForm}
         onOpenChange={setShowCompanyForm}
         company={editingCompany}
-        onSaved={loadCompanies}
+        onSaved={loadStats}
       />
 
       {/* Company Limits Dialog */}
@@ -428,8 +575,8 @@ export function CompanyManagement() {
         onOpenChange={setShowLimitsDialog}
         companyId={selectedCompany?.id || null}
         companyName={selectedCompany?.name || ''}
-        currentLimits={selectedCompany?.limits}
-        onSaved={loadCompanies}
+        currentLimits={undefined}
+        onSaved={loadStats}
       />
 
       {/* Company Subscription Dialog */}
@@ -438,8 +585,11 @@ export function CompanyManagement() {
         onOpenChange={setShowSubscriptionDialog}
         companyId={selectedCompany?.id || null}
         companyName={selectedCompany?.name || ''}
-        currentSubscription={selectedCompany?.subscription}
-        onSaved={loadCompanies}
+        currentSubscription={selectedCompany ? {
+          plan_name: selectedCompany.plan_name || 'Sem plano',
+          status: selectedCompany.subscription_status || 'inactive'
+        } : undefined}
+        onSaved={loadStats}
       />
 
       {/* Company Password Dialog */}
