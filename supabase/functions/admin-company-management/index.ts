@@ -225,6 +225,164 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (method === 'POST' && action === 'delete_company') {
+      console.log('Deleting company:', body.company_id)
+
+      // Check for linked data
+      const [clients, vehicles, payments] = await Promise.all([
+        supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }).eq('company_id', body.company_id),
+        supabaseAdmin.from('vehicles').select('id', { count: 'exact', head: true }).eq('company_id', body.company_id),
+        supabaseAdmin.from('payment_transactions').select('id', { count: 'exact', head: true }).eq('company_id', body.company_id)
+      ])
+
+      const clientCount = clients.count || 0
+      const vehicleCount = vehicles.count || 0
+      const paymentCount = payments.count || 0
+
+      // If force_delete is not true and there's linked data, return error with counts
+      if (!body.force_delete && (clientCount > 0 || vehicleCount > 0 || paymentCount > 0)) {
+        console.log('Company has linked data:', { clientCount, vehicleCount, paymentCount })
+        return new Response(
+          JSON.stringify({ 
+            error: 'has_linked_data',
+            data: {
+              clients: clientCount,
+              vehicles: vehicleCount,
+              payments: paymentCount
+            }
+          }),
+          { status: 200, headers: corsHeaders }
+        )
+      }
+
+      console.log('Proceeding with cascaded deletion...')
+
+      // Delete in order to respect foreign keys
+      // 1. Payment notification logs
+      await supabaseAdmin.from('payment_notification_logs').delete().eq('company_id', body.company_id)
+      
+      // 2. Payment transactions
+      await supabaseAdmin.from('payment_transactions').delete().eq('company_id', body.company_id)
+      
+      // 3. Contract vehicles (need to get contract ids first)
+      const { data: contracts } = await supabaseAdmin.from('contracts').select('id').eq('company_id', body.company_id)
+      if (contracts && contracts.length > 0) {
+        const contractIds = contracts.map(c => c.id)
+        await supabaseAdmin.from('contract_vehicles').delete().in('contract_id', contractIds)
+      }
+      
+      // 4. Contracts
+      await supabaseAdmin.from('contracts').delete().eq('company_id', body.company_id)
+      
+      // 5. Vehicles
+      await supabaseAdmin.from('vehicles').delete().eq('company_id', body.company_id)
+      
+      // 6. Client registrations vehicles
+      const { data: registrations } = await supabaseAdmin.from('client_registrations').select('id').eq('company_id', body.company_id)
+      if (registrations && registrations.length > 0) {
+        const regIds = registrations.map(r => r.id)
+        await supabaseAdmin.from('client_registration_vehicles').delete().in('registration_id', regIds)
+      }
+      
+      // 7. Client registrations
+      await supabaseAdmin.from('client_registrations').delete().eq('company_id', body.company_id)
+      
+      // 8. Client scores
+      await supabaseAdmin.from('client_scores').delete().eq('company_id', body.company_id)
+      
+      // 9. Client escalation history
+      await supabaseAdmin.from('client_escalation_history').delete().eq('company_id', body.company_id)
+      
+      // 10. Clients
+      await supabaseAdmin.from('clients').delete().eq('company_id', body.company_id)
+      
+      // 11. Expenses
+      await supabaseAdmin.from('expenses').delete().eq('company_id', body.company_id)
+      
+      // 12. Expense categories
+      await supabaseAdmin.from('expense_categories').delete().eq('company_id', body.company_id)
+      
+      // 13. Expense notification settings/logs
+      await supabaseAdmin.from('expense_notification_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('expense_notification_settings').delete().eq('company_id', body.company_id)
+      
+      // 14. Payment notification settings
+      await supabaseAdmin.from('payment_notification_settings').delete().eq('company_id', body.company_id)
+      
+      // 15. Contract templates
+      await supabaseAdmin.from('contract_templates').delete().eq('company_id', body.company_id)
+      
+      // 16. Bank accounts
+      await supabaseAdmin.from('bank_accounts').delete().eq('company_id', body.company_id)
+      
+      // 17. Integration settings
+      await supabaseAdmin.from('asaas_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('asaas_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('assinafy_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('assinafy_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('gerencianet_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('gerencianet_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('inter_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('inter_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('mercadopago_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('mercadopago_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('whatsapp_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('whatsapp_logs').delete().eq('company_id', body.company_id)
+      
+      // 18. AI settings and logs
+      await supabaseAdmin.from('ai_collection_settings').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('ai_collection_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('ai_weekly_reports').delete().eq('company_id', body.company_id)
+      
+      // 19. Company API keys and usage logs
+      await supabaseAdmin.from('api_usage_logs').delete().eq('company_id', body.company_id)
+      await supabaseAdmin.from('company_api_keys').delete().eq('company_id', body.company_id)
+      
+      // 20. Company activity logs
+      await supabaseAdmin.from('company_activity_logs').delete().eq('company_id', body.company_id)
+      
+      // 21. Admin notification logs
+      await supabaseAdmin.from('admin_notification_logs').delete().eq('company_id', body.company_id)
+      
+      // 22. Company branding
+      await supabaseAdmin.from('company_branding').delete().eq('company_id', body.company_id)
+      
+      // 23. Company credentials
+      await supabaseAdmin.from('company_credentials').delete().eq('company_id', body.company_id)
+      
+      // 24. Company late fee settings
+      await supabaseAdmin.from('company_late_fee_settings').delete().eq('company_id', body.company_id)
+      
+      // 25. Company limits
+      await supabaseAdmin.from('company_limits').delete().eq('company_id', body.company_id)
+      
+      // 26. Company subscriptions
+      await supabaseAdmin.from('company_subscriptions').delete().eq('company_id', body.company_id)
+      
+      // 27. Profiles (users)
+      await supabaseAdmin.from('profiles').delete().eq('company_id', body.company_id)
+      
+      // 28. Finally, delete the company
+      const { error: deleteError } = await supabaseAdmin
+        .from('companies')
+        .delete()
+        .eq('id', body.company_id)
+
+      if (deleteError) {
+        console.error('Failed to delete company:', deleteError)
+        return new Response(
+          JSON.stringify({ error: deleteError.message }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      console.log('Company deleted successfully:', body.company_id)
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: corsHeaders }
+      )
+    }
+
     return new Response(
       JSON.stringify({ error: 'Invalid action' }),
       { status: 400, headers: corsHeaders }
