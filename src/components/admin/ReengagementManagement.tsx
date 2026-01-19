@@ -4,13 +4,23 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReengagement } from '@/hooks/useReengagement';
 import { formatDateBR } from '@/lib/timezone';
-import { Mail, Send, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Users } from 'lucide-react';
+import { Mail, Send, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Users, RotateCcw } from 'lucide-react';
+
+type TemplateType = 'first_reminder' | 'second_reminder' | 'last_chance';
+
+const TEMPLATE_LABELS: Record<TemplateType, string> = {
+  first_reminder: 'Primeiro Lembrete',
+  second_reminder: 'Segundo Lembrete',
+  last_chance: 'Última Chance'
+};
 
 export function ReengagementManagement() {
   const { inactiveCompanies, emailLogs, stats, loading, sending, loadData, sendEmails } = useReengagement();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('first_reminder');
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => 
@@ -21,30 +31,25 @@ export function ReengagementManagement() {
   };
 
   const toggleSelectAll = () => {
-    const selectableIds = inactiveCompanies
-      .filter(c => !c.already_sent)
-      .map(c => c.id);
+    const allIds = inactiveCompanies.map(c => c.id);
     
-    if (selectedIds.length === selectableIds.length) {
+    if (selectedIds.length === allIds.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(selectableIds);
+      setSelectedIds(allIds);
     }
   };
 
-  const handleSendSelected = () => {
+  const handleSendSelected = (forceSend: boolean = false) => {
     if (selectedIds.length === 0) return;
-    sendEmails(selectedIds);
+    sendEmails(selectedIds, selectedTemplate, forceSend);
     setSelectedIds([]);
   };
 
-  const handleSendAll = () => {
-    const eligibleIds = inactiveCompanies
-      .filter(c => !c.already_sent)
-      .map(c => c.id);
-    
-    if (eligibleIds.length === 0) return;
-    sendEmails(eligibleIds);
+  const handleSendAll = (forceSend: boolean = false) => {
+    const allIds = inactiveCompanies.map(c => c.id);
+    if (allIds.length === 0) return;
+    sendEmails(allIds, selectedTemplate, forceSend);
   };
 
   const getStatusBadge = (status: string) => {
@@ -57,6 +62,19 @@ export function ReengagementManagement() {
         return <Badge variant="secondary" className="gap-1"><Clock className="w-3 h-3" /> Pendente</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getTemplateBadge = (templateType: string) => {
+    switch (templateType) {
+      case 'first_reminder':
+        return <Badge variant="secondary">1º Lembrete</Badge>;
+      case 'second_reminder':
+        return <Badge variant="outline" className="border-amber-500 text-amber-600">2º Lembrete</Badge>;
+      case 'last_chance':
+        return <Badge variant="destructive">Última Chance</Badge>;
+      default:
+        return <Badge variant="outline">{templateType}</Badge>;
     }
   };
 
@@ -138,13 +156,35 @@ export function ReengagementManagement() {
             </div>
           ) : (
             <>
+              {/* Template Selector */}
+              <div className="flex items-center gap-4 mb-4 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Template:</span>
+                  <Select value={selectedTemplate} onValueChange={(v) => setSelectedTemplate(v as TemplateType)}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="first_reminder">🚀 Primeiro Lembrete</SelectItem>
+                      <SelectItem value="second_reminder">⏰ Segundo Lembrete</SelectItem>
+                      <SelectItem value="last_chance">⚠️ Última Chance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {selectedTemplate === 'first_reminder' && 'Email de boas-vindas e primeiros passos'}
+                  {selectedTemplate === 'second_reminder' && 'Lembrete amigável com oferta de ajuda'}
+                  {selectedTemplate === 'last_chance' && 'Aviso de possível desativação da conta'}
+                </div>
+              </div>
+
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">
                         <Checkbox 
-                          checked={selectedIds.length === inactiveCompanies.filter(c => !c.already_sent).length && selectedIds.length > 0}
+                          checked={selectedIds.length === inactiveCompanies.length && selectedIds.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
@@ -162,7 +202,6 @@ export function ReengagementManagement() {
                           <Checkbox 
                             checked={selectedIds.includes(company.id)}
                             onCheckedChange={() => toggleSelect(company.id)}
-                            disabled={company.already_sent}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{company.name}</TableCell>
@@ -190,9 +229,9 @@ export function ReengagementManagement() {
                 </Table>
               </div>
 
-              <div className="flex gap-2 mt-4">
+              <div className="flex flex-wrap gap-2 mt-4">
                 <Button 
-                  onClick={handleSendSelected} 
+                  onClick={() => handleSendSelected(false)} 
                   disabled={selectedIds.length === 0 || sending}
                 >
                   <Send className="w-4 h-4 mr-2" />
@@ -200,13 +239,31 @@ export function ReengagementManagement() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={handleSendAll}
-                  disabled={sending || inactiveCompanies.filter(c => !c.already_sent).length === 0}
+                  onClick={() => handleSendAll(false)}
+                  disabled={sending || inactiveCompanies.length === 0}
                 >
                   <Mail className="w-4 h-4 mr-2" />
-                  Enviar para Todos Elegíveis
+                  Enviar para Todos
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    if (selectedIds.length === 0) {
+                      handleSendAll(true);
+                    } else {
+                      handleSendSelected(true);
+                    }
+                  }}
+                  disabled={sending}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Forçar Reenvio {selectedIds.length > 0 ? `(${selectedIds.length})` : '(Todos)'}
                 </Button>
               </div>
+              
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 Use "Forçar Reenvio" para enviar novamente mesmo para empresas que já receberam este template.
+              </p>
             </>
           )}
         </CardContent>
@@ -232,6 +289,7 @@ export function ReengagementManagement() {
                   <TableRow>
                     <TableHead>Empresa</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Template</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -241,6 +299,7 @@ export function ReengagementManagement() {
                     <TableRow key={log.id}>
                       <TableCell className="font-medium">{log.company_name}</TableCell>
                       <TableCell>{log.email}</TableCell>
+                      <TableCell>{getTemplateBadge(log.template_type)}</TableCell>
                       <TableCell>{log.sent_at ? formatDateBR(log.sent_at) : '-'}</TableCell>
                       <TableCell>{getStatusBadge(log.status)}</TableCell>
                     </TableRow>

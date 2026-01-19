@@ -123,7 +123,7 @@ export function useReengagement() {
     }
   };
 
-  const sendEmails = async (companyIds?: string[]) => {
+  const sendEmails = async (companyIds?: string[], templateType: string = 'first_reminder', forceSend: boolean = false) => {
     setSending(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -140,6 +140,8 @@ export function useReengagement() {
           body: JSON.stringify({ 
             company_ids: companyIds,
             min_days_inactive: 3,
+            template_type: templateType,
+            force_send: forceSend,
             dry_run: false
           })
         }
@@ -160,7 +162,7 @@ export function useReengagement() {
         toast.success(`${sent} email(s) enviado(s) com sucesso!`);
       }
       if (skipped > 0) {
-        toast.info(`${skipped} empresa(s) já receberam email anteriormente`);
+        toast.info(`${skipped} empresa(s) puladas (sem email ou já enviado)`);
       }
       if (failed > 0) {
         toast.error(`${failed} email(s) falharam ao enviar`);
