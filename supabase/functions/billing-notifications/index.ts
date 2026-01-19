@@ -225,6 +225,50 @@ serve(async (req) => {
     
     console.log('📥 Request params:', { payment_id, company_id, trigger, force, scheduled_time, notification_id });
     
+    // ==================== PROTEÇÃO CONTRA JOBS CONCORRENTES ====================
+    // Verificar se já existe um job em execução (evita duplicação)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    
+    // Primeiro: limpar jobs travados há mais de 10 minutos
+    const { data: stuckJobs } = await supabase
+      .from('cron_execution_logs')
+      .update({
+        status: 'failed',
+        finished_at: new Date().toISOString(),
+        error_message: 'Timeout automático - job travado por mais de 10 minutos'
+      })
+      .eq('job_name', 'billing-notifications-function')
+      .eq('status', 'running')
+      .lt('started_at', tenMinutesAgo)
+      .select('id');
+    
+    if (stuckJobs && stuckJobs.length > 0) {
+      console.log(`🧹 Cleaned up ${stuckJobs.length} stuck jobs`);
+    }
+    
+    // Segundo: verificar se há jobs recentes em execução (últimos 5 minutos)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: runningJobs } = await supabase
+      .from('cron_execution_logs')
+      .select('id, started_at')
+      .eq('job_name', 'billing-notifications-function')
+      .eq('status', 'running')
+      .gt('started_at', fiveMinutesAgo);
+    
+    if (runningJobs && runningJobs.length > 0) {
+      console.log(`⚠️ Found ${runningJobs.length} running jobs. Skipping to avoid duplication.`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: 'Outro job ainda está em execução',
+          skipped: true,
+          running_job_ids: runningJobs.map(j => j.id)
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // ==================== FIM PROTEÇÃO JOBS CONCORRENTES ====================
+    
     // Log execution start for monitoring
     const { data: logEntry } = await supabase
       .from('cron_execution_logs')
@@ -489,6 +533,7 @@ async function processCompanyNotifications(companyId: string, force = false) {
   bufferTime.setMinutes(bufferTime.getMinutes() + 5);
   
   // Buscar notificações pendentes APENAS desta empresa
+  // IMPORTANTE: Exclui status 'sending' para evitar duplicação por jobs concorrentes
   const { data: notifications, error } = await supabase
     .from('payment_notifications')
     .select(`
@@ -496,7 +541,7 @@ async function processCompanyNotifications(companyId: string, force = false) {
       payment_transactions!inner(*, clients(name, phone, email))
     `)
     .eq('company_id', companyId)
-    .eq('status', 'pending')
+    .eq('status', 'pending')  // Apenas 'pending', exclui 'sending'
     .lte('scheduled_for', bufferTime.toISOString())
     .order('offset_days', { ascending: true })
     .order('scheduled_for', { ascending: true })
@@ -579,9 +624,40 @@ async function processCompanyNotifications(companyId: string, force = false) {
     }
     
     try {
+      // ==================== PROTEÇÃO ANTI-DUPLICAÇÃO ====================
+      // PASSO 1: Marcar como "sending" ANTES de enviar (evita que outro job processe)
+      const { error: lockError } = await supabase
+        .from('payment_notifications')
+        .update({
+          status: 'sending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notification.id)
+        .eq('status', 'pending');  // Só atualiza se ainda estiver pending (lock otimista)
+      
+      if (lockError) {
+        console.log(`⚠️ [COMPANY ${companyId}] Could not lock notification ${notification.id} - may be processed by another job`);
+        results.skipped++;
+        continue;
+      }
+      
+      // Verificar se conseguimos o lock (outra instância pode ter atualizado antes)
+      const { data: lockedNotif } = await supabase
+        .from('payment_notifications')
+        .select('status')
+        .eq('id', notification.id)
+        .single();
+      
+      if (lockedNotif?.status !== 'sending') {
+        console.log(`⚠️ [COMPANY ${companyId}] Notification ${notification.id} was processed by another job`);
+        results.skipped++;
+        continue;
+      }
+      // ==================== FIM PROTEÇÃO ANTI-DUPLICAÇÃO ====================
+      
       await sendSingleNotification(notification);
       
-      // Mark as sent
+      // PASSO 2: Marcar como "sent" DEPOIS de enviar com sucesso
       await supabase
         .from('payment_notifications')
         .update({
@@ -607,7 +683,7 @@ async function processCompanyNotifications(companyId: string, force = false) {
       if ((error as any).isCircuitBreaker || (error instanceof Error && error.message.includes('[CIRCUIT_BREAKER]'))) {
         console.error(`🔌 [CIRCUIT BREAKER] Company ${companyId} - WhatsApp disconnected, stopping all notifications`);
         
-        // Marcar esta notificação como failed
+        // Marcar esta notificação como failed (estava em 'sending')
         await supabase
           .from('payment_notifications')
           .update({
@@ -627,6 +703,7 @@ async function processCompanyNotifications(companyId: string, force = false) {
       
       const newAttempts = notification.attempts + 1;
       const maxAttempts = 3;
+      // Se falhou, volta para 'pending' para tentar novamente (ou 'failed' se excedeu tentativas)
       const status = newAttempts >= maxAttempts ? 'failed' : 'pending';
       
       await supabase
