@@ -115,6 +115,10 @@ serve(async (req) => {
       // Atualizar status da transação
       let newStatus = transaction.status // Manter status atual por padrão
       let paidAt = null
+      let statusPreserved = false
+
+      // IMPORTANTE: Se já está pago, NÃO permite regredir para outro status (exceto refund)
+      const isPaid = transaction.status === 'paid'
 
       switch (paymentData.status) {
         case 'approved':
@@ -124,17 +128,30 @@ serve(async (req) => {
           break
         case 'rejected':
         case 'cancelled':
-          newStatus = 'cancelled'
-          console.log('Payment rejected/cancelled')
+          // Só marca como cancelled se NÃO estiver pago
+          if (!isPaid) {
+            newStatus = 'cancelled'
+            console.log('Payment rejected/cancelled')
+          } else {
+            console.log(`⚠️ Ignorando cancelled/rejected - pagamento ${transaction.id} já está pago. Status preservado.`)
+            statusPreserved = true
+          }
           break
         case 'refunded':
+          // Refund pode sobrescrever paid (é uma reversão legítima)
           newStatus = 'refunded'
           console.log('Payment refunded')
           break
         case 'in_process':
         case 'pending':
-          newStatus = 'pending'
-          console.log('Payment in process/pending')
+          // Só muda para pending se não estiver pago
+          if (!isPaid) {
+            newStatus = 'pending'
+            console.log('Payment in process/pending')
+          } else {
+            console.log(`⚠️ Ignorando pending/in_process - pagamento ${transaction.id} já está pago. Status preservado.`)
+            statusPreserved = true
+          }
           break
         default:
           console.log('Unknown payment status:', paymentData.status)
@@ -166,7 +183,7 @@ serve(async (req) => {
         operation_type: 'webhook',
         status: updateError ? 'error' : 'success',
         request_data: body,
-        response_data: paymentData
+        response_data: { ...paymentData, status_preserved: statusPreserved }
       })
     }
 
