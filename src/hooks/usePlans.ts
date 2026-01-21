@@ -18,6 +18,7 @@ export interface Plan {
 export function usePlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contractCounts, setContractCounts] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   const loadPlans = async () => {
@@ -50,6 +51,19 @@ export function usePlans() {
       }
 
       setPlans(data || []);
+
+      // Carregar contagem de contratos para cada plano
+      if (data && data.length > 0) {
+        const counts: Record<string, number> = {};
+        for (const plan of data) {
+          const { count } = await supabase
+            .from('contracts')
+            .select('*', { count: 'exact', head: true })
+            .eq('plan_id', plan.id);
+          counts[plan.id] = count || 0;
+        }
+        setContractCounts(counts);
+      }
     } catch (error: any) {
       console.error('Erro ao carregar planos:', error);
       toast({
@@ -105,7 +119,7 @@ export function usePlans() {
         description: "Plano criado com sucesso!"
       });
 
-      await loadPlans(); // Recarregar a lista
+      await loadPlans();
     } catch (error: any) {
       console.error('Erro ao criar plano:', error);
       toast({
@@ -133,7 +147,7 @@ export function usePlans() {
         description: "Plano atualizado com sucesso!"
       });
 
-      await loadPlans(); // Recarregar a lista
+      await loadPlans();
     } catch (error: any) {
       console.error('Erro ao atualizar plano:', error);
       toast({
@@ -145,14 +159,40 @@ export function usePlans() {
     }
   };
 
-  const deletePlan = async (planId: string) => {
+  const deletePlan = async (planId: string): Promise<boolean> => {
     try {
+      // Verificar se há contratos usando este plano
+      const { count, error: countError } = await supabase
+        .from('contracts')
+        .select('*', { count: 'exact', head: true })
+        .eq('plan_id', planId);
+
+      if (countError) throw countError;
+
+      if (count && count > 0) {
+        toast({
+          title: "Não é possível excluir",
+          description: `Este plano possui ${count} contrato(s) vinculado(s). Desative o plano ou remova os contratos primeiro.`,
+          variant: "destructive"
+        });
+        return false;
+      }
+
       const { error } = await supabase
         .from('plans')
         .delete()
         .eq('id', planId);
 
       if (error) {
+        // Se o banco bloquear por causa da constraint RESTRICT
+        if (error.message.includes('violates foreign key constraint')) {
+          toast({
+            title: "Não é possível excluir",
+            description: "Este plano possui contratos vinculados. Desative o plano ao invés de excluir.",
+            variant: "destructive"
+          });
+          return false;
+        }
         throw error;
       }
 
@@ -161,7 +201,8 @@ export function usePlans() {
         description: "Plano removido com sucesso!"
       });
 
-      await loadPlans(); // Recarregar a lista
+      await loadPlans();
+      return true;
     } catch (error: any) {
       console.error('Erro ao remover plano:', error);
       toast({
@@ -173,6 +214,43 @@ export function usePlans() {
     }
   };
 
+  const deactivatePlan = async (planId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('plans')
+        .update({ is_active: false })
+        .eq('id', planId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Plano desativado com sucesso! Ele não aparecerá em novas contratações."
+      });
+
+      await loadPlans();
+      return true;
+    } catch (error: any) {
+      console.error('Erro ao desativar plano:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao desativar plano",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const getContractCount = async (planId: string): Promise<number> => {
+    const { count } = await supabase
+      .from('contracts')
+      .select('*', { count: 'exact', head: true })
+      .eq('plan_id', planId);
+    return count || 0;
+  };
+
   useEffect(() => {
     loadPlans();
   }, []);
@@ -180,9 +258,12 @@ export function usePlans() {
   return {
     plans,
     loading,
+    contractCounts,
     loadPlans,
     createPlan,
     updatePlan,
-    deletePlan
+    deletePlan,
+    deactivatePlan,
+    getContractCount
   };
 }
