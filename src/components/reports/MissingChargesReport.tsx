@@ -9,6 +9,7 @@ interface MissingChargesReportProps {
   totalEstimatedValue: number;
   totalVehicles: number;
   clientsWithoutContract: number;
+  selectedCompanyName?: string | null;
 }
 
 const formatPhone = (phone: string | null) => {
@@ -31,8 +32,9 @@ const formatCurrency = (value: number) => {
 };
 
 export const MissingChargesReport = forwardRef<HTMLDivElement, MissingChargesReportProps>(
-  ({ clients, companySummary, totalEstimatedValue, totalVehicles, clientsWithoutContract }, ref) => {
+  ({ clients, companySummary, totalEstimatedValue, totalVehicles, clientsWithoutContract, selectedCompanyName }, ref) => {
     const now = new Date();
+    const isSingleCompany = !!selectedCompanyName;
 
     return (
       <div ref={ref} className="p-6 bg-white text-black min-w-[800px]">
@@ -41,6 +43,11 @@ export const MissingChargesReport = forwardRef<HTMLDivElement, MissingChargesRep
           <h1 className="text-2xl font-bold text-amber-700 flex items-center gap-2">
             ⚠️ RELATÓRIO DE AUDITORIA - CLIENTES SEM COBRANÇA
           </h1>
+          {selectedCompanyName && (
+            <p className="text-lg font-semibold text-gray-800 mt-1">
+              Empresa: {selectedCompanyName}
+            </p>
+          )}
           <p className="text-gray-600 text-sm mt-1">
             Gerado em: {formatDateTimeBR(now)}
           </p>
@@ -66,28 +73,30 @@ export const MissingChargesReport = forwardRef<HTMLDivElement, MissingChargesRep
           </div>
         </div>
 
-        {/* Company Distribution */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
-            📊 Distribuição por Empresa
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {companySummary.map((company) => (
-              <div 
-                key={company.company_name} 
-                className="flex justify-between items-center bg-gray-50 border rounded px-4 py-2"
-              >
-                <span className="font-medium text-gray-700">{company.company_name}</span>
-                <div className="text-right">
-                  <span className="text-amber-700 font-semibold">{company.client_count} clientes</span>
-                  <span className="text-gray-500 text-sm ml-2">
-                    ({formatCurrency(company.total_value)})
-                  </span>
+        {/* Company Distribution - Hide when single company selected */}
+        {!isSingleCompany && companySummary.length > 1 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
+              📊 Distribuição por Empresa
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              {companySummary.map((company) => (
+                <div 
+                  key={company.company_name} 
+                  className="flex justify-between items-center bg-gray-50 border rounded px-4 py-2"
+                >
+                  <span className="font-medium text-gray-700">{company.company_name}</span>
+                  <div className="text-right">
+                    <span className="text-amber-700 font-semibold">{company.client_count} clientes</span>
+                    <span className="text-gray-500 text-sm ml-2">
+                      ({formatCurrency(company.total_value)})
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Detailed Table */}
         <div className="mb-6">
@@ -99,7 +108,9 @@ export const MissingChargesReport = forwardRef<HTMLDivElement, MissingChargesRep
               <TableRow className="bg-amber-100">
                 <TableHead className="font-bold text-amber-800">#</TableHead>
                 <TableHead className="font-bold text-amber-800">Cliente</TableHead>
-                <TableHead className="font-bold text-amber-800">Empresa</TableHead>
+                {!isSingleCompany && (
+                  <TableHead className="font-bold text-amber-800">Empresa</TableHead>
+                )}
                 <TableHead className="font-bold text-amber-800">Telefone</TableHead>
                 <TableHead className="font-bold text-amber-800 text-center">Veículos</TableHead>
                 <TableHead className="font-bold text-amber-800 text-right">Valor Estimado</TableHead>
@@ -114,7 +125,9 @@ export const MissingChargesReport = forwardRef<HTMLDivElement, MissingChargesRep
                 >
                   <TableCell className="text-gray-500 text-sm">{index + 1}</TableCell>
                   <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell className="text-gray-600">{client.company_name}</TableCell>
+                  {!isSingleCompany && (
+                    <TableCell className="text-gray-600">{client.company_name}</TableCell>
+                  )}
                   <TableCell className="text-gray-600">{formatPhone(client.phone)}</TableCell>
                   <TableCell className="text-center">
                     <span className={`px-2 py-1 rounded text-sm ${

@@ -3,7 +3,8 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Download, FileText, BarChart3, Users, Loader2, FileSpreadsheet, AlertTriangle } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Download, FileText, BarChart3, Users, Loader2, FileSpreadsheet, AlertTriangle, Building2 } from "lucide-react"
 import { useClients } from "@/hooks/useClients"
 import { usePayments } from "@/hooks/usePayments"
 import { useMissingCharges } from "@/hooks/useMissingCharges"
@@ -17,14 +18,19 @@ import { differenceInDays, parseISO } from "date-fns"
 const ReportsPage = () => {
   const { clients, loading: loadingClients } = useClients()
   const { payments, loading: loadingPayments } = usePayments()
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('all')
+  
   const { 
     clients: missingChargesClients, 
     companySummary,
+    availableCompanies,
+    isSuperAdmin,
+    selectedCompanyName,
     loading: loadingMissing,
     totalEstimatedValue,
     totalVehicles,
     clientsWithoutContract
-  } = useMissingCharges()
+  } = useMissingCharges(selectedCompanyFilter)
   
   const [selectedReport, setSelectedReport] = useState<'clients' | 'financial' | 'delinquency' | 'missingCharges' | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -247,7 +253,25 @@ const ReportsPage = () => {
                 Clientes ativos sem cobrança pendente ({missingChargesClients.length} clientes)
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              {/* Company Filter - Only for super_admin */}
+              {isSuperAdmin && availableCompanies.length > 0 && (
+                <Select value={selectedCompanyFilter} onValueChange={setSelectedCompanyFilter}>
+                  <SelectTrigger className="w-full">
+                    <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Selecione a empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as empresas</SelectItem>
+                    {availableCompanies.map(company => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              
               <Button 
                 variant="outline" 
                 className="w-full border-amber-300 hover:bg-amber-100"
@@ -301,6 +325,7 @@ const ReportsPage = () => {
                 totalEstimatedValue={totalEstimatedValue}
                 totalVehicles={totalVehicles}
                 clientsWithoutContract={clientsWithoutContract}
+                selectedCompanyName={selectedCompanyName}
               />
             )}
           </div>

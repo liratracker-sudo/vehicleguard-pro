@@ -21,11 +21,18 @@ export interface CompanySummary {
   total_value: number;
 }
 
+export interface AvailableCompany {
+  id: string;
+  name: string;
+}
+
 const DEFAULT_VEHICLE_VALUE = 53.90;
 
-export const useMissingCharges = () => {
+export const useMissingCharges = (selectedCompanyId?: string | null) => {
   const [clients, setClients] = useState<ClientWithoutCharge[]>([]);
   const [companySummary, setCompanySummary] = useState<CompanySummary[]>([]);
+  const [availableCompanies, setAvailableCompanies] = useState<AvailableCompany[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const { companyId } = useCompanyId();
 
@@ -40,14 +47,24 @@ export const useMissingCharges = () => {
         const { data: userData } = await supabase.auth.getUser();
         const userId = userData.user?.id;
         
-        let isSuperAdmin = false;
+        let userIsSuperAdmin = false;
         if (userId) {
           const { data: userRoles } = await supabase
             .from('user_roles')
             .select('role')
             .eq('user_id', userId)
             .single();
-          isSuperAdmin = userRoles?.role === 'super_admin';
+          userIsSuperAdmin = userRoles?.role === 'super_admin';
+        }
+        setIsSuperAdmin(userIsSuperAdmin);
+
+        // Fetch all companies for super_admin
+        if (userIsSuperAdmin) {
+          const { data: allCompanies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .order('name');
+          setAvailableCompanies(allCompanies || []);
         }
 
         // Fetch active clients with company info
@@ -56,8 +73,10 @@ export const useMissingCharges = () => {
           .select('id, name, phone, company_id, created_at')
           .eq('status', 'active');
 
-        if (!isSuperAdmin) {
+        if (!userIsSuperAdmin) {
           clientsQuery = clientsQuery.eq('company_id', companyId);
+        } else if (selectedCompanyId && selectedCompanyId !== 'all') {
+          clientsQuery = clientsQuery.eq('company_id', selectedCompanyId);
         }
 
         const { data: activeClients, error: clientsError } = await clientsQuery;
@@ -195,15 +214,23 @@ export const useMissingCharges = () => {
     };
 
     fetchMissingCharges();
-  }, [companyId]);
+  }, [companyId, selectedCompanyId]);
 
   const totalEstimatedValue = clients.reduce((sum, c) => sum + c.estimated_value, 0);
   const totalVehicles = clients.reduce((sum, c) => sum + c.vehicle_count, 0);
   const clientsWithoutContract = clients.filter(c => !c.has_contract).length;
 
+  // Get selected company name
+  const selectedCompanyName = selectedCompanyId && selectedCompanyId !== 'all'
+    ? availableCompanies.find(c => c.id === selectedCompanyId)?.name || null
+    : null;
+
   return { 
     clients, 
     companySummary,
+    availableCompanies,
+    isSuperAdmin,
+    selectedCompanyName,
     loading,
     totalEstimatedValue,
     totalVehicles,
