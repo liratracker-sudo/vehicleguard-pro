@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.expense-notifications]
 verify_jwt = false
+
+[functions.client-portal-api]
+verify_jwt = false
