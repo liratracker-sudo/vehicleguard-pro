@@ -3,11 +3,13 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Download, FileText, BarChart3, Users, Loader2, FileSpreadsheet } from "lucide-react"
+import { Download, FileText, BarChart3, Users, Loader2, FileSpreadsheet, AlertTriangle } from "lucide-react"
 import { useClients } from "@/hooks/useClients"
 import { usePayments } from "@/hooks/usePayments"
+import { useMissingCharges } from "@/hooks/useMissingCharges"
 import { ClientsReport } from "@/components/reports/ClientsReport"
 import { DelinquencyReport } from "@/components/reports/DelinquencyReport"
+import { MissingChargesReport } from "@/components/reports/MissingChargesReport"
 import { toast } from "sonner"
 import html2pdf from "html2pdf.js"
 import { differenceInDays, parseISO } from "date-fns"
@@ -15,12 +17,21 @@ import { differenceInDays, parseISO } from "date-fns"
 const ReportsPage = () => {
   const { clients, loading: loadingClients } = useClients()
   const { payments, loading: loadingPayments } = usePayments()
+  const { 
+    clients: missingChargesClients, 
+    companySummary,
+    loading: loadingMissing,
+    totalEstimatedValue,
+    totalVehicles,
+    clientsWithoutContract
+  } = useMissingCharges()
   
-  const [selectedReport, setSelectedReport] = useState<'clients' | 'financial' | 'delinquency' | null>(null)
+  const [selectedReport, setSelectedReport] = useState<'clients' | 'financial' | 'delinquency' | 'missingCharges' | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   
   const clientsReportRef = useRef<HTMLDivElement>(null)
   const delinquencyReportRef = useRef<HTMLDivElement>(null)
+  const missingChargesReportRef = useRef<HTMLDivElement>(null)
 
   // Calculate overdue payments
   const overduePayments = payments
@@ -33,18 +44,35 @@ const ReportsPage = () => {
       days_overdue: differenceInDays(new Date(), parseISO(p.due_date!))
     }))
 
-  const handleExportPDF = async (reportType: 'clients' | 'delinquency') => {
-    const ref = reportType === 'clients' ? clientsReportRef.current : delinquencyReportRef.current
+  const handleExportPDF = async (reportType: 'clients' | 'delinquency' | 'missingCharges') => {
+    let ref: HTMLDivElement | null = null;
+    let filename = '';
+
+    switch (reportType) {
+      case 'clients':
+        ref = clientsReportRef.current;
+        filename = 'clientes';
+        break;
+      case 'delinquency':
+        ref = delinquencyReportRef.current;
+        filename = 'inadimplencia';
+        break;
+      case 'missingCharges':
+        ref = missingChargesReportRef.current;
+        filename = 'auditoria-sem-cobranca';
+        break;
+    }
+
     if (!ref) return
 
     setIsExporting(true)
     try {
       const opt = {
         margin: 10,
-        filename: `relatorio-${reportType === 'clients' ? 'clientes' : 'inadimplencia'}-${new Date().toISOString().split('T')[0]}.pdf`,
+        filename: `relatorio-${filename}-${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: reportType === 'missingCharges' ? 'landscape' as const : 'portrait' as const }
       }
 
       await html2pdf().set(opt).from(ref).save()
@@ -108,11 +136,12 @@ const ReportsPage = () => {
     switch (selectedReport) {
       case 'clients': return 'Relatório de Clientes'
       case 'delinquency': return 'Relatório de Inadimplência'
+      case 'missingCharges': return 'Auditoria - Clientes Sem Cobrança'
       default: return ''
     }
   }
 
-  const isLoading = loadingClients || loadingPayments
+  const isLoading = loadingClients || loadingPayments || loadingMissing
 
   return (
     <AppLayout>
@@ -207,17 +236,44 @@ const ReportsPage = () => {
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="border-amber-200 bg-amber-50/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-700">
+                <AlertTriangle className="w-5 h-5" />
+                Auditoria - Sem Cobrança
+              </CardTitle>
+              <CardDescription>
+                Clientes ativos sem cobrança pendente ({missingChargesClients.length} clientes)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                variant="outline" 
+                className="w-full border-amber-300 hover:bg-amber-100"
+                onClick={() => setSelectedReport('missingCharges')}
+                disabled={loadingMissing}
+              >
+                {loadingMissing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                Visualizar PDF
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       {/* Report Dialog */}
       <Dialog open={selectedReport !== null && selectedReport !== 'financial'} onOpenChange={() => setSelectedReport(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+        <DialogContent className={`max-h-[90vh] overflow-auto ${selectedReport === 'missingCharges' ? 'max-w-6xl' : 'max-w-4xl'}`}>
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>{getReportTitle()}</span>
               <Button 
-                onClick={() => handleExportPDF(selectedReport as 'clients' | 'delinquency')}
+                onClick={() => handleExportPDF(selectedReport as 'clients' | 'delinquency' | 'missingCharges')}
                 disabled={isExporting}
               >
                 {isExporting ? (
@@ -236,6 +292,16 @@ const ReportsPage = () => {
             )}
             {selectedReport === 'delinquency' && (
               <DelinquencyReport ref={delinquencyReportRef} overduePayments={overduePayments} />
+            )}
+            {selectedReport === 'missingCharges' && (
+              <MissingChargesReport 
+                ref={missingChargesReportRef} 
+                clients={missingChargesClients}
+                companySummary={companySummary}
+                totalEstimatedValue={totalEstimatedValue}
+                totalVehicles={totalVehicles}
+                clientsWithoutContract={clientsWithoutContract}
+              />
             )}
           </div>
         </DialogContent>
