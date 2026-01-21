@@ -605,10 +605,13 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     console.log("⏳ Waiting for document processing to complete...");
     let documentReady = false;
     let attempts = 0;
-    const maxAttempts = 20; // 20 seconds max
+    const maxAttempts = 45; // 90 seconds max (45 x 2s)
+    
+    // Status that indicate document is ready for assignment
+    const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures'];
     
     while (!documentReady && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
       attempts++;
       
       try {
@@ -623,14 +626,21 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
           const currentStatus = statusData.data?.status;
-          console.log(`📊 Document status (attempt ${attempts}): ${currentStatus}`);
+          console.log(`📊 Document status (attempt ${attempts}/${maxAttempts}): ${currentStatus}`);
           
-          if (currentStatus === 'uploaded') {
+          // Check if document is ready for assignment
+          if (readyStatuses.includes(currentStatus)) {
             documentReady = true;
-            console.log("✅ Document is ready for assignment!");
-          } else if (currentStatus !== 'metadata_processing') {
-            console.warn(`⚠️ Unexpected document status: ${currentStatus}`);
-            break;
+            console.log(`✅ Document is ready for assignment! Status: ${currentStatus}`);
+          } else if (currentStatus === 'uploaded') {
+            console.log(`⏳ Document uploaded but still processing... (attempt ${attempts}/${maxAttempts})`);
+            // Continue waiting - DO NOT mark as ready!
+          } else if (currentStatus === 'metadata_processing' || currentStatus === 'processing') {
+            console.log(`⏳ Document still processing: ${currentStatus}`);
+            // Continue waiting
+          } else {
+            console.warn(`⚠️ Unexpected document status: ${currentStatus}, will try assignment anyway`);
+            // Unknown status, try assignment after timeout
           }
         }
       } catch (error) {
@@ -639,34 +649,62 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     }
     
     if (!documentReady) {
-      console.warn("⚠️ Document processing timeout, attempting assignment anyway...");
+      console.warn("⚠️ Document processing timeout after 90s, will attempt assignment with retries...");
     }
 
-    // Create assignment for signers
+    // Create assignment for signers with retry mechanism
     console.log("📝 Creating assignment for document:", documentId);
     console.log("📋 Signers:", signerIds.length === 1 ? "Client only" : "Client + Manager");
     
-    const assignmentResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/documents/${documentId}/assignments`,
-      'POST',
-      apiKey,
-      {
-        signer_ids: signerIds,
-        method: "virtual",
-        message: `Contrato: ${contractData.title}`
-      }
-    );
+    let assignmentCreated = false;
+    let assignmentAttempts = 0;
+    const maxAssignmentAttempts = 3;
+    let lastAssignmentError = '';
     
-    if (!assignmentResponse.ok) {
-      const errorText = await assignmentResponse.text();
-      console.error("❌ Assignment creation failed:", errorText);
-      logData.response_data.assignmentError = errorText;
-      // Continue anyway, document was created
-    } else {
-      const assignmentData = await assignmentResponse.json();
-      console.log("✅ Assignment created successfully!");
-      console.log("📋 Assignment data:", JSON.stringify(assignmentData, null, 2));
-      logData.response_data.assignment = assignmentData;
+    while (!assignmentCreated && assignmentAttempts < maxAssignmentAttempts) {
+      assignmentAttempts++;
+      
+      // Progressive wait between attempts: 0s, 3s, 6s
+      if (assignmentAttempts > 1) {
+        const waitTime = assignmentAttempts * 3000;
+        console.log(`⏳ Assignment retry ${assignmentAttempts}, waiting ${waitTime/1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      const assignmentResponse = await makeAssinafyRequest(
+        `https://api.assinafy.com.br/v1/documents/${documentId}/assignments`,
+        'POST',
+        apiKey,
+        {
+          signer_ids: signerIds,
+          method: "virtual",
+          message: `Contrato: ${contractData.title}`
+        }
+      );
+      
+      if (assignmentResponse.ok) {
+        assignmentCreated = true;
+        const assignmentData = await assignmentResponse.json();
+        console.log("✅ Assignment created successfully!");
+        console.log("📋 Assignment data:", JSON.stringify(assignmentData, null, 2));
+        logData.response_data.assignment = assignmentData;
+      } else {
+        const errorText = await assignmentResponse.text();
+        lastAssignmentError = errorText;
+        console.warn(`⚠️ Assignment attempt ${assignmentAttempts}/${maxAssignmentAttempts} failed: ${errorText}`);
+        
+        // If error is not about 'uploaded' status, don't retry
+        if (!errorText.includes("'uploaded' status") && !errorText.includes("uploaded")) {
+          console.error("❌ Non-recoverable assignment error, stopping retries");
+          logData.response_data.assignmentError = errorText;
+          break;
+        }
+      }
+    }
+    
+    if (!assignmentCreated && lastAssignmentError) {
+      console.error("❌ All assignment attempts failed:", lastAssignmentError);
+      logData.response_data.assignmentError = lastAssignmentError;
     }
 
     // Prepare signing URL
