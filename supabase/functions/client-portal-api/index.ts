@@ -446,15 +446,15 @@ async function handleRequestInstallation(supabase: any, payload: ClientTokenPayl
     return errorResponse('Erro ao buscar dados do cliente', 500)
   }
 
-  // Create registration request
+  // Create registration request with correct field names
   const { data: registration, error } = await supabase
     .from('client_registrations')
     .insert({
       company_id: payload.company_id,
-      full_name: client.name,
+      name: client.name,
       email: client.email,
       phone: client.phone,
-      cpf: client.document,
+      document: client.document,
       birth_date: client.birth_date,
       cep: client.cep,
       street: client.street,
@@ -463,11 +463,18 @@ async function handleRequestInstallation(supabase: any, payload: ClientTokenPayl
       neighborhood: client.neighborhood,
       city: client.city,
       state: client.state,
-      emergency_name: client.emergency_contact_name,
-      emergency_phone: client.emergency_contact_phone,
-      emergency_relationship: client.emergency_contact_relationship,
+      emergency_contact_name: client.emergency_contact_name,
+      emergency_contact_phone: client.emergency_contact_phone,
+      emergency_contact_relationship: client.emergency_contact_relationship,
+      vehicle_plate: vehicle.plate.toUpperCase(),
+      vehicle_brand: vehicle.brand.toUpperCase(),
+      vehicle_model: vehicle.model.toUpperCase(),
+      vehicle_year: vehicle.year || null,
+      vehicle_color: vehicle.color?.toUpperCase() || null,
+      has_gnv: vehicle.has_gnv || false,
+      is_armored: vehicle.is_armored || false,
       status: 'pending',
-      source: 'client_portal',
+      client_id: payload.client_id,
     })
     .select('id')
     .single()
@@ -477,25 +484,22 @@ async function handleRequestInstallation(supabase: any, payload: ClientTokenPayl
     return errorResponse('Erro ao criar solicitação', 500)
   }
 
-  // Add vehicle to registration
-  const { error: vehicleError } = await supabase
-    .from('client_registration_vehicles')
-    .insert({
-      registration_id: registration.id,
-      plate: vehicle.plate.toUpperCase(),
-      brand: vehicle.brand.toUpperCase(),
-      model: vehicle.model.toUpperCase(),
-      year: vehicle.year || null,
-      color: vehicle.color?.toUpperCase() || null,
-      has_gnv: vehicle.has_gnv || false,
-      is_armored: vehicle.is_armored || false,
-    })
-
-  if (vehicleError) {
-    console.error('Add vehicle to registration error:', vehicleError)
-  }
-
   console.log(`[client-portal] Installation request created: ${registration.id}`)
+
+  // Send notification to company admins
+  try {
+    await supabase.functions.invoke('notify-registration-admin', {
+      body: {
+        company_id: payload.company_id,
+        registration_id: registration.id,
+        registration_name: client.name
+      }
+    })
+    console.log(`[client-portal] Admin notification sent for registration: ${registration.id}`)
+  } catch (notifyError) {
+    console.error('Failed to notify admin:', notifyError)
+    // Don't fail the request due to notification failure
+  }
 
   return successResponse({
     request_id: registration.id,
