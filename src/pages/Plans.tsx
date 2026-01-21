@@ -15,7 +15,9 @@ import {
   CheckCircle, 
   Calendar,
   Car,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  Power
 } from "lucide-react"
 import {
   Dialog,
@@ -49,7 +51,7 @@ import { usePlans, Plan } from "@/hooks/usePlans"
 import { useToast } from "@/hooks/use-toast"
 
 const PlansPage = () => {
-  const { plans, loading, createPlan, updatePlan, deletePlan } = usePlans()
+  const { plans, loading, contractCounts, createPlan, updatePlan, deletePlan, deactivatePlan } = usePlans()
   const { toast } = useToast()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -174,6 +176,14 @@ const PlansPage = () => {
     }
   }
 
+  const handleDeactivatePlan = async (planId: string) => {
+    try {
+      await deactivatePlan(planId)
+    } catch (error) {
+      // Error already handled by the hook
+    }
+  }
+
   const getBillingCycleBadge = (cycle: string) => {
     switch (cycle) {
       case 'monthly':
@@ -188,8 +198,8 @@ const PlansPage = () => {
   }
 
   const activePlans = plans.filter(plan => plan.is_active)
-  const totalContracts = 0 // TODO: Implementar quando a relação com contratos estiver pronta
-  const totalRevenue = 0 // TODO: Implementar quando a relação com contratos estiver pronta
+  const totalContracts = Object.values(contractCounts).reduce((sum, count) => sum + count, 0)
+  const totalRevenue = plans.reduce((sum, plan) => sum + (plan.price * (contractCounts[plan.id] || 0)), 0)
 
   return (
     <AppLayout>
@@ -528,82 +538,129 @@ const PlansPage = () => {
           </Card>
         ) : (
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {plans.map((plan) => (
-              <Card key={plan.id} className="relative">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl">{plan.name}</CardTitle>
-                      <CardDescription className="mt-1">
-                        {plan.description}
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      {plan.is_active ? (
-                        <Badge className="bg-success/20 text-success border-success/30">
-                          Ativo
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">Inativo</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold">
-                      R$ {plan.price.toFixed(2)}
-                    </span>
-                    {getBillingCycleBadge(plan.billing_cycle)}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    {Array.isArray(plan.features) && plan.features.map((feature, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-success shrink-0" />
-                        <span className="text-sm">{feature}</span>
+            {plans.map((plan) => {
+              const planContractCount = contractCounts[plan.id] || 0;
+              const hasContracts = planContractCount > 0;
+              
+              return (
+                <Card key={plan.id} className="relative">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-xl">{plan.name}</CardTitle>
+                          {hasContracts && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Users className="w-3 h-3 mr-1" />
+                              {planContractCount}
+                            </Badge>
+                          )}
+                        </div>
+                        <CardDescription className="mt-1">
+                          {plan.description}
+                        </CardDescription>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex gap-2">
+                        {plan.is_active ? (
+                          <Badge className="bg-success/20 text-success border-success/30">
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Inativo</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold">
+                        R$ {plan.price.toFixed(2)}
+                      </span>
+                      {getBillingCycleBadge(plan.billing_cycle)}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      {Array.isArray(plan.features) && plan.features.map((feature, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-success shrink-0" />
+                          <span className="text-sm">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
 
-                  <div className="flex gap-2 pt-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => handleEditPlan(plan)}
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Editar
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Excluir plano</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Tem certeza que deseja excluir o plano "{plan.name}"? 
-                            Esta ação não pode ser desfeita.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDeletePlan(plan.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Excluir
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex gap-2 pt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleEditPlan(plan)}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" className={hasContracts ? "text-warning" : "text-destructive"}>
+                            {hasContracts ? <Power className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {hasContracts ? "Desativar plano" : "Excluir plano"}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-3">
+                                {hasContracts ? (
+                                  <>
+                                    <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                                      <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                                      <div>
+                                        <p className="font-medium text-warning">
+                                          Este plano possui {planContractCount} contrato(s) vinculado(s)
+                                        </p>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                          A exclusão não é permitida para preservar o histórico. Você pode <strong>desativar</strong> o plano para que ele não apareça em novas contratações.
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      Planos desativados mantêm os contratos existentes funcionando normalmente.
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p>
+                                    Tem certeza que deseja excluir o plano "{plan.name}"? Esta ação não pode ser desfeita.
+                                  </p>
+                                )}
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            {hasContracts ? (
+                              <AlertDialogAction
+                                onClick={() => handleDeactivatePlan(plan.id)}
+                                className="bg-warning text-warning-foreground hover:bg-warning/90"
+                              >
+                                <Power className="w-4 h-4 mr-2" />
+                                Desativar Plano
+                              </AlertDialogAction>
+                            ) : (
+                              <AlertDialogAction 
+                                onClick={() => handleDeletePlan(plan.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            )}
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
