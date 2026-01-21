@@ -447,6 +447,7 @@ async function handleRequestInstallation(supabase: any, payload: ClientTokenPayl
   }
 
   // Create registration request with correct field names
+  // Use fallback values for required fields that might be null in client data
   const { data: registration, error } = await supabase
     .from('client_registrations')
     .insert({
@@ -456,16 +457,16 @@ async function handleRequestInstallation(supabase: any, payload: ClientTokenPayl
       phone: client.phone,
       document: client.document,
       birth_date: client.birth_date,
-      cep: client.cep,
-      street: client.street,
-      number: client.number,
+      cep: client.cep || '',
+      street: client.street || '',
+      number: client.number || '',
       complement: client.complement,
-      neighborhood: client.neighborhood,
-      city: client.city,
-      state: client.state,
-      emergency_contact_name: client.emergency_contact_name,
-      emergency_contact_phone: client.emergency_contact_phone,
-      emergency_contact_relationship: client.emergency_contact_relationship,
+      neighborhood: client.neighborhood || '',
+      city: client.city || '',
+      state: client.state || '',
+      emergency_contact_name: client.emergency_contact_name || 'Não informado',
+      emergency_contact_phone: client.emergency_contact_phone || '',
+      emergency_contact_relationship: client.emergency_contact_relationship || '',
       vehicle_plate: vehicle.plate.toUpperCase(),
       vehicle_brand: vehicle.brand.toUpperCase(),
       vehicle_model: vehicle.model.toUpperCase(),
