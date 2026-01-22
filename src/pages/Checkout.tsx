@@ -167,12 +167,19 @@ export default function Checkout() {
 
       if (paymentData.status === 'cancelled') {
         // Verificar se foi cancelado por expiração (pode regenerar) ou manualmente (bloquear)
-        const cancellationReason = (paymentData as any).cancellation_reason;
+        const cancellationReason = paymentData.cancellation_reason;
+        const hasExternalId = !!paymentData.external_id;
+        
+        // Pode regenerar se:
+        // 1. cancellation_reason é 'expired' OU
+        // 2. Tem external_id E cancellation_reason NÃO é 'manual'
         const canRegenerate = cancellationReason === 'expired' || 
-                              (paymentData.external_id && !cancellationReason);
+                              (hasExternalId && cancellationReason !== 'manual');
+        
+        console.log('Cancellation check:', { cancellationReason, hasExternalId, canRegenerate });
         
         if (canRegenerate) {
-          console.log('Payment expired, allowing regeneration');
+          console.log('Payment expired or regenerable, allowing regeneration');
           setIsExpiredPayment(true);
           // Continuar carregamento normal em vez de bloquear
         } else {
