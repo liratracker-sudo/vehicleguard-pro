@@ -1,237 +1,97 @@
 
-# Plano: Regeneração Automática de PIX Expirado
+# Plano: Correção para Pagamentos Expirados Sem `cancellation_reason`
 
 ## Problema Identificado
-Quando o PIX expira no gateway (MercadoPago usa 24h por padrão), o webhook atualiza o status para `cancelled`. O cliente ao tentar pagar vê "Pagamento cancelado" sem opção de gerar novo PIX.
+
+O pagamento `4369aee1-3dc2-4859-8934-3383ac2e336d` está com:
+- `status`: `cancelled`
+- `cancellation_reason`: `null` (vazio)
+- `external_id`: `142149780167` (existe)
+
+A lógica atual no Checkout deveria permitir regeneração quando:
+```typescript
+canRegenerate = cancellationReason === 'expired' || 
+                (paymentData.external_id && !cancellationReason);
+```
+
+No entanto, ainda está mostrando "Pagamento cancelado".
+
+## Causa Raiz
+
+Há duas possibilidades:
+
+1. **Aplicação não publicada**: As mudanças que implementamos estão na preview, mas a URL de produção (`app.liratracker.com.br`) ainda está com o código antigo que bloqueia todos os pagamentos cancelados
+
+2. **Bug de tipagem**: O TypeScript pode não estar reconhecendo `external_id` corretamente por causa do cast `(paymentData as any)` para `cancellation_reason`
+
+---
 
 ## Solução Proposta
-Permitir que o checkout detecte pagamentos cancelados por expiração e ofereça a opção de regenerar uma nova cobrança automaticamente.
 
----
+### Fase 1: Correção Imediata - Atualizar Transação no Banco
 
-## Fase 1: Adicionar Campo para Identificar Motivo do Cancelamento
-
-**Arquivo:** Nova migration SQL
-
-Adicionar campo `cancellation_reason` na tabela `payment_transactions` para diferenciar:
-- `expired` - PIX/boleto expirou automaticamente
-- `manual` - Cancelado manualmente pelo usuário
-- `gateway` - Cancelado pelo gateway por outro motivo
+Marcar a transação específica com `cancellation_reason = 'expired'` para que funcione mesmo com o código atual:
 
 ```sql
-ALTER TABLE payment_transactions 
-ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
-
-COMMENT ON COLUMN payment_transactions.cancellation_reason IS 
-'Motivo do cancelamento: expired, manual, gateway';
+UPDATE payment_transactions 
+SET cancellation_reason = 'expired'
+WHERE id = '4369aee1-3dc2-4859-8934-3383ac2e336d'
+AND status = 'cancelled';
 ```
 
----
+### Fase 2: Correção Permanente - Ajustar Lógica no Checkout
 
-## Fase 2: Atualizar Webhook do MercadoPago
-
-**Arquivo:** `supabase/functions/mercadopago-webhook/index.ts`
-
-Quando receber evento de pagamento cancelado/expirado, popular o campo `cancellation_reason`:
+Modificar o Checkout.tsx para ser mais robusto:
 
 ```typescript
-// Ao processar evento de cancelamento
-if (payment.status === 'cancelled' || payment.status === 'expired') {
-  const reason = payment.status === 'expired' ? 'expired' : 
-                 (payment.date_of_expiration ? 'expired' : 'gateway');
+if (paymentData.status === 'cancelled') {
+  // Verificar se pode regenerar:
+  // 1. Se cancellation_reason é 'expired' OU
+  // 2. Se tem external_id E cancellation_reason NÃO é 'manual'
+  const cancellationReason = paymentData.cancellation_reason;
+  const hasExternalId = !!paymentData.external_id;
   
-  await supabase
-    .from('payment_transactions')
-    .update({ 
-      status: 'cancelled',
-      cancellation_reason: reason
-    })
-    .eq('external_id', payment.external_reference);
-}
-```
-
----
-
-## Fase 3: Modificar Lógica do Checkout
-
-**Arquivo:** `src/pages/Checkout.tsx`
-
-### 3.1 Detectar PIX Expirado (ao invés de bloquear)
-
-Substituir o bloqueio simples por detecção inteligente:
-
-```typescript
-// Antes (bloqueio total):
-if (paymentData.status === 'cancelled') {
-  setPaymentResult({ success: false, error: 'Pagamento cancelado' });
-  return;
-}
-
-// Depois (verificar motivo):
-if (paymentData.status === 'cancelled') {
-  // Se expirou ou tem external_id (indica que foi processado antes)
-  const canRegenerate = paymentData.cancellation_reason === 'expired' || 
-                        (paymentData.external_id && !paymentData.cancellation_reason);
+  const canRegenerate = 
+    cancellationReason === 'expired' || 
+    (hasExternalId && cancellationReason !== 'manual');
+  
+  console.log('Cancellation check:', { 
+    cancellationReason, 
+    hasExternalId, 
+    canRegenerate 
+  });
   
   if (canRegenerate) {
-    // Resetar status para pending e permitir nova geração
-    setPayment({
-      ...paymentData,
-      status: 'pending',
-      isExpiredPayment: true  // Flag para UI
-    });
-    // Continuar carregamento normal
+    console.log('Payment expired or regenerable, allowing regeneration');
+    setIsExpiredPayment(true);
   } else {
-    // Cancelamento manual - bloquear
+    console.log('Payment manually cancelled, blocking');
     setPaymentResult({ success: false, error: 'Pagamento cancelado' });
     return;
   }
 }
 ```
 
-### 3.2 Adicionar Estado para PIX Expirado
+A diferença é que agora verificamos `cancellation_reason !== 'manual'` em vez de `!cancellationReason`, permitindo que pagamentos com `cancellation_reason = null` também sejam regenerados (desde que tenham `external_id`).
 
-```typescript
-const [isExpiredPayment, setIsExpiredPayment] = useState(false);
-```
+### Fase 3: Publicar a Aplicação
 
-### 3.3 Exibir Aviso de Regeneração na UI
-
-Adicionar banner informativo quando o pagamento expirou:
-
-```tsx
-{isExpiredPayment && (
-  <Alert className="mb-4 border-amber-500 bg-amber-50">
-    <AlertCircle className="h-4 w-4 text-amber-600" />
-    <AlertTitle className="text-amber-800">PIX Expirado</AlertTitle>
-    <AlertDescription className="text-amber-700">
-      O código PIX anterior expirou. Selecione o método de pagamento 
-      para gerar um novo código.
-    </AlertDescription>
-  </Alert>
-)}
-```
+Após as correções, será necessário publicar as mudanças para que a URL de produção (`app.liratracker.com.br`) receba as atualizações.
 
 ---
 
-## Fase 4: Atualizar Edge Function `process-checkout`
+## Arquivos a Modificar
 
-**Arquivo:** `supabase/functions/process-checkout/index.ts`
-
-### 4.1 Permitir Reprocessamento de Pagamentos Expirados
-
-Remover bloqueio para pagamentos cancelados quando o motivo é expiração:
-
-```typescript
-// Antes:
-if (payment.status === 'cancelled') {
-  throw new Error('Pagamento cancelado');
-}
-
-// Depois:
-if (payment.status === 'cancelled') {
-  // Verificar se pode regenerar (expirado ou tem external_id indicando processamento anterior)
-  const canRegenerate = payment.cancellation_reason === 'expired' || 
-                        (payment.external_id && payment.cancellation_reason !== 'manual');
-  
-  if (!canRegenerate) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Pagamento cancelado manualmente' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-  
-  console.log('🔄 Regenerating expired payment:', payment.id);
-}
-```
-
-### 4.2 Resetar Status ao Regenerar
-
-Após gerar nova cobrança com sucesso, resetar o status:
-
-```typescript
-const updateData: any = {
-  external_id: charge.id?.toString(),
-  payment_url: charge.invoiceUrl || charge.invoice_url,
-  pix_code: charge.pix_code || charge.pixCode,
-  payment_gateway: gateway,
-  status: 'pending',  // Resetar para pending
-  cancellation_reason: null,  // Limpar motivo de cancelamento
-  updated_at: new Date().toISOString()
-};
-```
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| Banco de dados | ATUALIZAR | Marcar transação específica como `expired` |
+| `src/pages/Checkout.tsx` | MODIFICAR | Ajustar lógica para permitir regeneração quando `cancellation_reason` é `null` |
 
 ---
 
-## Fase 5: Atualizar Outros Webhooks
+## Resultado Esperado
 
-**Arquivos a verificar/atualizar:**
-- `supabase/functions/asaas-webhook/index.ts`
-- `supabase/functions/inter-webhook/index.ts`
-
-Garantir que todos os webhooks populem `cancellation_reason` corretamente quando receberem eventos de expiração.
-
----
-
-## Resumo dos Arquivos a Modificar
-
-| Arquivo | Ação | Alterações |
-|---------|------|------------|
-| Nova migration SQL | CRIAR | Adicionar coluna `cancellation_reason` |
-| `src/pages/Checkout.tsx` | MODIFICAR | Detectar expiração, mostrar aviso, permitir regeneração |
-| `supabase/functions/process-checkout/index.ts` | MODIFICAR | Permitir reprocessamento de expirados |
-| `supabase/functions/mercadopago-webhook/index.ts` | MODIFICAR | Popular `cancellation_reason` |
-| `supabase/functions/asaas-webhook/index.ts` | VERIFICAR | Garantir consistência no tratamento |
-
----
-
-## Fluxo Final
-
-```text
-                              ┌─────────────────┐
-                              │ Cliente acessa  │
-                              │ link de checkout│
-                              └────────┬────────┘
-                                       │
-                                       ▼
-                          ┌────────────────────────┐
-                          │ Verificar status       │
-                          │ do pagamento           │
-                          └────────────┬───────────┘
-                                       │
-              ┌────────────────────────┼────────────────────────┐
-              │                        │                        │
-              ▼                        ▼                        ▼
-       ┌──────────┐            ┌───────────────┐         ┌──────────┐
-       │  PAID    │            │  CANCELLED    │         │ PENDING  │
-       │          │            │               │         │          │
-       └────┬─────┘            └───────┬───────┘         └────┬─────┘
-            │                          │                      │
-            ▼                          ▼                      ▼
-    ┌───────────────┐     ┌─────────────────────────┐  ┌───────────────┐
-    │ Mostrar       │     │ Verificar motivo:       │  │ Exibir form   │
-    │ confirmação   │     │ - expired? → regenerar  │  │ de pagamento  │
-    │ de pagamento  │     │ - manual? → bloquear    │  │               │
-    └───────────────┘     └─────────────────────────┘  └───────────────┘
-```
-
----
-
-## Comportamento Esperado
-
-| Cenário | Resultado |
-|---------|-----------|
-| PIX expirou (24h) | Mostra aviso + permite gerar novo PIX |
-| Boleto expirou | Mostra aviso + permite gerar novo boleto |
-| Cancelamento manual | Bloqueia com mensagem "Pagamento cancelado" |
-| Pagamento pendente | Fluxo normal de checkout |
-| Pagamento pago | Mostra confirmação de pagamento |
-
----
-
-## Benefícios
-
-1. **Melhor UX**: Cliente não precisa solicitar novo link
-2. **Menos suporte**: Reduz chamados de "meu PIX não funciona"
-3. **Auditoria**: Campo `cancellation_reason` permite rastrear motivos
-4. **Flexibilidade**: Diferencia expiração automática de cancelamento manual
+Após as correções:
+1. O pagamento específico da cliente funcionará imediatamente
+2. Novos pagamentos expirados serão automaticamente regeneráveis
+3. Apenas pagamentos com `cancellation_reason = 'manual'` serão bloqueados
