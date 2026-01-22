@@ -176,6 +176,25 @@ serve(async (req) => {
       );
     }
 
+    // Verificar se foi cancelado
+    if (payment.status === 'cancelled') {
+      // Verificar se pode regenerar (expirado ou tem external_id indicando processamento anterior)
+      const canRegenerate = payment.cancellation_reason === 'expired' || 
+                            (payment.external_id && payment.cancellation_reason !== 'manual');
+      
+      if (!canRegenerate) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Pagamento cancelado manualmente. Solicite uma nova cobrança.' 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log('🔄 Regenerating expired payment:', payment.id);
+    }
+
     // Buscar configurações de multa/juros
     console.log('Fetching late fee settings for company:', payment.company_id);
     const { data: feeSettings } = await supabase
@@ -423,6 +442,8 @@ serve(async (req) => {
       pix_code: charge.pix_code || charge.pixCode || charge.pixQrCodeId || charge.qr_code,
       payment_gateway: gateway,
       transaction_type: payment_method,
+      status: 'pending',  // Resetar para pending (importante para pagamentos expirados regenerados)
+      cancellation_reason: null,  // Limpar motivo de cancelamento
       updated_at: new Date().toISOString()
     };
 

@@ -8,7 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { QrCode, Receipt, CreditCard, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { QrCode, Receipt, CreditCard, Loader2, CheckCircle2, XCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import QRCode from 'qrcode';
@@ -65,6 +66,7 @@ export default function Checkout() {
   const [cpfInput, setCpfInput] = useState('');
   const [cpfError, setCpfError] = useState('');
   const [lateFees, setLateFees] = useState<LateFeeData | null>(null);
+  const [isExpiredPayment, setIsExpiredPayment] = useState(false);
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
     payment_url?: string;
@@ -120,6 +122,8 @@ export default function Checkout() {
           fine_amount,
           interest_amount,
           days_overdue,
+          cancellation_reason,
+          external_id,
           clients!inner(name, email, phone, document),
           companies!inner(name, logo_url)
         `)
@@ -162,8 +166,20 @@ export default function Checkout() {
       }
 
       if (paymentData.status === 'cancelled') {
-        setPaymentResult({ success: false, error: 'Pagamento cancelado' });
-        return;
+        // Verificar se foi cancelado por expiração (pode regenerar) ou manualmente (bloquear)
+        const cancellationReason = (paymentData as any).cancellation_reason;
+        const canRegenerate = cancellationReason === 'expired' || 
+                              (paymentData.external_id && !cancellationReason);
+        
+        if (canRegenerate) {
+          console.log('Payment expired, allowing regeneration');
+          setIsExpiredPayment(true);
+          // Continuar carregamento normal em vez de bloquear
+        } else {
+          console.log('Payment manually cancelled, blocking');
+          setPaymentResult({ success: false, error: 'Pagamento cancelado' });
+          return;
+        }
       }
 
       // Check if payment is overdue
@@ -745,6 +761,17 @@ export default function Checkout() {
                 </div>
               )}
             </div>
+
+            {/* Alerta de PIX expirado */}
+            {isExpiredPayment && (
+              <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+                <RefreshCw className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800 dark:text-amber-300">Código de pagamento expirado</AlertTitle>
+                <AlertDescription className="text-amber-700 dark:text-amber-400">
+                  O código de pagamento anterior expirou. Selecione a forma de pagamento abaixo para gerar um novo código.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Separator className="my-2" />
 

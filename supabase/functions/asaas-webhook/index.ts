@@ -119,6 +119,7 @@ serve(async (req) => {
     let newStatus = transaction.status;
     let paidAt = transaction.paid_at;
     let statusPreserved = false;
+    let cancellationReason: string | null = null;
 
     // IMPORTANTE: Se já está pago, NÃO permite regredir para outro status
     // Isso evita que webhooks de cobranças duplicadas (boleto vs PIX) sobrescrevam
@@ -136,6 +137,8 @@ serve(async (req) => {
         // Só marca como overdue se NÃO estiver pago
         if (!isPaid) {
           newStatus = 'overdue';
+          // Pagamento vencido indica expiração
+          cancellationReason = 'expired';
         } else {
           console.log(`Ignorando PAYMENT_OVERDUE - pagamento ${transaction.id} já está pago`);
           statusPreserved = true;
@@ -143,8 +146,14 @@ serve(async (req) => {
         break;
       
       case 'PAYMENT_DELETED':
+        // Deletado = cancelamento manual ou pelo sistema
+        newStatus = 'cancelled';
+        cancellationReason = 'manual';
+        break;
+        
       case 'PAYMENT_REFUNDED':
         newStatus = 'cancelled';
+        cancellationReason = 'gateway';
         break;
       
       case 'PAYMENT_CREATED':
@@ -160,13 +169,23 @@ serve(async (req) => {
 
     // Update payment status if changed
     if (newStatus !== transaction.status) {
+      const updateData: any = {
+        status: newStatus,
+        paid_at: paidAt,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Adicionar motivo de cancelamento se aplicável
+      if (cancellationReason) {
+        updateData.cancellation_reason = cancellationReason;
+      } else if (newStatus === 'paid' || newStatus === 'pending') {
+        // Limpar motivo de cancelamento se pagamento foi recuperado
+        updateData.cancellation_reason = null;
+      }
+      
       const { error: updateError } = await supabase
         .from('payment_transactions')
-        .update({
-          status: newStatus,
-          paid_at: paidAt,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', transaction.id);
 
       if (updateError) {

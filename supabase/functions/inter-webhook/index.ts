@@ -37,15 +37,27 @@ serve(async (req) => {
       switch (webhookData.evento) {
         case "PAGAMENTO_BOLETO_CONFIRMADO":
           console.log("Pagamento de boleto confirmado:", webhookData.nossoNumero);
-          // Update payment status in database
+          // TODO: Update payment status in database when transaction lookup is implemented
           break;
 
         case "BAIXA_BOLETO_EFETIVADA":
           console.log("Baixa de boleto efetivada:", webhookData.nossoNumero);
+          // Baixa pode ser por expiração - marcar cancellation_reason como 'expired'
+          break;
+
+        case "BOLETO_EXPIRADO":
+          console.log("Boleto expirado:", webhookData.nossoNumero);
+          // TODO: Update payment with status='cancelled' and cancellation_reason='expired'
           break;
 
         case "PIX_RECEBIDO":
           console.log("PIX recebido:", webhookData.txid);
+          // TODO: Update payment status to paid
+          break;
+
+        case "PIX_EXPIRADO":
+          console.log("PIX expirado:", webhookData.txid);
+          // TODO: Update payment with status='cancelled' and cancellation_reason='expired'
           break;
 
         default:
