@@ -120,6 +120,9 @@ serve(async (req) => {
       // IMPORTANTE: Se já está pago, NÃO permite regredir para outro status (exceto refund)
       const isPaid = transaction.status === 'paid'
 
+      // Determinar motivo de cancelamento se aplicável
+      let cancellationReason: string | null = null
+
       switch (paymentData.status) {
         case 'approved':
           newStatus = 'paid'
@@ -131,7 +134,21 @@ serve(async (req) => {
           // Só marca como cancelled se NÃO estiver pago
           if (!isPaid) {
             newStatus = 'cancelled'
-            console.log('Payment rejected/cancelled')
+            // Verificar se expirou (tem date_of_expiration e já passou)
+            if (paymentData.date_of_expiration) {
+              const expirationDate = new Date(paymentData.date_of_expiration)
+              if (expirationDate < new Date()) {
+                cancellationReason = 'expired'
+                console.log('Payment expired (date_of_expiration passed)')
+              } else {
+                cancellationReason = 'gateway'
+                console.log('Payment rejected/cancelled by gateway')
+              }
+            } else {
+              // Se não tem data de expiração, assumir cancelamento pelo gateway
+              cancellationReason = 'gateway'
+              console.log('Payment rejected/cancelled by gateway')
+            }
           } else {
             console.log(`⚠️ Ignorando cancelled/rejected - pagamento ${transaction.id} já está pago. Status preservado.`)
             statusPreserved = true
@@ -164,6 +181,14 @@ serve(async (req) => {
 
       if (paidAt) {
         updateData.paid_at = paidAt
+      }
+
+      // Adicionar motivo de cancelamento se aplicável
+      if (cancellationReason) {
+        updateData.cancellation_reason = cancellationReason
+      } else if (newStatus === 'paid' || newStatus === 'pending') {
+        // Limpar motivo de cancelamento se pagamento foi recuperado
+        updateData.cancellation_reason = null
       }
 
       const { error: updateError } = await supabase
