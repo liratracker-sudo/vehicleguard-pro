@@ -105,7 +105,7 @@ serve(async (req) => {
               
               const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
               const baseUrl = companyDomain?.domain 
-                ? `https://${companyDomain.domain.replace(/^https?:+\/+/i, '')}` 
+                ? `https://${companyDomain.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
                 : defaultAppUrl;
               const paymentLink = `${baseUrl}/checkout/${metadata.payment_id}`;
               
@@ -847,9 +847,9 @@ Responda *SIM* para confirmar ou *NÃO* para cancelar.`;
             .eq('id', company_id)
             .single();
           
-          const defaultAppUrl = Deno.env.get('APP_URL') || 'https://gestaotracker.lovable.app';
+          const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
           const baseUrl = companyInfo?.domain 
-            ? `https://${companyInfo.domain.replace(/^https?:\/\//, '')}` 
+            ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
             : defaultAppUrl;
           const paymentLink = `${baseUrl}/checkout/${paymentId}`;
           

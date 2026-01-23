@@ -90,10 +90,10 @@ serve(async (req) => {
 
       const companyName = companyInfo?.name || 'Lira Tracker';
 
-      // Build payment link using company domain
+      // Build payment link using company domain (remove protocol and trailing slashes)
       const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
       const baseUrl = companyInfo?.domain 
-        ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
+        ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
         : defaultAppUrl;
       const paymentLink = `${baseUrl}/checkout/${payment.id}`;
       console.log(`📎 Payment link for AI: ${paymentLink}`);
@@ -424,10 +424,10 @@ ${!isOverdue
 
         const companyName = companyInfo?.name || 'Lira Tracker';
 
-        // Build payment link using company domain
-        const defaultAppUrl = Deno.env.get('APP_URL') || 'https://gestaotracker.lovable.app';
+        // Build payment link using company domain (remove protocol and trailing slashes)
+        const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
         const baseUrl = companyInfo?.domain 
-          ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
+          ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
           : defaultAppUrl;
         const paymentLink = `${baseUrl}/checkout/${payment.id}`;
 
