@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Car, MapPin, Shield, Search, Filter, MoreHorizontal, Edit, Trash } from "lucide-react"
+import { Plus, Car, MapPin, Shield, Search, Filter, MoreHorizontal, Edit, Trash, X, ChevronLeft, ChevronRight } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -26,14 +26,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { VehicleForm } from "@/components/vehicles/VehicleForm"
+import { VehicleTableSkeleton } from "@/components/vehicles/VehicleTableSkeleton"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { formatDateBR } from "@/lib/timezone"
 
+const ITEMS_PER_PAGE = 15
+
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,6 +53,7 @@ const VehiclesPage = () => {
 
   const loadVehicles = async () => {
     try {
+      setLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -52,31 +65,24 @@ const VehiclesPage = () => {
 
       if (!profile?.company_id) return
 
+      // Single optimized query with JOIN - eliminates N+1 problem
       const { data, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select(`
+          *,
+          clients:client_id (
+            id,
+            name,
+            phone
+          )
+        `)
         .eq('company_id', profile.company_id)
         .eq('is_active', true)
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      // Buscar dados dos clientes separadamente
-      const vehiclesWithClients = await Promise.all(
-        (data || []).map(async (vehicle) => {
-          if (vehicle.client_id) {
-            const { data: client } = await supabase
-              .from('clients')
-              .select('name, phone')
-              .eq('id', vehicle.client_id)
-              .maybeSingle();
-            
-            return { ...vehicle, clients: client };
-          }
-          return vehicle;
-        })
-      );
-
-      setVehicles(vehiclesWithClients || [])
+      setVehicles(data || [])
     } catch (error) {
       console.error('Error loading vehicles:', error)
       toast({
@@ -93,12 +99,30 @@ const VehiclesPage = () => {
     loadVehicles()
   }, [])
 
-  const filteredVehicles = vehicles.filter(vehicle =>
-    vehicle.license_plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.clients?.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Reset to page 1 when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter])
+
+  // Filter vehicles
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(vehicle => {
+      const matchesSearch = 
+        vehicle.license_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesStatus = statusFilter === "all" || vehicle.tracker_status === statusFilter
+      
+      return matchesSearch && matchesStatus
+    })
+  }, [vehicles, searchTerm, statusFilter])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredVehicles.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedVehicles = filteredVehicles.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -155,6 +179,33 @@ const VehiclesPage = () => {
     total: vehicles.length,
     active: vehicles.filter(v => v.tracker_status === 'active').length,
     alerts: vehicles.filter(v => v.tracker_status === 'maintenance').length
+  }
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    const maxVisiblePages = 5
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i)
+        pages.push('...')
+        pages.push(totalPages)
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1)
+        pages.push('...')
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i)
+      } else {
+        pages.push(1)
+        pages.push('...')
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i)
+        pages.push('...')
+        pages.push(totalPages)
+      }
+    }
+    return pages
   }
 
   return (
@@ -235,13 +286,31 @@ const VehiclesPage = () => {
                   placeholder="Buscar por placa, modelo ou cliente..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-10"
                 />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1 h-8 w-8 p-0"
+                    onClick={() => setSearchTerm("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-              <Button variant="outline">
-                <Filter className="w-4 h-4 mr-2" />
-                Filtros
-              </Button>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                  <SelectItem value="maintenance">Manutenção</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="rounded-md border">
@@ -258,19 +327,17 @@ const VehiclesPage = () => {
                 </TableHeader>
                 <TableBody>
                   {loading ? (
+                    <VehicleTableSkeleton rows={10} />
+                  ) : paginatedVehicles.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
-                        Carregando...
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredVehicles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
-                        Nenhum veículo encontrado
+                        {searchTerm || statusFilter !== "all" 
+                          ? "Nenhum veículo encontrado com os filtros aplicados"
+                          : "Nenhum veículo cadastrado"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredVehicles.map((vehicle) => (
+                    paginatedVehicles.map((vehicle) => (
                       <TableRow key={vehicle.id}>
                         <TableCell>
                           <div>
@@ -282,9 +349,9 @@ const VehiclesPage = () => {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <div className="font-medium">{vehicle.clients?.name}</div>
+                            <div className="font-medium">{vehicle.clients?.name || '-'}</div>
                             <div className="text-sm text-muted-foreground">
-                              {vehicle.clients?.phone}
+                              {vehicle.clients?.phone || '-'}
                             </div>
                           </div>
                         </TableCell>
@@ -326,6 +393,58 @@ const VehiclesPage = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination Controls */}
+            {!loading && filteredVehicles.length > ITEMS_PER_PAGE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                <p className="text-sm text-muted-foreground">
+                  Exibindo {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredVehicles.length)} de {filteredVehicles.length} veículos
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                  </Button>
+                  
+                  <div className="hidden sm:flex items-center gap-1">
+                    {getPageNumbers().map((page, index) => (
+                      page === '...' ? (
+                        <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">...</span>
+                      ) : (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page as number)}
+                          className="min-w-[36px]"
+                        >
+                          {page}
+                        </Button>
+                      )
+                    ))}
+                  </div>
+                  
+                  <span className="sm:hidden text-sm text-muted-foreground px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Próximo
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
