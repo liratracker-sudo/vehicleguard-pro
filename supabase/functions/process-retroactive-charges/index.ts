@@ -136,8 +136,9 @@ serve(async (req) => {
           continue
         }
 
-        // Atualizar payment_url
-        const checkoutUrl = `/checkout/${newPayment.id}`
+        // Atualizar payment_url (URL completa)
+        const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+        const checkoutUrl = `${appUrl}/checkout/${newPayment.id}`
         await supabase
           .from('payment_transactions')
           .update({ payment_url: checkoutUrl })
