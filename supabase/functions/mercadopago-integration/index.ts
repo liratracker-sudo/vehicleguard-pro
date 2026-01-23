@@ -535,12 +535,16 @@ serve(async (req) => {
 
           debugLog('create_charge - PIX Request', paymentData)
 
+          // Gerar idempotency key único incluindo timestamp para permitir regeneração de PIX expirado
+          const idempotencyKey = `${data.externalReference}_${Date.now()}`
+          debugLog('create_charge - Using idempotency key', { idempotencyKey })
+
           const response = await fetch(`${baseUrl}/v1/payments`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${settings.access_token}`,
               'Content-Type': 'application/json',
-              'X-Idempotency-Key': data.externalReference
+              'X-Idempotency-Key': idempotencyKey
             },
             body: JSON.stringify(paymentData)
           })
