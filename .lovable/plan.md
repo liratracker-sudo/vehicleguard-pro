@@ -1,97 +1,55 @@
 
-# Plano: Correção para Pagamentos Expirados Sem `cancellation_reason`
+# Plano: Corrigir URL de Checkout
 
 ## Problema Identificado
 
-O pagamento `4369aee1-3dc2-4859-8934-3383ac2e336d` está com:
-- `status`: `cancelled`
-- `cancellation_reason`: `null` (vazio)
-- `external_id`: `142149780167` (existe)
+A URL base do aplicativo está incorreta em dois lugares:
 
-A lógica atual no Checkout deveria permitir regeneração quando:
-```typescript
-canRegenerate = cancellationReason === 'expired' || 
-                (paymentData.external_id && !cancellationReason);
+1. **Arquivo `.env`**: `VITE_APP_URL="https://gestaotracker.lovable.app"`
+2. **Secret Supabase `APP_URL`**: Provavelmente também contém `gestaotracker.lovable.app`
+
+A URL publicada real é `https://vehicleguard-pro.lovable.app`, fazendo com que os links de checkout gerados apontem para uma URL que não existe.
+
+## Solução
+
+### Fase 1: Corrigir a variável de ambiente `.env`
+
+Alterar o valor de `VITE_APP_URL`:
+
+```
+VITE_APP_URL="https://vehicleguard-pro.lovable.app"
 ```
 
-No entanto, ainda está mostrando "Pagamento cancelado".
+### Fase 2: Atualizar Secret no Supabase
 
-## Causa Raiz
+Solicitar atualização do secret `APP_URL` para `https://vehicleguard-pro.lovable.app` (será necessária sua confirmação).
 
-Há duas possibilidades:
+### Fase 3: Corrigir URLs Existentes no Banco
 
-1. **Aplicação não publicada**: As mudanças que implementamos estão na preview, mas a URL de produção (`app.liratracker.com.br`) ainda está com o código antigo que bloqueia todos os pagamentos cancelados
-
-2. **Bug de tipagem**: O TypeScript pode não estar reconhecendo `external_id` corretamente por causa do cast `(paymentData as any)` para `cancellation_reason`
-
----
-
-## Solução Proposta
-
-### Fase 1: Correção Imediata - Atualizar Transação no Banco
-
-Marcar a transação específica com `cancellation_reason = 'expired'` para que funcione mesmo com o código atual:
+Atualizar todas as transações pendentes que têm a URL antiga:
 
 ```sql
 UPDATE payment_transactions 
-SET cancellation_reason = 'expired'
-WHERE id = '4369aee1-3dc2-4859-8934-3383ac2e336d'
-AND status = 'cancelled';
+SET payment_url = REPLACE(payment_url, 'gestaotracker.lovable.app', 'vehicleguard-pro.lovable.app')
+WHERE payment_url LIKE '%gestaotracker.lovable.app%'
+AND status = 'pending';
 ```
 
-### Fase 2: Correção Permanente - Ajustar Lógica no Checkout
+### Fase 4: Atualizar Fallbacks nas Edge Functions
 
-Modificar o Checkout.tsx para ser mais robusto:
-
-```typescript
-if (paymentData.status === 'cancelled') {
-  // Verificar se pode regenerar:
-  // 1. Se cancellation_reason é 'expired' OU
-  // 2. Se tem external_id E cancellation_reason NÃO é 'manual'
-  const cancellationReason = paymentData.cancellation_reason;
-  const hasExternalId = !!paymentData.external_id;
-  
-  const canRegenerate = 
-    cancellationReason === 'expired' || 
-    (hasExternalId && cancellationReason !== 'manual');
-  
-  console.log('Cancellation check:', { 
-    cancellationReason, 
-    hasExternalId, 
-    canRegenerate 
-  });
-  
-  if (canRegenerate) {
-    console.log('Payment expired or regenerable, allowing regeneration');
-    setIsExpiredPayment(true);
-  } else {
-    console.log('Payment manually cancelled, blocking');
-    setPaymentResult({ success: false, error: 'Pagamento cancelado' });
-    return;
-  }
-}
-```
-
-A diferença é que agora verificamos `cancellation_reason !== 'manual'` em vez de `!cancellationReason`, permitindo que pagamentos com `cancellation_reason = null` também sejam regenerados (desde que tenham `external_id`).
-
-### Fase 3: Publicar a Aplicação
-
-Após as correções, será necessário publicar as mudanças para que a URL de produção (`app.liratracker.com.br`) receba as atualizações.
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| Banco de dados | ATUALIZAR | Marcar transação específica como `expired` |
-| `src/pages/Checkout.tsx` | MODIFICAR | Ajustar lógica para permitir regeneração quando `cancellation_reason` é `null` |
-
----
+Substituir todas as referências hardcoded de `gestaotracker.lovable.app` por `vehicleguard-pro.lovable.app` como fallback nas edge functions:
+- `supabase/functions/notify-admin-email/index.ts`
+- `supabase/functions/send-reengagement-emails/index.ts`
+- `supabase/functions/ai-manager-assistant/index.ts`
+- `supabase/functions/billing-notifications/index.ts`
+- `supabase/functions/billing-management/index.ts`
+- `supabase/functions/update-payment-urls/index.ts`
+- `supabase/functions/ai-collection/index.ts`
+- `supabase/functions/generate-charges/index.ts`
 
 ## Resultado Esperado
 
 Após as correções:
-1. O pagamento específico da cliente funcionará imediatamente
-2. Novos pagamentos expirados serão automaticamente regeneráveis
-3. Apenas pagamentos com `cancellation_reason = 'manual'` serão bloqueados
+- Novas cobranças terão links corretos apontando para `vehicleguard-pro.lovable.app`
+- Cobranças existentes serão atualizadas
+- Clientes conseguirão acessar a página de checkout
