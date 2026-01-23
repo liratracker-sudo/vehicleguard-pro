@@ -394,55 +394,54 @@ const VehiclesPage = () => {
               </Table>
             </div>
 
-            {/* Pagination Controls */}
+            {/* Pagination */}
             {!loading && filteredVehicles.length > ITEMS_PER_PAGE && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
-                <p className="text-sm text-muted-foreground">
-                  Exibindo {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredVehicles.length)} de {filteredVehicles.length} veículos
-                </p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Anterior
-                  </Button>
-                  
-                  <div className="hidden sm:flex items-center gap-1">
-                    {getPageNumbers().map((page, index) => (
-                      page === '...' ? (
-                        <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">...</span>
-                      ) : (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setCurrentPage(page as number)}
-                          className="min-w-[36px]"
-                        >
-                          {page}
-                        </Button>
-                      )
-                    ))}
-                  </div>
-                  
-                  <span className="sm:hidden text-sm text-muted-foreground px-2">
-                    {currentPage} / {totalPages}
-                  </span>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Próximo
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+              <div className="flex items-center justify-center gap-2 mt-6">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </button>
+
+                <div className="flex items-center gap-1 mx-4">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 text-sm rounded transition-colors ${
+                          currentPage === pageNum
+                            ? "border border-border bg-muted text-foreground"
+                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
                 </div>
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Próximo
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             )}
           </CardContent>
