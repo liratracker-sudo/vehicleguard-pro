@@ -120,7 +120,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
 
       if (error) throw error;
 
-      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const baseUrl = import.meta.env.VITE_APP_URL || 'https://vehicleguard-pro.lovable.app';
       const checkoutUrl = `${baseUrl}/checkout/${transaction.id}`;
 
       await supabase

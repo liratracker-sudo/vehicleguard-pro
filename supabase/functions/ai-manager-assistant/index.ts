@@ -103,7 +103,7 @@ serve(async (req) => {
                 .eq('id', company_id)
                 .single();
               
-              const defaultAppUrl = Deno.env.get('APP_URL') || 'https://gestaotracker.lovable.app';
+              const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
               const baseUrl = companyDomain?.domain 
                 ? `https://${companyDomain.domain.replace(/^https?:+\/+/i, '')}` 
                 : defaultAppUrl;
