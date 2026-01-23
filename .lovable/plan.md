@@ -1,72 +1,74 @@
 
-# Plano: Corrigir URLs de Checkout nas Edge Functions
+# Plano: Corrigir URLs de Checkout com Domínio Customizado
 
-## Problemas Identificados
+## Problema Identificado
 
-### 1. Inversão de URLs no Banco
-Quando executamos a função `update-payment-urls`, ela ainda estava usando o secret `APP_URL` antigo, causando uma inversão:
-- URLs corretas (`vehicleguard-pro`) foram trocadas para incorretas (`gestaotracker`)
-- Logs mostram: `vehicleguard-pro.lovable.app -> gestaotracker.lovable.app`
-
-### 2. Edge Functions com URLs Relativas
-Duas edge functions estão gerando URLs sem o domínio:
-
-**generate-next-charge/index.ts (linha 195):**
-```typescript
-const checkoutUrl = `/checkout/${newPayment.id}`;  // Sem domínio!
+### 1. Barra Dupla no Checkout
+A empresa **LIRA TRACKER** tem o domínio configurado como:
+```
+https://app.liratracker.com.br
 ```
 
-**process-retroactive-charges/index.ts (linha 140):**
+Quando o código processa, ele faz:
 ```typescript
-const checkoutUrl = `/checkout/${newPayment.id}`;  // Sem domínio!
+`https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}`
 ```
+
+**Resultado incorreto:**
+- Input: `https://app.liratracker.com.br/`
+- Regex remove `https://` mas deixa a barra final
+- URL final: `https://app.liratracker.com.br//checkout/...` (barra dupla)
+
+### 2. Referências Antigas ao Domínio
+Ainda existem fallbacks com o domínio antigo `gestaotracker.lovable.app` em:
+- `supabase/functions/ai-collection/index.ts` (linha 428)
+- `supabase/functions/ai-manager-assistant/index.ts` (linha 850)
 
 ---
 
 ## Solução
 
-### Fase 1: Corrigir as Edge Functions
+### Fase 1: Corrigir a Função de Sanitização de Domínio
 
-Adicionar o domínio completo nas URLs geradas:
+Criar uma função reutilizável que:
+1. Remove o protocolo (`http://` ou `https://`)
+2. Remove barras finais
+3. Adiciona `https://` de forma consistente
 
-**generate-next-charge/index.ts:**
 ```typescript
-const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-const checkoutUrl = `${appUrl}/checkout/${newPayment.id}`;
+function sanitizeBaseUrl(domain: string | null, fallback: string): string {
+  if (!domain) return fallback;
+  
+  // Remove protocol and trailing slashes
+  const cleanDomain = domain
+    .replace(/^https?:\/+/i, '')  // Remove http:// ou https://
+    .replace(/\/+$/, '');          // Remove barras finais
+  
+  return `https://${cleanDomain}`;
+}
 ```
 
-**process-retroactive-charges/index.ts:**
-```typescript
-const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-const checkoutUrl = `${appUrl}/checkout/${newPayment.id}`;
-```
+### Fase 2: Atualizar Edge Functions
 
-### Fase 2: Re-executar Correção do Banco
+Aplicar a correção em todos os arquivos que constroem URLs de checkout:
 
-Executar query SQL diretamente para corrigir todas as URLs pendentes:
+| Arquivo | Linha(s) | Problema |
+|---------|----------|----------|
+| `supabase/functions/ai-collection/index.ts` | 95-98 | Regex incompleto |
+| `supabase/functions/ai-collection/index.ts` | 428-432 | Fallback antigo + regex |
+| `supabase/functions/billing-management/index.ts` | 156-159 | Regex incompleto |
+| `supabase/functions/ai-manager-assistant/index.ts` | 107-110 | Regex incompleto |
+| `supabase/functions/ai-manager-assistant/index.ts` | 850-854 | Fallback antigo + regex |
+
+### Fase 3: Corrigir URLs Existentes no Banco
+
+Executar SQL para corrigir as 3 transações com barra dupla:
 
 ```sql
 UPDATE payment_transactions 
-SET payment_url = REPLACE(
-  payment_url, 
-  'gestaotracker.lovable.app', 
-  'vehicleguard-pro.lovable.app'
-),
-updated_at = NOW()
-WHERE payment_url LIKE '%gestaotracker.lovable.app%'
-AND status IN ('pending', 'overdue');
-```
-
-### Fase 3: Corrigir URLs Relativas (sem domínio)
-
-```sql
-UPDATE payment_transactions 
-SET payment_url = CONCAT(
-  'https://vehicleguard-pro.lovable.app', 
-  payment_url
-),
-updated_at = NOW()
-WHERE payment_url LIKE '/checkout/%'
+SET payment_url = REPLACE(payment_url, '//checkout/', '/checkout/'),
+    updated_at = NOW()
+WHERE payment_url LIKE '%//checkout/%'
 AND status IN ('pending', 'overdue');
 ```
 
@@ -74,17 +76,37 @@ AND status IN ('pending', 'overdue');
 
 ## Arquivos a Modificar
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `supabase/functions/generate-next-charge/index.ts` | MODIFICAR | Adicionar APP_URL no início do checkoutUrl |
-| `supabase/functions/process-retroactive-charges/index.ts` | MODIFICAR | Adicionar APP_URL no início do checkoutUrl |
-| Banco de dados | ATUALIZAR | Corrigir URLs existentes via SQL |
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/ai-collection/index.ts` | Corrigir regex e fallback antigo |
+| `supabase/functions/billing-management/index.ts` | Corrigir regex |
+| `supabase/functions/ai-manager-assistant/index.ts` | Corrigir regex e fallback antigo |
+| Banco de dados | Atualizar URLs com barra dupla |
+
+---
+
+## Código Corrigido
+
+Substituir em todos os arquivos:
+
+```typescript
+// ❌ ANTES (problemático)
+const baseUrl = companyInfo?.domain 
+  ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
+  : defaultAppUrl;
+
+// ✅ DEPOIS (correto)
+const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+const baseUrl = companyInfo?.domain 
+  ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
+  : defaultAppUrl;
+```
 
 ---
 
 ## Resultado Esperado
 
-Após as correções:
-1. Cobranças existentes terão URLs funcionando (`vehicleguard-pro.lovable.app`)
-2. Novas cobranças geradas automaticamente terão URLs completas
-3. A transação de teste (`13342709-e7b5-440b-bacf-1525eca9c30e`) funcionará corretamente
+1. URLs geradas sem barra dupla
+2. Domínio customizado funcionando: `https://app.liratracker.com.br/checkout/...`
+3. Fallbacks atualizados para `vehicleguard-pro.lovable.app`
+4. Transações existentes corrigidas
