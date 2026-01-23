@@ -1,75 +1,50 @@
 
-# Plano: Corrigir URLs de Checkout com Domínio Customizado
+# Correção: PIX Expirado Não Regenerando no Mercado Pago
 
 ## Problema Identificado
 
-### 1. Barra Dupla no Checkout
-A empresa **LIRA TRACKER** tem o domínio configurado como:
-```
-https://app.liratracker.com.br
-```
+### Causa Raiz
+A integração com Mercado Pago usa o `external_reference` (ID da transação) como `X-Idempotency-Key`. Isso causa um problema crítico:
 
-Quando o código processa, ele faz:
-```typescript
-`https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}`
+1. PIX original criado com Idempotency-Key = `ee243a78-2854-4f84-9018-8a51546d0811`
+2. Mercado Pago registra: "Este key = pagamento #142380341927"
+3. PIX expira após 24h
+4. Cliente tenta regenerar
+5. Sistema envia novo request com **mesma** Idempotency-Key
+6. Mercado Pago **retorna o pagamento antigo** (já expirado/cancelado)
+7. Sistema mostra o PIX antigo que não funciona mais
+
+### Evidência nos Logs
 ```
-
-**Resultado incorreto:**
-- Input: `https://app.liratracker.com.br/`
-- Regex remove `https://` mas deixa a barra final
-- URL final: `https://app.liratracker.com.br//checkout/...` (barra dupla)
-
-### 2. Referências Antigas ao Domínio
-Ainda existem fallbacks com o domínio antigo `gestaotracker.lovable.app` em:
-- `supabase/functions/ai-collection/index.ts` (linha 428)
-- `supabase/functions/ai-manager-assistant/index.ts` (linha 850)
+charge.id: 142380341927           // MESMO ID do original!
+charge.status: "cancelled"         // Porque expirou
+date_of_expiration: 2026-01-23T08:15:07  // Já passou!
+```
 
 ---
 
 ## Solução
 
-### Fase 1: Corrigir a Função de Sanitização de Domínio
+Modificar a função `mercadopago-integration` para usar um Idempotency-Key único a cada tentativa, adicionando um timestamp ou UUID:
 
-Criar uma função reutilizável que:
-1. Remove o protocolo (`http://` ou `https://`)
-2. Remove barras finais
-3. Adiciona `https://` de forma consistente
+```text
++---------------------------------------------+
+|    ANTES (problemático)                      |
++---------------------------------------------+
+| X-Idempotency-Key: payment_id               |
+| Resultado: Mercado Pago retorna             |
+| sempre o mesmo pagamento                    |
++---------------------------------------------+
 
-```typescript
-function sanitizeBaseUrl(domain: string | null, fallback: string): string {
-  if (!domain) return fallback;
-  
-  // Remove protocol and trailing slashes
-  const cleanDomain = domain
-    .replace(/^https?:\/+/i, '')  // Remove http:// ou https://
-    .replace(/\/+$/, '');          // Remove barras finais
-  
-  return `https://${cleanDomain}`;
-}
-```
+             ⬇️
 
-### Fase 2: Atualizar Edge Functions
-
-Aplicar a correção em todos os arquivos que constroem URLs de checkout:
-
-| Arquivo | Linha(s) | Problema |
-|---------|----------|----------|
-| `supabase/functions/ai-collection/index.ts` | 95-98 | Regex incompleto |
-| `supabase/functions/ai-collection/index.ts` | 428-432 | Fallback antigo + regex |
-| `supabase/functions/billing-management/index.ts` | 156-159 | Regex incompleto |
-| `supabase/functions/ai-manager-assistant/index.ts` | 107-110 | Regex incompleto |
-| `supabase/functions/ai-manager-assistant/index.ts` | 850-854 | Fallback antigo + regex |
-
-### Fase 3: Corrigir URLs Existentes no Banco
-
-Executar SQL para corrigir as 3 transações com barra dupla:
-
-```sql
-UPDATE payment_transactions 
-SET payment_url = REPLACE(payment_url, '//checkout/', '/checkout/'),
-    updated_at = NOW()
-WHERE payment_url LIKE '%//checkout/%'
-AND status IN ('pending', 'overdue');
++---------------------------------------------+
+|    DEPOIS (corrigido)                        |
++---------------------------------------------+
+| X-Idempotency-Key: payment_id_timestamp     |
+| Resultado: Cada tentativa cria              |
+| um novo pagamento PIX                       |
++---------------------------------------------+
 ```
 
 ---
@@ -78,35 +53,31 @@ AND status IN ('pending', 'overdue');
 
 | Arquivo | Ação |
 |---------|------|
-| `supabase/functions/ai-collection/index.ts` | Corrigir regex e fallback antigo |
-| `supabase/functions/billing-management/index.ts` | Corrigir regex |
-| `supabase/functions/ai-manager-assistant/index.ts` | Corrigir regex e fallback antigo |
-| Banco de dados | Atualizar URLs com barra dupla |
+| `supabase/functions/mercadopago-integration/index.ts` | Modificar geração do Idempotency-Key |
 
 ---
 
-## Código Corrigido
+## Implementação Técnica
 
-Substituir em todos os arquivos:
-
+### Antes (linha 543)
 ```typescript
-// ❌ ANTES (problemático)
-const baseUrl = companyInfo?.domain 
-  ? `https://${companyInfo.domain.replace(/^https?:+\/+/i, '')}` 
-  : defaultAppUrl;
+'X-Idempotency-Key': data.externalReference
+```
 
-// ✅ DEPOIS (correto)
-const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-const baseUrl = companyInfo?.domain 
-  ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
-  : defaultAppUrl;
+### Depois
+```typescript
+// Gerar idempotency key único incluindo timestamp para permitir regeneração
+const idempotencyKey = `${data.externalReference}_${Date.now()}`;
+// ...
+'X-Idempotency-Key': idempotencyKey
 ```
 
 ---
 
 ## Resultado Esperado
 
-1. URLs geradas sem barra dupla
-2. Domínio customizado funcionando: `https://app.liratracker.com.br/checkout/...`
-3. Fallbacks atualizados para `vehicleguard-pro.lovable.app`
-4. Transações existentes corrigidas
+Após a correção:
+1. Cada tentativa de gerar PIX criará um **novo pagamento** no Mercado Pago
+2. PIX expirados poderão ser regenerados corretamente
+3. Cliente receberá um QR Code/Chave PIX **nova e válida** por 24h
+4. O pagamento funcionará normalmente no app do banco
