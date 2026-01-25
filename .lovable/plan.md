@@ -1,150 +1,157 @@
 
-# Plano: Otimizar Página de Veículos com Paginação
+# Plano: Cobranças Expiradas Permanecem Ativas
 
-## Problema Identificado
+## Problema Atual
 
-### 1. N+1 Queries (Problema Principal)
-A página atual faz **143+ queries** ao banco:
-- 1 query para buscar veículos
-- 143 queries individuais para buscar cada cliente (`Promise.all`)
+Quando um PIX expira no Mercado Pago, o webhook recebe o evento e:
+1. Marca a transação como `status = 'cancelled'`
+2. Define `cancellation_reason = 'expired'`
+3. A cobrança vai para a aba "Canceladas" e para de ser cobrada
 
-Isso causa lentidão extrema e sobrecarrega o banco de dados.
+## Comportamento Desejado
 
-### 2. Sem Paginação
-Renderiza todos os 143 veículos de uma vez, causando:
-- Lentidão no navegador
-- Scroll infinito difícil de navegar
-
----
-
-## Solução
-
-Aplicar o mesmo padrão da página de Clientes:
-
-### Fase 1: Otimizar Query com JOIN
-
-Substituir N+1 queries por uma única query com JOIN:
+Quando um PIX expira:
+1. Manter a transação como `status = 'pending'`
+2. Limpar o `external_id` antigo (PIX expirado)
+3. Limpar dados de pagamento expirados (`pix_code`, `payment_url`)
+4. A cobrança continua na aba principal sendo cobrada normalmente
+5. Sistema continua enviando notificações de cobrança
 
 ```text
-ANTES (143+ queries):
+ANTES (comportamento atual):
 ┌─────────────────────────┐
-│ Query 1: vehicles       │
+│ PIX expira no MP        │
+└───────────┬─────────────┘
+            ↓
+┌─────────────────────────┐
+│ Webhook recebe evento   │
+│ status = 'cancelled'    │
+└───────────┬─────────────┘
+            ↓
+┌─────────────────────────┐
+│ Cobrança cancelada      │
+│ → Aba "Canceladas"      │
+│ → PARA de cobrar        │
 └─────────────────────────┘
-         │
-         ├── Query 2: client[0]
-         ├── Query 3: client[1]
-         ├── Query 4: client[2]
-         │   ... (143 vezes)
-         └── Query 144: client[142]
 
-DEPOIS (1 query):
-┌─────────────────────────────────────────┐
-│ SELECT vehicles.*, clients.name, ...    │
-│ FROM vehicles                           │
-│ LEFT JOIN clients ON vehicles.client_id │
-└─────────────────────────────────────────┘
+DEPOIS (comportamento desejado):
+┌─────────────────────────┐
+│ PIX expira no MP        │
+└───────────┬─────────────┘
+            ↓
+┌─────────────────────────┐
+│ Webhook recebe evento   │
+│ status = 'pending'      │
+│ Limpa external_id/pix   │
+└───────────┬─────────────┘
+            ↓
+┌─────────────────────────┐
+│ Cobrança ativa          │
+│ → Aba principal         │
+│ → CONTINUA cobrando     │
+└─────────────────────────┘
 ```
-
-### Fase 2: Adicionar Paginação
-
-Implementar paginação idêntica à tela de Clientes:
-- 15 itens por página
-- Navegação Anterior/Próximo
-- Botões de página numerados
-- Reset para página 1 ao buscar
-
-### Fase 3: Melhorar UX
-
-- Adicionar componente Skeleton durante carregamento
-- Adicionar filtro por status (Ativo/Inativo/Manutenção)
-- Adicionar botão de limpar busca (X)
 
 ---
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Ação |
 |---------|------|
-| `src/pages/Vehicles.tsx` | Refatorar query + adicionar paginação |
-| `src/components/vehicles/VehicleTableSkeleton.tsx` | Criar (novo) |
+| `supabase/functions/mercadopago-webhook/index.ts` | Alterar lógica para PIX expirado |
 
 ---
 
 ## Implementação Técnica
 
-### 1. Nova Query Otimizada
+### Modificar o case 'cancelled' no webhook
+
 ```typescript
-// ANTES: N+1 queries
-const { data } = await supabase
-  .from('vehicles')
-  .select('*')
-  .eq('company_id', profile.company_id)
-  .eq('is_active', true)
+// ANTES (linhas 132-155)
+case 'rejected':
+case 'cancelled':
+  if (!isPaid) {
+    newStatus = 'cancelled'
+    if (paymentData.date_of_expiration) {
+      const expirationDate = new Date(paymentData.date_of_expiration)
+      if (expirationDate < new Date()) {
+        cancellationReason = 'expired'  // ← Marca como cancelado
+      }
+    }
+  }
+  break
 
-// Promise.all com 143 queries... 
-
-// DEPOIS: 1 única query
-const { data } = await supabase
-  .from('vehicles')
-  .select(`
-    *,
-    clients:client_id (
-      id,
-      name,
-      phone
-    )
-  `)
-  .eq('company_id', profile.company_id)
-  .eq('is_active', true)
-  .order('created_at', { ascending: false })
+// DEPOIS
+case 'rejected':
+case 'cancelled':
+  if (!isPaid) {
+    // Verificar se expirou
+    if (paymentData.date_of_expiration) {
+      const expirationDate = new Date(paymentData.date_of_expiration)
+      if (expirationDate < new Date()) {
+        // PIX EXPIRADO: Manter como pending para continuar cobrando
+        newStatus = 'pending'
+        clearPaymentData = true  // Flag para limpar dados do PIX expirado
+        console.log('PIX expirado - mantendo como pending para continuar cobrança')
+      } else {
+        // Cancelamento real pelo gateway (não expiração)
+        newStatus = 'cancelled'
+        cancellationReason = 'gateway'
+      }
+    } else {
+      // Cancelamento/rejeição pelo gateway
+      newStatus = 'cancelled'
+      cancellationReason = 'gateway'
+    }
+  }
+  break
 ```
 
-### 2. Paginação (15 itens/página)
+### Limpar dados do PIX expirado
+
 ```typescript
-const ITEMS_PER_PAGE = 15
+// Adicionar flag antes do switch
+let clearPaymentData = false
 
-const totalPages = Math.ceil(filteredVehicles.length / ITEMS_PER_PAGE)
-const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-const paginatedVehicles = filteredVehicles.slice(startIndex, startIndex + ITEMS_PER_PAGE)
-
-// Reset página ao buscar
-useEffect(() => {
-  setCurrentPage(1)
-}, [searchTerm])
+// No updateData, após o switch
+if (clearPaymentData) {
+  // Limpar dados do PIX expirado para que um novo possa ser gerado
+  updateData.external_id = null
+  updateData.pix_code = null
+  updateData.payment_url = null
+  updateData.barcode = null
+}
 ```
 
-### 3. Controles de Paginação
-```typescript
-{filteredVehicles.length > ITEMS_PER_PAGE && (
-  <div className="flex items-center justify-center gap-2 mt-6">
-    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
-      <ChevronLeft /> Anterior
-    </button>
-    
-    {/* Botões de página numerados */}
-    
-    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
-      Próximo <ChevronRight />
-    </button>
-  </div>
-)}
-```
+---
+
+## Fluxo Após Correção
+
+1. Cliente recebe cobrança com link de PIX
+2. PIX expira após 24h (cliente não pagou)
+3. Mercado Pago envia webhook de expiração
+4. Sistema **mantém cobrança como pending**
+5. Sistema **limpa dados do PIX antigo**
+6. Sistema continua enviando notificações
+7. Cliente clica no link → gera **novo PIX válido**
+8. Ciclo continua até pagamento ou cancelamento manual
 
 ---
 
 ## Resultado Esperado
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Queries ao banco | 144+ | 1 |
-| Itens renderizados | 143 | 15 |
-| Tempo de carregamento | ~5-10s | ~500ms |
-| Navegação | Scroll infinito | Paginada |
+| Situação | Antes | Depois |
+|----------|-------|--------|
+| PIX expira | Cobrança cancelada | Cobrança permanece ativa |
+| Aba | "Canceladas" | Aba principal |
+| Notificações | Param | Continuam |
+| Cliente abre link | Vê PIX antigo expirado | Gera novo PIX |
 
 ---
 
-## Componentes Reutilizados
+## Considerações de Segurança
 
-- Copiar padrão de `ClientsPage` para manter consistência visual
-- Criar `VehicleTableSkeleton` baseado no `ClientTableSkeleton`
-- Adicionar filtro por status igual ao de Clientes
+- Cancelamentos **manuais** (pelo gestor) continuam funcionando
+- Cancelamentos por **rejeição do gateway** (cartão negado, etc) continuam cancelando
+- Apenas **expiração** mantém a cobrança ativa
+- Cobranças já **pagas** nunca são afetadas (proteção existente mantida)
