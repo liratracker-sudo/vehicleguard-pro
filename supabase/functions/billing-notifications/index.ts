@@ -1205,12 +1205,14 @@ async function sendSingleNotification(notification: any) {
   const companyDomain = companyCache.companyDomains.get(notification.company_id);
   
   // Use company domain if configured, otherwise fallback to APP_URL
-  const baseUrl = companyDomain 
-    ? `https://${companyDomain.replace(/^https?:+\/+/i, '')}` 
-    : appUrl;
+  // Sanitiza domínio: remove protocolo (http/https) e trailing slashes para evitar URLs duplicadas
+  const sanitizedDomain = companyDomain 
+    ? companyDomain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
+    : null;
+  const baseUrl = sanitizedDomain ? `https://${sanitizedDomain}` : appUrl;
   
   const paymentLink = `${baseUrl}/checkout/${payment.id}`;
-  console.log(`📎 Payment link generated: ${paymentLink} (domain: ${companyDomain || 'fallback'})`);
+  console.log(`📎 Payment link generated: ${paymentLink} (domain: ${sanitizedDomain || 'fallback'})`);
 
   // OTIMIZAÇÃO: Verificar conexão WhatsApp usando cache (apenas 1x por empresa)
   console.log(`Validating WhatsApp connection for company ${notification.company_id} (cached)...`);
