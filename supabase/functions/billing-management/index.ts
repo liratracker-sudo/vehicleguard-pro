@@ -378,7 +378,18 @@ serve(async (req) => {
           throw new Error('Payment ID is required');
         }
 
-        // Permanently delete the payment from database
+        // First, delete related payment_notifications to avoid FK constraint violation
+        const { error: notifError } = await supabaseService
+          .from('payment_notifications')
+          .delete()
+          .eq('payment_id', payment_id);
+
+        if (notifError) {
+          console.error('Error deleting payment notifications:', notifError);
+          // Continue anyway - notifications might not exist
+        }
+
+        // Then permanently delete the payment from database
         const { error } = await supabase
           .from('payment_transactions')
           .delete()
@@ -386,6 +397,8 @@ serve(async (req) => {
           .eq('company_id', userCompanyId);
 
         if (error) throw error;
+
+        console.log(`Payment ${payment_id} permanently deleted by user ${user.id}`);
 
         return new Response(
           JSON.stringify({ success: true, message: 'Payment deleted permanently' }),
