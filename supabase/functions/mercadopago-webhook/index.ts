@@ -122,6 +122,7 @@ serve(async (req) => {
 
       // Determinar motivo de cancelamento se aplicável
       let cancellationReason: string | null = null
+      let clearPaymentData = false
 
       switch (paymentData.status) {
         case 'approved':
@@ -131,23 +132,27 @@ serve(async (req) => {
           break
         case 'rejected':
         case 'cancelled':
-          // Só marca como cancelled se NÃO estiver pago
+          // Só processa se NÃO estiver pago
           if (!isPaid) {
-            newStatus = 'cancelled'
             // Verificar se expirou (tem date_of_expiration e já passou)
             if (paymentData.date_of_expiration) {
               const expirationDate = new Date(paymentData.date_of_expiration)
               if (expirationDate < new Date()) {
-                cancellationReason = 'expired'
-                console.log('Payment expired (date_of_expiration passed)')
+                // PIX EXPIRADO: Manter como pending para continuar cobrando
+                newStatus = 'pending'
+                clearPaymentData = true
+                console.log('✅ PIX expirado - mantendo como PENDING para continuar cobrança. Dados do PIX antigo serão limpos.')
               } else {
+                // Cancelamento real pelo gateway (não expiração)
+                newStatus = 'cancelled'
                 cancellationReason = 'gateway'
-                console.log('Payment rejected/cancelled by gateway')
+                console.log('Payment rejected/cancelled by gateway (not expired)')
               }
             } else {
-              // Se não tem data de expiração, assumir cancelamento pelo gateway
+              // Cancelamento/rejeição pelo gateway sem data de expiração
+              newStatus = 'cancelled'
               cancellationReason = 'gateway'
-              console.log('Payment rejected/cancelled by gateway')
+              console.log('Payment rejected/cancelled by gateway (no expiration date)')
             }
           } else {
             console.log(`⚠️ Ignorando cancelled/rejected - pagamento ${transaction.id} já está pago. Status preservado.`)
@@ -187,8 +192,17 @@ serve(async (req) => {
       if (cancellationReason) {
         updateData.cancellation_reason = cancellationReason
       } else if (newStatus === 'paid' || newStatus === 'pending') {
-        // Limpar motivo de cancelamento se pagamento foi recuperado
+        // Limpar motivo de cancelamento se pagamento foi recuperado ou mantido pending
         updateData.cancellation_reason = null
+      }
+
+      // Limpar dados do PIX expirado para que um novo possa ser gerado
+      if (clearPaymentData) {
+        updateData.external_id = null
+        updateData.pix_code = null
+        updateData.payment_url = null
+        updateData.barcode = null
+        console.log('🧹 Dados do PIX expirado limpos (external_id, pix_code, payment_url, barcode)')
       }
 
       const { error: updateError } = await supabase
