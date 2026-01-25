@@ -92,9 +92,11 @@ serve(async (req) => {
 
       // Build payment link using company domain (remove protocol and trailing slashes)
       const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-      const baseUrl = companyInfo?.domain 
-        ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
-        : defaultAppUrl;
+      // Sanitiza domínio: remove protocolo (http/https) e trailing slashes para evitar URLs duplicadas
+      const sanitizedDomain = companyInfo?.domain 
+        ? companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
+        : null;
+      const baseUrl = sanitizedDomain ? `https://${sanitizedDomain}` : defaultAppUrl;
       const paymentLink = `${baseUrl}/checkout/${payment.id}`;
       console.log(`📎 Payment link for AI: ${paymentLink}`);
 
