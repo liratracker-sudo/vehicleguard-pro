@@ -136,13 +136,25 @@ serve(async (req) => {
           continue
         }
 
-        // Atualizar payment_url (URL completa)
+        // Buscar domínio customizado da empresa
+        const { data: company } = await supabase
+          .from('companies')
+          .select('domain')
+          .eq('id', payment.company_id)
+          .single();
+
+        // Sanitizar domínio e construir URL correta (evitar barra dupla)
         const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-        const checkoutUrl = `${appUrl}/checkout/${newPayment.id}`
+        const sanitizedDomain = company?.domain 
+          ? company.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
+          : null;
+        const baseUrl = sanitizedDomain ? `https://${sanitizedDomain}` : appUrl;
+        const checkoutUrl = `${baseUrl}/checkout/${newPayment.id}`;
+        
         await supabase
           .from('payment_transactions')
           .update({ payment_url: checkoutUrl })
-          .eq('id', newPayment.id)
+          .eq('id', newPayment.id);
 
         console.log(`✅ Nova cobrança criada: ${newPayment.id} para ${nextDueDate}`)
         results.generated++
