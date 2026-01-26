@@ -1,5 +1,4 @@
-
-# Plano: Corrigir Sanitização do APP_URL no Fallback
+# Plano: Corrigir Sanitização do APP_URL no Fallback ✅ CONCLUÍDO
 
 ## Problema Identificado
 
@@ -17,63 +16,31 @@ paymentLink = baseUrl + "/checkout/" + id
            = "https://app.liratracker.com.br//checkout/..."  ← BARRA DUPLA!
 ```
 
-## Evidências
+## Solução Aplicada ✅
 
-- Empresa CLS PRIMER: `domain = NULL`
-- Links enviados: `https://app.liratracker.com.br//checkout/...` (barra dupla)
-- O domínio `app.liratracker.com.br` é da empresa LIRA TRACKER (outra empresa), o que indica que está vindo do `APP_URL` de fallback
-
-## Solução
-
-Modificar **TODAS** as edge functions para sanitizar também o `APP_URL` de fallback, não apenas o domínio customizado.
-
-### Antes (código atual)
+Modificadas **TODAS** as edge functions para sanitizar também o `APP_URL` de fallback:
 
 ```typescript
+// ANTES (código com bug)
 const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-const sanitizedDomain = company?.domain 
-  ? company.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
-  : null;
-const baseUrl = sanitizedDomain ? `https://${sanitizedDomain}` : appUrl;  // ← appUrl NÃO sanitizado!
-const paymentLink = `${baseUrl}/checkout/${payment.id}`;
+
+// DEPOIS (correção aplicada)
+const appUrl = (Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app').replace(/\/+$/, '');
 ```
 
-### Depois (correção)
+## Arquivos Corrigidos ✅
 
-```typescript
-const rawAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
-// Sanitiza APP_URL: remove trailing slashes para evitar barra dupla no checkout
-const appUrl = rawAppUrl.replace(/\/+$/, '');
-
-const sanitizedDomain = company?.domain 
-  ? company.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
-  : null;
-const baseUrl = sanitizedDomain ? `https://${sanitizedDomain}` : appUrl;  // ← appUrl agora sanitizado!
-const paymentLink = `${baseUrl}/checkout/${payment.id}`;
-```
-
-## Arquivos a Modificar
-
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/billing-notifications/index.ts` | Sanitizar `appUrl` na linha 12 |
-| `supabase/functions/ai-collection/index.ts` | Sanitizar `defaultAppUrl` na linha 94 |
-| `supabase/functions/billing-management/index.ts` | Sanitizar `appUrl` na linha 155 |
-| `supabase/functions/ai-manager-assistant/index.ts` | Verificar e sanitizar se aplicável |
-| `supabase/functions/generate-next-charge/index.ts` | Verificar e sanitizar se aplicável |
-| `supabase/functions/process-retroactive-charges/index.ts` | Verificar e sanitizar se aplicável |
-
-## Etapas
-
-1. Corrigir sanitização do `APP_URL` em todas as edge functions que geram URLs de checkout
-2. Fazer deploy de todas as funções corrigidas
-3. Executar SQL para corrigir URLs existentes com barra dupla (já feito anteriormente, mas pode haver novas)
-
-## Por que as notificações anteriores falharam?
-
-As notificações enviadas às 12:32 UTC foram ANTES das correções serem deployadas (14:55 UTC). Após o deploy, novas notificações devem funcionar corretamente.
+| Arquivo | Status |
+|---------|--------|
+| `supabase/functions/billing-notifications/index.ts` | ✅ Corrigido |
+| `supabase/functions/ai-collection/index.ts` | ✅ Corrigido |
+| `supabase/functions/billing-management/index.ts` | ✅ Corrigido |
+| `supabase/functions/ai-manager-assistant/index.ts` | ✅ Corrigido |
+| `supabase/functions/generate-next-charge/index.ts` | ✅ Corrigido |
+| `supabase/functions/process-retroactive-charges/index.ts` | ✅ Corrigido |
 
 ## Resultado Esperado
 
 - Todas as URLs de checkout geradas corretamente, independente de ter domínio customizado ou usar fallback
 - Clientes conseguem acessar checkout sem erro 404
+- Links enviados via WhatsApp funcionam corretamente

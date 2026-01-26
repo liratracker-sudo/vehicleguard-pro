@@ -91,7 +91,8 @@ serve(async (req) => {
       const companyName = companyInfo?.name || 'Lira Tracker';
 
       // Build payment link using company domain (remove protocol and trailing slashes)
-      const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+      // Sanitiza APP_URL: remove trailing slashes para evitar barra dupla no checkout
+      const defaultAppUrl = (Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app').replace(/\/+$/, '');
       // Sanitiza domínio: remove protocolo (http/https) e trailing slashes para evitar URLs duplicadas
       const sanitizedDomain = companyInfo?.domain 
         ? companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
