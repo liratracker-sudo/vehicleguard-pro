@@ -9,7 +9,8 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+// Sanitiza APP_URL: remove trailing slashes para evitar barra dupla no checkout
+const appUrl = (Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app').replace(/\/+$/, '');
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
