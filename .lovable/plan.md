@@ -1,54 +1,76 @@
 
-# Plano: Corrigir URLs de Checkout com Barra Dupla
+# Plano: Corrigir TODAS as Edge Functions que Geram URLs de Checkout
 
-## Problema Identificado
+## Problema Confirmado
 
-URLs de checkout para a empresa LIRA TRACKER estão sendo geradas com barra dupla:
-- **Errado**: `https://app.liratracker.com.br//checkout/...`
-- **Correto**: `https://app.liratracker.com.br/checkout/...`
+As URLs de checkout continuam sendo geradas com barra dupla (`//checkout/`). Identificamos:
 
-O domínio no banco está como `https://app.liratracker.com.br`, e a sanitização não está removendo corretamente o protocolo antes de reconstruir a URL.
+1. **Edge functions anteriores precisam ser redeployadas** - as mudanças em `billing-notifications`, `ai-collection`, `ai-manager-assistant` e `billing-management` não estão ativas
+2. **Duas edge functions NÃO foram corrigidas** - `generate-next-charge` e `process-retroactive-charges` usam apenas `APP_URL` e ignoram o domínio customizado da empresa
 
-## Solução
+## Análise dos Dados do Banco
 
-### 1. Criar Função Utilitária de Sanitização Consistente
+URLs com barra dupla criadas APÓS a correção anterior:
+- `https://app.liratracker.com.br//checkout/5883511b...` (26/01 14:10)
+- `https://app.liratracker.com.br//checkout/fd7a3ddc...` (25/01 16:48)
 
-Padronizar a sanitização de domínio em todas as edge functions:
+## Solução Completa
+
+### Etapa 1: Corrigir `generate-next-charge/index.ts`
+
+Adicionar busca do domínio da empresa e sanitização:
 
 ```typescript
-function sanitizeDomain(domain: string, fallbackUrl: string): string {
-  if (!domain) return fallbackUrl;
-  
-  // Remove protocolo e trailing slashes
-  const cleanDomain = domain
-    .replace(/^https?:\/+/i, '')  // Remove http:// ou https://
-    .replace(/\/+$/, '');          // Remove trailing slashes
-  
-  return `https://${cleanDomain}`;
-}
+// Buscar domínio da empresa
+const { data: company } = await supabase
+  .from('companies')
+  .select('domain')
+  .eq('id', payment.company_id)
+  .single();
+
+// Sanitizar e construir URL
+const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+const sanitizedDomain = company?.domain 
+  ? company.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
+  : null;
+const baseUrl = sanitizedDomain ? `https://${sanitizedDomain}` : appUrl;
+const checkoutUrl = `${baseUrl}/checkout/${newPayment.id}`;
 ```
 
-### 2. Arquivos a Modificar
+### Etapa 2: Corrigir `process-retroactive-charges/index.ts`
 
-| Arquivo | Problema |
-|---------|----------|
-| `supabase/functions/billing-notifications/index.ts` | Regex incorreta e falta remoção de trailing slash |
-| `supabase/functions/ai-collection/index.ts` | Verificar consistência |
-| `supabase/functions/ai-manager-assistant/index.ts` | Verificar consistência |
-| `supabase/functions/billing-management/index.ts` | Verificar consistência |
+Mesma lógica - buscar domínio da empresa para cada pagamento processado.
 
-### 3. Corrigir URLs Existentes no Banco
+### Etapa 3: Fazer Deploy de TODAS as Edge Functions
 
-Executar SQL para corrigir URLs com barra dupla:
+Forçar deploy das seguintes funções:
+- `billing-notifications`
+- `ai-collection` 
+- `ai-manager-assistant`
+- `billing-management`
+- `generate-next-charge`
+- `process-retroactive-charges`
+
+### Etapa 4: Corrigir URLs Existentes no Banco (novamente)
+
+Executar SQL para corrigir as novas URLs com barra dupla:
 
 ```sql
 UPDATE payment_transactions 
-SET payment_url = REPLACE(payment_url, '//checkout/', '/checkout/')
+SET payment_url = REPLACE(payment_url, '//checkout/', '/checkout/'),
+    updated_at = now()
 WHERE payment_url LIKE '%//checkout/%';
 ```
 
+## Arquivos a Modificar
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/generate-next-charge/index.ts` | Adicionar busca de domínio + sanitização |
+| `supabase/functions/process-retroactive-charges/index.ts` | Adicionar busca de domínio + sanitização |
+
 ## Resultado Esperado
 
-- Novas cobranças geradas com URLs corretas
+- TODAS as edge functions gerando URLs corretas
 - URLs existentes corrigidas no banco
-- Clientes conseguem acessar o checkout sem erro 404
+- Clientes acessam checkout sem erro 404
