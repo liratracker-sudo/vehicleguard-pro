@@ -34,7 +34,7 @@ const ClientsPage = () => {
   const [viewMode, setViewMode] = useState<'edit' | 'view' | null>(null)
   const [isRecalculating, setIsRecalculating] = useState(false)
   const [statusFilter, setStatusFilter] = useState("all")
-  const { clients, loading, deleteClient, toggleWhatsApp } = useClients()
+  const { clients, loading, deleteClient, toggleWhatsApp, unblockWhatsApp } = useClients()
   const { scores, loading: scoresLoading, recalculateAllScores } = useClientScores()
 
   const filteredClients = clients.filter(client => {
@@ -265,6 +265,7 @@ const ClientsPage = () => {
                         onViewContracts={handleViewContracts}
                         onViewPaymentHistory={handleViewPaymentHistory}
                         onToggleWhatsApp={toggleWhatsApp}
+                        onUnblockWhatsApp={unblockWhatsApp}
                       />
                     ))
                   )}
