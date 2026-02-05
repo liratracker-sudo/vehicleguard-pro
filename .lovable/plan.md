@@ -1,150 +1,110 @@
 
-# Plano: Corrigir Erro de Signer no Assinafy
+
+# Plano: Corrigir Timeout no Envio de Contratos Assinafy
 
 ## Problema Identificado
 
-Através da análise dos logs do `assinafy_logs`, identifiquei a **causa raiz** do erro:
+Através da análise dos logs, identifiquei a **causa raiz** do timeout:
 
-**Erro:** `Signer already exists but email mismatch. Expected: Thiagofdm1@icloud.com`
+**Logs mostram:**
+```
+📊 Document status (attempt 39/45): metadata_ready
+⚠️ Unexpected document status: metadata_ready, will try assignment anyway
+📊 Document status (attempt 40/45): metadata_ready
+...
+📊 Document status (attempt 42/45): metadata_ready
+```
 
 ### O que está acontecendo:
 
-1. O sistema tenta buscar um signer pelo email do cliente
-2. A API do Assinafy não retorna resultados exatos na busca (busca parcial)
-3. O sistema tenta criar um novo signer
-4. A API do Assinafy retorna erro dizendo que o signer "já existe"
-5. O sistema faz retry da busca, mas novamente não encontra correspondência exata
-6. O código lança um erro fatal, impedindo o envio do contrato
+1. O documento é uploadado com sucesso para o Assinafy
+2. O sistema entra em loop de polling esperando o status mudar
+3. O documento fica no status `metadata_ready` (novo status da API)
+4. Este status **NÃO está na lista de status válidos** do código
+5. O sistema continua polling por 90 segundos antes de tentar criar o assignment
+6. Resultado: **timeout de ~120+ segundos**
 
 ### Causa Técnica:
 
-A API do Assinafy parece fazer busca parcial (substring) em vez de exata, e quando o email existe mas com diferenças de case ou formatação, ela falha em retornar o registro correto. O código atual é muito restritivo e falha quando não encontra correspondência exata no retry.
+O código atual verifica se o status está em:
+```typescript
+const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures'];
+```
+
+Mas a API do Assinafy agora pode retornar `metadata_ready` como status intermediário que indica que o documento está pronto para receber assignments.
 
 ## Solução
 
-Modificar a lógica de `getOrCreateSigner` para ser mais resiliente:
+1. **Adicionar `metadata_ready` à lista de status válidos** - Este status indica que os metadados foram processados e o documento pode receber assinantes
+2. **Reduzir o tempo máximo de polling** - De 90s para 30s, já que se não estiver pronto rapidamente, provavelmente há outro problema
+3. **Melhorar o log de warning** - Sair do loop mais cedo quando encontrar status inesperado
 
-1. **Tentar criar primeiro, capturar o ID do signer existente na resposta de erro** - Algumas APIs retornam o ID do signer existente no próprio erro
-2. **Fazer paginação na busca** - Buscar mais resultados caso o signer esteja em outra página
-3. **Normalizar emails para comparação** - Remover espaços e padronizar case
-4. **Em caso de falha persistente, tentar busca sem filtro** - Listar todos os signers e filtrar localmente
-
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/assinafy-integration/index.ts` | Melhorar lógica de `getOrCreateSigner` |
+| `supabase/functions/assinafy-integration/index.ts` | Atualizar lista de status e lógica de polling |
 
 ## Implementação Detalhada
 
-### Mudanças na função `getOrCreateSigner`:
+### Mudança 1: Adicionar `metadata_ready` aos status válidos
 
+**Antes (linha 629):**
 ```typescript
-const getOrCreateSigner = async (email: string, name: string, cpf?: string): Promise<string> => {
-  // Normalizar email
-  const normalizedEmail = email.trim().toLowerCase();
-  console.log("🔍 Checking for existing signer with email:", normalizedEmail);
-  
-  // 1. Tentar buscar com paginação aumentada
-  try {
-    const searchResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(normalizedEmail)}&per-page=50`,
-      'GET',
-      apiKey
-    );
-    
-    const searchData = await searchResponse.json();
-    
-    if (searchData.data && searchData.data.length > 0) {
-      // Busca com normalização
-      const matchingSigner = searchData.data.find(
-        (signer: any) => signer.email?.trim().toLowerCase() === normalizedEmail
-      );
-      
-      if (matchingSigner) {
-        console.log("✅ Found exact email match:", matchingSigner.id);
-        return matchingSigner.id;
-      }
-    }
-  } catch (getError) {
-    console.log("ℹ️ Initial search failed, will try to create");
-  }
-  
-  // 2. Tentar criar
-  console.log("➕ Creating new signer for:", normalizedEmail);
-  try {
-    const createResponse = await makeAssinafyRequest(
-      `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers`,
-      'POST',
-      apiKey,
-      { full_name: name, email: email, government_id: cpf || undefined }
-    );
-
-    const signerData = await createResponse.json();
-    const newId = signerData.data?.id;
-    if (newId) {
-      console.log("✅ New signer created:", newId);
-      return newId;
-    }
-  } catch (createError: any) {
-    console.log("⚠️ Create failed:", createError.message);
-    
-    // 3. Se falhou porque já existe, buscar TODOS os signers e filtrar localmente
-    if (createError.message?.includes("já existe") || createError.message?.includes("already exists")) {
-      console.log("🔄 Signer exists, fetching all signers...");
-      
-      // Buscar com paginação maior - LISTAR TODOS
-      const allSignersResponse = await makeAssinafyRequest(
-        `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?per-page=200`,
-        'GET',
-        apiKey
-      );
-      
-      const allSignersData = await allSignersResponse.json();
-      console.log("📋 Total signers found:", allSignersData.data?.length || 0);
-      
-      if (allSignersData.data && allSignersData.data.length > 0) {
-        // Buscar com normalização flexível
-        const matchingSigner = allSignersData.data.find(
-          (signer: any) => signer.email?.trim().toLowerCase() === normalizedEmail
-        );
-        
-        if (matchingSigner) {
-          console.log("✅ Found signer in full list:", matchingSigner.id, matchingSigner.email);
-          return matchingSigner.id;
-        }
-        
-        // Se ainda não achou, mostrar primeiros 10 emails para debug
-        console.log("📧 First 10 signer emails:", 
-          allSignersData.data.slice(0, 10).map((s: any) => s.email)
-        );
-      }
-    }
-    
-    // Se não conseguiu resolver, lança erro com mais contexto
-    throw new Error(`Não foi possível criar/encontrar assinante para: ${email}. Verifique se este email já está cadastrado com outra formatação no Assinafy.`);
-  }
-  
-  throw new Error(`Falha ao obter/criar assinante para: ${email}`);
-};
+const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures'];
 ```
 
-### Principais Melhorias:
+**Depois:**
+```typescript
+const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures', 'metadata_ready'];
+```
 
-1. **Normalização de email** - `email.trim().toLowerCase()` antes de qualquer comparação
-2. **Paginação aumentada** - `per-page=50` na busca inicial, `per-page=200` no retry
-3. **Busca de fallback** - Se a busca filtrada falhar, buscar TODOS os signers e filtrar localmente
-4. **Mensagens de erro mais claras** - Orientar o usuário sobre o problema
-5. **Mais logging** - Para facilitar diagnóstico futuro
+### Mudança 2: Reduzir tempo de polling
+
+**Antes (linha 626):**
+```typescript
+const maxAttempts = 45; // 90 seconds max (45 x 2s)
+```
+
+**Depois:**
+```typescript
+const maxAttempts = 15; // 30 seconds max (15 x 2s)
+```
+
+### Mudança 3: Melhorar handling de status inesperado
+
+Adicionar lógica para sair do loop mais cedo quando encontrar status desconhecido após várias tentativas:
+
+```typescript
+} else {
+  console.warn(`⚠️ Unexpected document status: ${currentStatus}`);
+  // Se já tentou pelo menos 5 vezes e status ainda é desconhecido, tentar assignment
+  if (attempts >= 5) {
+    console.log(`ℹ️ Proceeding with assignment after ${attempts} attempts with status: ${currentStatus}`);
+    documentReady = true; // Forçar saída do loop
+  }
+}
+```
+
+## Impacto
+
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Tempo máximo de polling | 90 segundos | 30 segundos |
+| Status válidos | 3 | 4 (inclui `metadata_ready`) |
+| Handling de status desconhecido | Continua até timeout | Sai após 5 tentativas |
 
 ## Etapas de Implementação
 
-1. Atualizar a função `getOrCreateSigner` no `assinafy-integration/index.ts`
-2. Fazer deploy da edge function
-3. Testar o envio do contrato do cliente THIAGO DE MESQUITA NUNES
+1. Atualizar a lista `readyStatuses` para incluir `metadata_ready`
+2. Reduzir `maxAttempts` de 45 para 15
+3. Adicionar lógica de saída antecipada para status desconhecido
+4. Fazer deploy da edge function
+5. Testar o envio do contrato
 
 ## Resultado Esperado
 
-- Contratos devem ser enviados com sucesso mesmo quando o signer já existe no Assinafy
-- Sistema mais resiliente a diferenças de formatação de email
-- Mensagens de erro mais claras caso ainda falhe
+- Contratos devem ser enviados em **~10-20 segundos** em vez de ~120 segundos
+- Status `metadata_ready` será reconhecido como válido
+- Em caso de status desconhecido, o sistema tentará o assignment após 10 segundos em vez de esperar 90s
+
