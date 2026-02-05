@@ -623,10 +623,10 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     console.log("⏳ Waiting for document processing to complete...");
     let documentReady = false;
     let attempts = 0;
-    const maxAttempts = 45; // 90 seconds max (45 x 2s)
+    const maxAttempts = 15; // 30 seconds max (15 x 2s)
     
     // Status that indicate document is ready for assignment
-    const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures'];
+    const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures', 'metadata_ready'];
     
     while (!documentReady && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
@@ -657,8 +657,12 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
             console.log(`⏳ Document still processing: ${currentStatus}`);
             // Continue waiting
           } else {
-            console.warn(`⚠️ Unexpected document status: ${currentStatus}, will try assignment anyway`);
-            // Unknown status, try assignment after timeout
+            console.warn(`⚠️ Unexpected document status: ${currentStatus}`);
+            // Se já tentou pelo menos 5 vezes e status ainda é desconhecido, tentar assignment
+            if (attempts >= 5) {
+              console.log(`ℹ️ Proceeding with assignment after ${attempts} attempts with status: ${currentStatus}`);
+              documentReady = true; // Forçar saída do loop
+            }
           }
         }
       } catch (error) {
@@ -667,7 +671,7 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     }
     
     if (!documentReady) {
-      console.warn("⚠️ Document processing timeout after 90s, will attempt assignment with retries...");
+      console.warn("⚠️ Document processing timeout after 30s, will attempt assignment with retries...");
     }
 
     // Create assignment for signers with retry mechanism
