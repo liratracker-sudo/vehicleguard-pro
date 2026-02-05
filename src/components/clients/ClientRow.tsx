@@ -1,4 +1,4 @@
-import { Phone, Mail, MoreHorizontal, Edit, Trash2, FileText, History, Eye, MessageSquare, MessageSquareOff, Ban, Gift } from "lucide-react"
+import { Phone, Mail, MoreHorizontal, Edit, Trash2, FileText, History, Eye, MessageSquare, MessageSquareOff, Ban, Gift, Unlock } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,7 @@ interface ClientRowProps {
   onViewContracts: (id: string) => void
   onViewPaymentHistory: (id: string) => void
   onToggleWhatsApp: (id: string, currentOptOut: boolean | null) => void
+  onUnblockWhatsApp: (id: string) => void
 }
 
 function getInitials(name: string): string {
@@ -57,6 +58,7 @@ export function ClientRow({
   onViewContracts,
   onViewPaymentHistory,
   onToggleWhatsApp,
+  onUnblockWhatsApp,
 }: ClientRowProps) {
   return (
     <TableRow className="hover:bg-muted/50 transition-colors">
@@ -179,6 +181,12 @@ export function ClientRow({
                 </>
               )}
             </DropdownMenuItem>
+            {client.whatsapp_blocked && (
+              <DropdownMenuItem onSelect={() => onUnblockWhatsApp(client.id)}>
+                <Unlock className="w-4 h-4 mr-2" />
+                Desbloquear WhatsApp
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="text-destructive"
               onSelect={() => onDelete(client.id, client.name)}
