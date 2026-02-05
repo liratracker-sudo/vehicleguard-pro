@@ -1,110 +1,89 @@
 
 
-# Plano: Corrigir Timeout no Envio de Contratos Assinafy
+# Plano: Otimizar Tempo de Envio de Contratos Assinafy
 
-## Problema Identificado
+## Situação Atual
 
-Através da análise dos logs, identifiquei a **causa raiz** do timeout:
+O contrato está levando ~33 segundos. Analisando o fluxo, o tempo é gasto em:
 
-**Logs mostram:**
-```
-📊 Document status (attempt 39/45): metadata_ready
-⚠️ Unexpected document status: metadata_ready, will try assignment anyway
-📊 Document status (attempt 40/45): metadata_ready
-...
-📊 Document status (attempt 42/45): metadata_ready
-```
+1. **Polling inicial** - Espera 2 segundos antes da primeira verificação
+2. **Intervalo de polling** - 2 segundos entre cada tentativa
+3. **Retries de assignment** - Espera progressiva de 3s, 6s se falhar
 
-### O que está acontecendo:
+## Otimizações Propostas
 
-1. O documento é uploadado com sucesso para o Assinafy
-2. O sistema entra em loop de polling esperando o status mudar
-3. O documento fica no status `metadata_ready` (novo status da API)
-4. Este status **NÃO está na lista de status válidos** do código
-5. O sistema continua polling por 90 segundos antes de tentar criar o assignment
-6. Resultado: **timeout de ~120+ segundos**
+### 1. Reduzir Intervalo de Polling (2s → 1s)
 
-### Causa Técnica:
+O intervalo de 2 segundos é conservador. A maioria dos documentos está pronta em poucos segundos.
 
-O código atual verifica se o status está em:
-```typescript
-const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures'];
-```
+| Antes | Depois |
+|-------|--------|
+| `setTimeout(resolve, 2000)` | `setTimeout(resolve, 1000)` |
+| 15 tentativas × 2s = 30s máx | 20 tentativas × 1s = 20s máx |
 
-Mas a API do Assinafy agora pode retornar `metadata_ready` como status intermediário que indica que o documento está pronto para receber assignments.
+### 2. Primeira Verificação Imediata
 
-## Solução
+Atualmente espera 2 segundos antes de verificar. Muitos documentos já estão prontos imediatamente.
 
-1. **Adicionar `metadata_ready` à lista de status válidos** - Este status indica que os metadados foram processados e o documento pode receber assinantes
-2. **Reduzir o tempo máximo de polling** - De 90s para 30s, já que se não estiver pronto rapidamente, provavelmente há outro problema
-3. **Melhorar o log de warning** - Sair do loop mais cedo quando encontrar status inesperado
+**Mudança**: Verificar status imediatamente após upload, antes de iniciar o loop de polling.
+
+### 3. Reduzir Tempo de Retry do Assignment (3s → 1s)
+
+O retry progressivo (0s, 3s, 6s) pode ser reduzido para (0s, 1s, 2s).
 
 ## Arquivo a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/assinafy-integration/index.ts` | Atualizar lista de status e lógica de polling |
+| `supabase/functions/assinafy-integration/index.ts` | Otimizar intervalos de polling |
 
-## Implementação Detalhada
-
-### Mudança 1: Adicionar `metadata_ready` aos status válidos
-
-**Antes (linha 629):**
-```typescript
-const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures'];
-```
-
-**Depois:**
-```typescript
-const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures', 'metadata_ready'];
-```
-
-### Mudança 2: Reduzir tempo de polling
-
-**Antes (linha 626):**
-```typescript
-const maxAttempts = 45; // 90 seconds max (45 x 2s)
-```
-
-**Depois:**
-```typescript
-const maxAttempts = 15; // 30 seconds max (15 x 2s)
-```
-
-### Mudança 3: Melhorar handling de status inesperado
-
-Adicionar lógica para sair do loop mais cedo quando encontrar status desconhecido após várias tentativas:
+## Implementação
 
 ```typescript
-} else {
-  console.warn(`⚠️ Unexpected document status: ${currentStatus}`);
-  // Se já tentou pelo menos 5 vezes e status ainda é desconhecido, tentar assignment
-  if (attempts >= 5) {
-    console.log(`ℹ️ Proceeding with assignment after ${attempts} attempts with status: ${currentStatus}`);
-    documentReady = true; // Forçar saída do loop
+// MUDANÇA 1: Verificação imediata após upload
+console.log("⏳ Checking if document is ready...");
+
+// Verificação imediata (sem delay)
+try {
+  const immediateCheck = await fetch(
+    `https://api.assinafy.com.br/v1/documents/${documentId}`,
+    { method: 'GET', headers: { 'Authorization': `Bearer ${apiKey}` } }
+  );
+  if (immediateCheck.ok) {
+    const statusData = await immediateCheck.json();
+    const currentStatus = statusData.data?.status;
+    console.log(`📊 Immediate status check: ${currentStatus}`);
+    if (readyStatuses.includes(currentStatus)) {
+      documentReady = true;
+      console.log(`✅ Document ready immediately!`);
+    }
   }
+} catch (e) { /* continue with polling */ }
+
+// MUDANÇA 2: Polling com intervalo de 1s
+const maxAttempts = 20; // 20 segundos max (20 x 1s)
+while (!documentReady && attempts < maxAttempts) {
+  await new Promise(resolve => setTimeout(resolve, 1000)); // 1 segundo
+  // ...
+}
+
+// MUDANÇA 3: Retry de assignment mais rápido
+if (assignmentAttempts > 1) {
+  const waitTime = assignmentAttempts * 1000; // 1s, 2s em vez de 3s, 6s
+  await new Promise(resolve => setTimeout(resolve, waitTime));
 }
 ```
 
-## Impacto
+## Impacto Esperado
 
 | Métrica | Antes | Depois |
 |---------|-------|--------|
-| Tempo máximo de polling | 90 segundos | 30 segundos |
-| Status válidos | 3 | 4 (inclui `metadata_ready`) |
-| Handling de status desconhecido | Continua até timeout | Sai após 5 tentativas |
+| Primeira verificação | após 2s | imediata |
+| Intervalo de polling | 2 segundos | 1 segundo |
+| Retry de assignment | 0s, 3s, 6s | 0s, 1s, 2s |
+| **Tempo médio estimado** | ~33 segundos | ~10-15 segundos |
 
-## Etapas de Implementação
+## Risco
 
-1. Atualizar a lista `readyStatuses` para incluir `metadata_ready`
-2. Reduzir `maxAttempts` de 45 para 15
-3. Adicionar lógica de saída antecipada para status desconhecido
-4. Fazer deploy da edge function
-5. Testar o envio do contrato
-
-## Resultado Esperado
-
-- Contratos devem ser enviados em **~10-20 segundos** em vez de ~120 segundos
-- Status `metadata_ready` será reconhecido como válido
-- Em caso de status desconhecido, o sistema tentará o assignment após 10 segundos em vez de esperar 90s
+**Baixo** - Apenas reduz tempos de espera. Se a API do Assinafy for mais lenta, o sistema ainda funciona (apenas usa mais tentativas).
 
