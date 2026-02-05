@@ -620,16 +620,35 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     }
 
     // Wait for document processing to complete
-    console.log("⏳ Waiting for document processing to complete...");
+    console.log("⏳ Checking if document is ready...");
     let documentReady = false;
     let attempts = 0;
-    const maxAttempts = 15; // 30 seconds max (15 x 2s)
+    const maxAttempts = 20; // 20 seconds max (20 x 1s)
     
     // Status that indicate document is ready for assignment
     const readyStatuses = ['pending_signature', 'ready', 'waiting_signatures', 'metadata_ready'];
     
+    // Immediate status check (no delay)
+    try {
+      const immediateCheck = await fetch(
+        `https://api.assinafy.com.br/v1/documents/${documentId}`,
+        { method: 'GET', headers: { 'Authorization': `Bearer ${apiKey}` } }
+      );
+      if (immediateCheck.ok) {
+        const statusData = await immediateCheck.json();
+        const currentStatus = statusData.data?.status;
+        console.log(`📊 Immediate status check: ${currentStatus}`);
+        if (readyStatuses.includes(currentStatus)) {
+          documentReady = true;
+          console.log(`✅ Document ready immediately!`);
+        }
+      }
+    } catch (e) {
+      console.log(`⏳ Immediate check failed, will use polling...`);
+    }
+    
     while (!documentReady && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
       attempts++;
       
       try {
@@ -686,9 +705,9 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
     while (!assignmentCreated && assignmentAttempts < maxAssignmentAttempts) {
       assignmentAttempts++;
       
-      // Progressive wait between attempts: 0s, 3s, 6s
+      // Progressive wait between attempts: 0s, 1s, 2s
       if (assignmentAttempts > 1) {
-        const waitTime = assignmentAttempts * 3000;
+        const waitTime = assignmentAttempts * 1000;
         console.log(`⏳ Assignment retry ${assignmentAttempts}, waiting ${waitTime/1000}s...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
