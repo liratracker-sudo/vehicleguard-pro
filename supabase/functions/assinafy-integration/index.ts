@@ -424,38 +424,41 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
   };
 
   try {
-    // Helper function to get or create a signer
+    // Helper function to get or create a signer with improved resilience
     const getOrCreateSigner = async (email: string, name: string, cpf?: string): Promise<string> => {
-      console.log("🔍 Checking for existing signer with email:", email);
+      // Normalizar email para evitar problemas de case sensitivity
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log("🔍 Checking for existing signer with email:", normalizedEmail);
       
+      // 1. Tentar buscar com paginação aumentada
       try {
         const existingSignerResponse = await makeAssinafyRequest(
-          `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(email)}`,
+          `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(normalizedEmail)}&per-page=50`,
           'GET',
           apiKey
         );
         
         const existingSignerData = await existingSignerResponse.json();
-        console.log("📥 Search response:", JSON.stringify(existingSignerData, null, 2));
+        console.log("📥 Search response count:", existingSignerData.data?.length || 0);
         
         if (existingSignerData.data && existingSignerData.data.length > 0) {
-          // Verify that the returned signer actually has the correct email
+          // Busca com normalização para comparação exata
           const matchingSigner = existingSignerData.data.find(
-            (signer: any) => signer.email?.toLowerCase() === email.toLowerCase()
+            (signer: any) => signer.email?.trim().toLowerCase() === normalizedEmail
           );
           
           if (matchingSigner) {
             console.log("✅ Found exact email match signer:", matchingSigner.id, "-", matchingSigner.email);
             return matchingSigner.id;
           } else {
-            console.log("⚠️ No exact email match found in results, creating new signer");
+            console.log("⚠️ No exact email match found in results, will try to create");
           }
         }
       } catch (getError) {
-        console.log("ℹ️ Signer not found, will create new one");
+        console.log("ℹ️ Initial search failed, will try to create");
       }
       
-      // Create new signer
+      // 2. Tentar criar novo signer
       console.log("➕ Creating new signer for:", email);
       try {
         const createSignerResponse = await makeAssinafyRequest(
@@ -464,48 +467,63 @@ async function createDocument(apiKey: string, workspaceId: string, contractData:
           apiKey,
           {
             full_name: name,
-            email: email,
+            email: email, // Usa email original para criação
             government_id: cpf || undefined
           }
         );
 
         const signerData = await createSignerResponse.json();
-        const newId = signerData.data.id;
-        console.log("✅ New signer created:", newId);
-        return newId;
+        const newId = signerData.data?.id;
+        if (newId) {
+          console.log("✅ New signer created:", newId);
+          return newId;
+        }
       } catch (createError: any) {
-        // If creation fails because signer already exists, retry get
-        if (createError.message?.includes("já existe")) {
-          console.log("🔄 Signer already exists, retrying get for email:", email);
-          const retrySignerResponse = await makeAssinafyRequest(
-            `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?email=${encodeURIComponent(email)}`,
-            'GET',
-            apiKey
-          );
+        console.log("⚠️ Create failed:", createError.message);
+        
+        // 3. Se falhou porque já existe, buscar TODOS os signers e filtrar localmente
+        if (createError.message?.includes("já existe") || createError.message?.includes("already exists")) {
+          console.log("🔄 Signer already exists, fetching ALL signers to find exact match...");
           
-          const retrySignerData = await retrySignerResponse.json();
-          console.log("📋 Retry results count:", retrySignerData.data?.length || 0);
-          console.log("📧 Retry emails found:", retrySignerData.data?.map((s: any) => s.email));
-          
-          if (retrySignerData.data && retrySignerData.data.length > 0) {
-            // CRITICAL FIX: Validate email match before returning signer ID
-            const matchingSigner = retrySignerData.data.find(
-              (signer: any) => signer.email?.toLowerCase() === email.toLowerCase()
+          try {
+            // Buscar com paginação maior - LISTAR TODOS
+            const allSignersResponse = await makeAssinafyRequest(
+              `https://api.assinafy.com.br/v1/accounts/${workspaceId}/signers?per-page=200`,
+              'GET',
+              apiKey
             );
             
-            if (matchingSigner) {
-              console.log("✅ Found exact email match in retry:", matchingSigner.id, matchingSigner.email);
-              return matchingSigner.id;
-            } else {
-              console.error("❌ CRITICAL: No exact email match found in retry!");
-              console.error("🔍 Looking for:", email);
-              console.error("📋 Available emails:", retrySignerData.data.map((s: any) => s.email));
-              throw new Error(`Signer already exists but email mismatch. Expected: ${email}`);
+            const allSignersData = await allSignersResponse.json();
+            console.log("📋 Total signers found:", allSignersData.data?.length || 0);
+            
+            if (allSignersData.data && allSignersData.data.length > 0) {
+              // Buscar com normalização flexível
+              const matchingSigner = allSignersData.data.find(
+                (signer: any) => signer.email?.trim().toLowerCase() === normalizedEmail
+              );
+              
+              if (matchingSigner) {
+                console.log("✅ Found signer in full list:", matchingSigner.id, matchingSigner.email);
+                return matchingSigner.id;
+              }
+              
+              // Se ainda não achou, mostrar primeiros 10 emails para debug
+              console.log("📧 First 10 signer emails:", 
+                allSignersData.data.slice(0, 10).map((s: any) => s.email)
+              );
             }
+          } catch (listError) {
+            console.error("❌ Failed to list all signers:", listError);
           }
+          
+          // Se não conseguiu resolver, lança erro com mais contexto
+          throw new Error(`Não foi possível criar/encontrar assinante para: ${email}. Verifique se este email já está cadastrado com outra formatação no Assinafy.`);
         }
+        
         throw createError;
       }
+      
+      throw new Error(`Falha ao obter/criar assinante para: ${email}`);
     };
     
     // Get or create signers for both client and company manager
