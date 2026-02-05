@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.client-portal-api]
 verify_jwt = false
+
+[functions.mercadopago-integration]
+verify_jwt = false
