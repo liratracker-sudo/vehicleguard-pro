@@ -516,6 +516,177 @@ serve(async (req) => {
         );
       }
 
+      case 'update_due_date': {
+        const { new_due_date, reason } = data || {};
+        
+        if (!payment_id || !new_due_date) {
+          throw new Error('Payment ID e nova data são obrigatórios');
+        }
+
+        // Validar que a nova data não está no passado
+        const newDate = new Date(new_due_date);
+        newDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (newDate < today) {
+          throw new Error('A nova data de vencimento não pode estar no passado');
+        }
+
+        // Buscar cobrança
+        const { data: payment, error: paymentError } = await supabase
+          .from('payment_transactions')
+          .select('id, external_id, due_date, status, client_id, protested_at')
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId)
+          .single();
+
+        if (paymentError || !payment) {
+          throw new Error('Cobrança não encontrada');
+        }
+
+        // Não permitir alterar cobranças pagas ou canceladas
+        if (payment.status === 'paid') {
+          throw new Error('Não é possível alterar vencimento de cobranças pagas');
+        }
+        if (payment.status === 'cancelled') {
+          throw new Error('Não é possível alterar vencimento de cobranças canceladas');
+        }
+        if (payment.protested_at) {
+          throw new Error('Não é possível alterar vencimento de cobranças protestadas');
+        }
+
+        // 1. Atualizar no banco local
+        const { error: updateError } = await supabase
+          .from('payment_transactions')
+          .update({
+            due_date: new_due_date,
+            status: 'pending', // Resetar para pending já que nova data é futura
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId);
+
+        if (updateError) throw updateError;
+
+        // 2. Se tiver cobrança no Asaas, atualizar lá também
+        if (payment.external_id) {
+          try {
+            console.log(`Atualizando cobrança ${payment.external_id} no Asaas para nova data ${new_due_date}`);
+            
+            const asaasResponse = await supabaseService.functions.invoke('asaas-integration', {
+              body: {
+                action: 'update_charge',
+                company_id: userCompanyId,
+                data: {
+                  chargeId: payment.external_id,
+                  dueDate: new_due_date
+                }
+              }
+            });
+
+            if (asaasResponse.error) {
+              console.error('Erro ao atualizar no Asaas:', asaasResponse.error);
+              // Continuar mesmo se Asaas falhar - banco local já foi atualizado
+            } else {
+              console.log('Cobrança atualizada no Asaas com sucesso');
+            }
+          } catch (asaasError) {
+            console.error('Erro na chamada ao Asaas:', asaasError);
+            // Não falhar a operação por causa do Asaas
+          }
+        }
+
+        // 3. Reagendar notificações - deletar pendentes e criar novas
+        const { error: deleteNotifError } = await supabaseService
+          .from('payment_notifications')
+          .delete()
+          .eq('payment_id', payment_id)
+          .eq('status', 'pending');
+
+        if (deleteNotifError) {
+          console.error('Erro ao deletar notificações pendentes:', deleteNotifError);
+        }
+
+        // Buscar configurações de notificação para reagendar
+        const { data: notifSettings } = await supabase
+          .from('payment_notification_settings')
+          .select('days_before, days_after, on_due_date, enabled')
+          .eq('company_id', userCompanyId)
+          .single();
+
+        if (notifSettings?.enabled) {
+          const notificationsToCreate: any[] = [];
+          const dueDate = new Date(new_due_date);
+
+          // Notificações antes do vencimento
+          if (notifSettings.days_before && Array.isArray(notifSettings.days_before)) {
+            notifSettings.days_before.forEach((days: number) => {
+              const scheduledDate = new Date(dueDate);
+              scheduledDate.setDate(scheduledDate.getDate() - days);
+              if (scheduledDate >= today) {
+                notificationsToCreate.push({
+                  payment_id: payment_id,
+                  company_id: userCompanyId,
+                  notification_type: 'pre_due',
+                  scheduled_for: scheduledDate.toISOString(),
+                  status: 'pending'
+                });
+              }
+            });
+          }
+
+          // Notificação no dia do vencimento
+          if (notifSettings.on_due_date && dueDate >= today) {
+            notificationsToCreate.push({
+              payment_id: payment_id,
+              company_id: userCompanyId,
+              notification_type: 'on_due',
+              scheduled_for: new_due_date,
+              status: 'pending'
+            });
+          }
+
+          // Notificações após vencimento
+          if (notifSettings.days_after && Array.isArray(notifSettings.days_after)) {
+            notifSettings.days_after.forEach((days: number) => {
+              const scheduledDate = new Date(dueDate);
+              scheduledDate.setDate(scheduledDate.getDate() + days);
+              notificationsToCreate.push({
+                payment_id: payment_id,
+                company_id: userCompanyId,
+                notification_type: 'post_due',
+                scheduled_for: scheduledDate.toISOString(),
+                status: 'pending'
+              });
+            });
+          }
+
+          if (notificationsToCreate.length > 0) {
+            const { error: insertNotifError } = await supabaseService
+              .from('payment_notifications')
+              .insert(notificationsToCreate);
+
+            if (insertNotifError) {
+              console.error('Erro ao criar novas notificações:', insertNotifError);
+            } else {
+              console.log(`${notificationsToCreate.length} notificações reagendadas`);
+            }
+          }
+        }
+
+        console.log(`Payment ${payment_id} due date updated to ${new_due_date} by user ${user.id}`);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Vencimento atualizado com sucesso',
+            new_due_date
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

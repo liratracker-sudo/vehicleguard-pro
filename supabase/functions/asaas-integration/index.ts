@@ -112,6 +112,8 @@ Deno.serve(async (req) => {
         return await findChargesByCpf(supabaseClient, companyId, data)
       case 'get_charge':
         return await getCharge(supabaseClient, companyId, data)
+      case 'update_charge':
+        return await updateCharge(supabaseClient, companyId, data)
       default:
         throw new Error('Ação não suportada')
     }
@@ -696,6 +698,54 @@ async function getCharge(supabaseClient: any, companyId: string, data: any) {
     console.error('Erro ao buscar cobrança:', error)
     
     await logAsaasOperation(supabaseClient, companyId, 'get_charge', { chargeId: data.chargeId }, null, 'error', error instanceof Error ? error.message : String(error))
+    
+    throw error
+  }
+}
+
+async function updateCharge(supabaseClient: any, companyId: string, data: any) {
+  console.log('Atualizando cobrança no Asaas:', data?.chargeId)
+  
+  const settings = await getAsaasSettings(supabaseClient, companyId)
+  
+  if (!data?.chargeId) {
+    throw new Error('ID da cobrança é obrigatório')
+  }
+  
+  const updateData: Record<string, any> = {}
+  if (data.dueDate) updateData.dueDate = data.dueDate
+  if (data.value !== undefined) updateData.value = data.value
+  if (data.description) updateData.description = data.description
+  
+  if (Object.keys(updateData).length === 0) {
+    throw new Error('Nenhum dado para atualizar')
+  }
+  
+  try {
+    const responseData = await makeAsaasRequest(`${settings.base_url}/payments/${data.chargeId}`, {
+      method: 'POST', // Asaas usa POST para update
+      headers: {
+        'access_token': settings.api_token,
+        'access-token': settings.api_token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updateData)
+    })
+
+    await logAsaasOperation(supabaseClient, companyId, 'update_charge', { chargeId: data.chargeId, ...updateData }, responseData, 'success')
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        charge: responseData
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('Erro ao atualizar cobrança:', error)
+    
+    await logAsaasOperation(supabaseClient, companyId, 'update_charge', { chargeId: data.chargeId, ...updateData }, null, 'error', error instanceof Error ? error.message : String(error))
     
     throw error
   }

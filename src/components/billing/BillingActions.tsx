@@ -41,8 +41,10 @@ import {
   Copy,
   ExternalLink,
   Scale,
-  Undo2
+  Undo2,
+  CalendarDays
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +70,8 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   const [showPaidDialog, setShowPaidDialog] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
+  const [showDueDateDialog, setShowDueDateDialog] = useState(false);
+  const [newDueDate, setNewDueDate] = useState<Date | undefined>();
   const { toast } = useToast();
   const [showProtestDialog, setShowProtestDialog] = useState(false);
   const [showUndoProtestDialog, setShowUndoProtestDialog] = useState(false);
@@ -79,6 +83,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     resendNotification,
     protestPayment,
     undoProtest,
+    updateDueDate,
   } = useBillingManagement();
 
   // Calcular dias de atraso
@@ -198,6 +203,25 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     setCustomReason("");
   };
 
+  const handleUpdateDueDate = async () => {
+    if (!newDueDate) return;
+    
+    try {
+      const formattedDate = newDueDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      await updateDueDate(payment.id, formattedDate);
+      setShowDueDateDialog(false);
+      setNewDueDate(undefined);
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating due date:', error);
+    }
+  };
+
+  const resetDueDateDialog = () => {
+    setShowDueDateDialog(false);
+    setNewDueDate(undefined);
+  };
+
   // Para cobranças canceladas, mostrar apenas excluir permanentemente
   if (showDeletePermanently) {
     return (
@@ -315,6 +339,27 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
             <TooltipContent side="bottom">
               {payment.clients?.phone ? 'Enviar notificação' : 'Sem telefone'}
             </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Alterar vencimento - apenas se pendente/vencido e não protestada */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && !isProtested && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                onClick={() => {
+                  setNewDueDate(payment.due_date ? new Date(payment.due_date + 'T12:00:00') : undefined);
+                  setShowDueDateDialog(true);
+                }}
+                disabled={loading}
+              >
+                <CalendarDays className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Alterar vencimento</TooltipContent>
           </Tooltip>
         )}
 
@@ -538,6 +583,67 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Dialog para alterar vencimento */}
+        <Dialog open={showDueDateDialog} onOpenChange={resetDueDateDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-amber-600" />
+                Alterar Vencimento
+              </DialogTitle>
+              <DialogDescription>
+                Selecione a nova data de vencimento para esta cobrança.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {/* Info da cobrança */}
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                <p className="text-sm font-medium">{payment.clients?.name || 'Cliente'}</p>
+                <p className="text-sm text-muted-foreground">
+                  R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Vencimento atual: {payment.due_date ? formatDateBR(payment.due_date) : '-'}
+                </p>
+              </div>
+
+              {/* Calendário */}
+              <div className="flex justify-center">
+                <Calendar
+                  mode="single"
+                  selected={newDueDate}
+                  onSelect={setNewDueDate}
+                  disabled={(date) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return date < today;
+                  }}
+                  initialFocus
+                  className="rounded-md border"
+                />
+              </div>
+
+              {newDueDate && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Nova data: <span className="font-medium text-foreground">{formatDateBR(newDueDate.toISOString().split('T')[0])}</span>
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={resetDueDateDialog}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleUpdateDueDate}
+                disabled={!newDueDate || loading}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <CalendarDays className="h-4 w-4 mr-2" />
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
