@@ -301,6 +301,41 @@ export function useBillingManagement() {
     }
   };
 
+  const updateDueDate = async (paymentId: string, newDueDate: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-management', {
+        body: {
+          action: 'update_due_date',
+          payment_id: paymentId,
+          data: { new_due_date: newDueDate }
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.message || data?.error || 'Falha ao atualizar vencimento.');
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Data de vencimento atualizada!"
+      });
+
+      return data;
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     updatePaymentStatus,
@@ -311,6 +346,7 @@ export function useBillingManagement() {
     getCompanyBalance,
     generateAutomaticCharges,
     protestPayment,
-    undoProtest
+    undoProtest,
+    updateDueDate
   };
 }
