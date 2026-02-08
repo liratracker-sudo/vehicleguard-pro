@@ -29,6 +29,7 @@ import AIDemo from "./pages/AIDemo";
 import LandingPage from "./pages/LandingPage";
 import ApiDocsPage from "./pages/ApiDocs";
 import PublicApiDocs from "./pages/PublicApiDocs";
+import SellersPage from "./pages/Sellers";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -63,6 +64,7 @@ const App = () => {
               <Route path="/admin" element={<AuthGuard><RoleGuard allowed={['super_admin']}><AdminPage /></RoleGuard></AuthGuard>} />
               <Route path="/clients" element={<AuthGuard><ClientsPage /></AuthGuard>} />
               <Route path="/registrations" element={<AuthGuard><ClientRegistrations /></AuthGuard>} />
+              <Route path="/sellers" element={<AuthGuard><SellersPage /></AuthGuard>} />
               <Route path="/plans" element={<AuthGuard><PlansPage /></AuthGuard>} />
               <Route path="/contracts" element={<AuthGuard><ContractsPage /></AuthGuard>} />
               <Route path="/vehicles" element={<AuthGuard><VehiclesPage /></AuthGuard>} />

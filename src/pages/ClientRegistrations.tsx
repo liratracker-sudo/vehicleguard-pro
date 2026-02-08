@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, Clock, Eye, Trash2, RefreshCw, Car, Fuel, Shield } from "lucide-react"
+import { CheckCircle2, XCircle, Clock, Eye, Trash2, RefreshCw, Car, Fuel, Shield, UserPlus, Instagram, Globe, Megaphone } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
@@ -54,6 +54,19 @@ interface Registration {
   has_gnv?: boolean
   is_armored?: boolean
   vehicles?: RegistrationVehicle[]
+  // Campos de rastreamento
+  referral_source?: string
+  referral_code?: string
+  referral_name?: string
+  seller_id?: string
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  how_did_you_hear?: string
+  seller?: {
+    name: string
+    code: string
+  }
 }
 
 export default function ClientRegistrations() {
@@ -84,12 +97,13 @@ export default function ClientRegistrations() {
 
       if (!profile) return
 
-      // Carregar registros com veículos relacionados
+      // Carregar registros com veículos e vendedores relacionados
       const { data, error } = await supabase
         .from('client_registrations')
         .select(`
           *,
-          vehicles:client_registration_vehicles(*)
+          vehicles:client_registration_vehicles(*),
+          seller:sellers(name, code)
         `)
         .eq('company_id', profile.company_id)
         .order('created_at', { ascending: false })
@@ -608,6 +622,30 @@ export default function ClientRegistrations() {
                             <p className="text-destructive">
                               <span className="font-medium">Motivo da rejeição:</span> {registration.rejection_reason}
                             </p>
+                          )}
+                          {/* Badge de origem */}
+                          {(registration.referral_source || registration.seller || registration.utm_source) && (
+                            <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t">
+                              {registration.seller && (
+                                <Badge variant="outline" className="text-xs">
+                                  <UserPlus className="h-3 w-3 mr-1" />
+                                  Vendedor: {registration.seller.name} ({registration.seller.code})
+                                </Badge>
+                              )}
+                              {registration.referral_source === 'client' && registration.referral_name && (
+                                <Badge variant="outline" className="text-xs">
+                                  <UserPlus className="h-3 w-3 mr-1" />
+                                  Indicado por: {registration.referral_name}
+                                </Badge>
+                              )}
+                              {registration.utm_source && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Megaphone className="h-3 w-3 mr-1" />
+                                  {registration.utm_source}
+                                  {registration.utm_campaign && ` • ${registration.utm_campaign}`}
+                                </Badge>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="mt-4 flex gap-2">

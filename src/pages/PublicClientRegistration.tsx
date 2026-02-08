@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useSearchParams } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, Plus, Trash2, Car } from "lucide-react"
+import { CheckCircle2, Plus, Trash2, Car, UserPlus } from "lucide-react"
 
 interface Vehicle {
   id: string
@@ -19,6 +19,12 @@ interface Vehicle {
   color: string
   has_gnv: boolean
   is_armored: boolean
+}
+
+interface Seller {
+  id: string
+  name: string
+  code: string
 }
 
 const createEmptyVehicle = (): Vehicle => ({
@@ -32,13 +38,39 @@ const createEmptyVehicle = (): Vehicle => ({
   is_armored: false
 })
 
+const HOW_DID_YOU_HEAR_OPTIONS = [
+  { value: "indicacao_cliente", label: "Indicação de amigo/cliente" },
+  { value: "vendedor", label: "Vendedor/Representante" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
+  { value: "google", label: "Google" },
+  { value: "qrcode", label: "QR Code" },
+  { value: "outro", label: "Outro" },
+]
+
 export default function PublicClientRegistration() {
   const { company_slug } = useParams()
+  const [searchParams] = useSearchParams()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [registrationId, setRegistrationId] = useState("")
   const [companyInfo, setCompanyInfo] = useState<any>(null)
+  const [sellers, setSellers] = useState<Seller[]>([])
+
+  // Dados de rastreamento capturados da URL
+  const [trackingData, setTrackingData] = useState({
+    ref: "",
+    indicado_por: "",
+    utm_source: "",
+    utm_medium: "",
+    utm_campaign: "",
+  })
+
+  // Campos de origem selecionados pelo usuário
+  const [howDidYouHear, setHowDidYouHear] = useState("")
+  const [referralInput, setReferralInput] = useState("")
+  const [detectedSeller, setDetectedSeller] = useState<Seller | null>(null)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -64,7 +96,43 @@ export default function PublicClientRegistration() {
 
   useEffect(() => {
     loadCompanyInfo()
+    captureTrackingParams()
   }, [company_slug])
+
+  const captureTrackingParams = () => {
+    const ref = searchParams.get('ref') || ""
+    const indicado_por = searchParams.get('indicado_por') || ""
+    const utm_source = searchParams.get('utm_source') || ""
+    const utm_medium = searchParams.get('utm_medium') || ""
+    const utm_campaign = searchParams.get('utm_campaign') || ""
+
+    setTrackingData({
+      ref,
+      indicado_por,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+    })
+
+    // Pré-preencher campo de referência se veio por indicação
+    if (indicado_por) {
+      setReferralInput(indicado_por)
+      setHowDidYouHear("indicacao_cliente")
+    } else if (ref) {
+      setReferralInput(ref)
+      setHowDidYouHear("vendedor")
+    } else if (utm_source) {
+      // Mapear utm_source para opção do select
+      const sourceMap: Record<string, string> = {
+        instagram: "instagram",
+        facebook: "facebook",
+        google: "google",
+      }
+      if (sourceMap[utm_source.toLowerCase()]) {
+        setHowDidYouHear(sourceMap[utm_source.toLowerCase()])
+      }
+    }
+  }
 
   const loadCompanyInfo = async () => {
     const { data, error } = await supabase
@@ -83,6 +151,28 @@ export default function PublicClientRegistration() {
     }
 
     setCompanyInfo(data)
+
+    // Carregar vendedores ativos da empresa
+    const { data: sellersData } = await supabase
+      .from('sellers')
+      .select('id, name, code')
+      .eq('company_id', data.id)
+      .eq('is_active', true)
+
+    if (sellersData) {
+      setSellers(sellersData)
+
+      // Verificar se o parâmetro ref corresponde a um vendedor
+      const ref = searchParams.get('ref')
+      if (ref) {
+        const matchedSeller = sellersData.find(
+          s => s.code.toLowerCase() === ref.toLowerCase()
+        )
+        if (matchedSeller) {
+          setDetectedSeller(matchedSeller)
+        }
+      }
+    }
   }
 
   const handleCepBlur = async () => {
@@ -176,6 +266,19 @@ export default function PublicClientRegistration() {
       
       formDataToSend.append('company_id', companyInfo.id)
 
+      // Adicionar dados de rastreamento
+      formDataToSend.append('referral_code', trackingData.ref || referralInput)
+      formDataToSend.append('utm_source', trackingData.utm_source)
+      formDataToSend.append('utm_medium', trackingData.utm_medium)
+      formDataToSend.append('utm_campaign', trackingData.utm_campaign)
+      formDataToSend.append('how_did_you_hear', howDidYouHear)
+      formDataToSend.append('referral_input', referralInput)
+      
+      // Se um vendedor foi detectado, enviar o ID
+      if (detectedSeller) {
+        formDataToSend.append('seller_id', detectedSeller.id)
+      }
+
       const response = await supabase.functions.invoke('process-client-registration', {
         body: formDataToSend
       })
@@ -250,6 +353,14 @@ export default function PublicClientRegistration() {
           )}
           <h1 className="text-3xl font-bold">{companyInfo.name}</h1>
           <p className="text-muted-foreground mt-2">Formulário de Cadastro de Cliente</p>
+          
+          {/* Mostrar vendedor detectado */}
+          {detectedSeller && (
+            <div className="mt-4 inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm">
+              <UserPlus className="h-4 w-4" />
+              Indicado por: <strong>{detectedSeller.name}</strong>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -483,6 +594,59 @@ export default function PublicClientRegistration() {
                   required
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Origem do Cadastro */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Como conheceu nossa empresa?
+              </CardTitle>
+              <CardDescription>
+                Opcional - ajuda a melhorar nossos serviços
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Selecione uma opção</Label>
+                <Select
+                  value={howDidYouHear}
+                  onValueChange={setHowDidYouHear}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione como nos conheceu" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOW_DID_YOU_HEAR_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Mostrar campo de indicação se selecionou vendedor ou indicação de cliente */}
+              {(howDidYouHear === "vendedor" || howDidYouHear === "indicacao_cliente") && !detectedSeller && (
+                <div>
+                  <Label>
+                    {howDidYouHear === "vendedor" 
+                      ? "Código ou nome do vendedor" 
+                      : "Nome ou placa de quem te indicou"}
+                  </Label>
+                  <Input
+                    value={referralInput}
+                    onChange={(e) => setReferralInput(e.target.value)}
+                    placeholder={
+                      howDidYouHear === "vendedor" 
+                        ? "Ex: JOAO01" 
+                        : "Ex: João Silva ou ABC1234"
+                    }
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
