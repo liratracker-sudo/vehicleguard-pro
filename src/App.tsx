@@ -28,6 +28,7 @@ import ProfilePage from "./pages/Profile";
 import AIDemo from "./pages/AIDemo";
 import LandingPage from "./pages/LandingPage";
 import ApiDocsPage from "./pages/ApiDocs";
+import PublicApiDocs from "./pages/PublicApiDocs";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -54,6 +55,7 @@ const App = () => {
               <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/demo" element={<AIDemo />} />
+              <Route path="/docs/api" element={<PublicApiDocs />} />
               <Route path="/checkout/:payment_id" element={<CheckoutPage />} />
               <Route path="/payment/:payment_id" element={<CheckoutPage />} />
               <Route path="/cadastro/:company_slug" element={<PublicClientRegistration />} />
