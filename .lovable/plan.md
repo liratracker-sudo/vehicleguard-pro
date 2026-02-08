@@ -1,55 +1,114 @@
 
+# Plano: Adicionar Exportação de PDF na Documentação da API
 
-# Plano: Corrigir Rota /docs/api no Domínio Customizado
+## Objetivo
 
-## Problema Identificado
+Adicionar um botão "Baixar PDF" no header da página de documentação pública da API, permitindo que usuários e IAs baixem toda a documentação para referência offline.
 
-Quando você acessa `https://app.liratracker.com.br/docs/api` diretamente:
+## Mudanças Necessárias
 
-1. O servidor busca um arquivo físico em `/docs/api`
-2. Esse arquivo não existe (é uma rota SPA do React Router)
-3. Resultado: **404 Not Found**
-
-Isso acontece porque Single Page Applications (SPAs) precisam de uma configuração especial para redirecionar todas as rotas para o `index.html`, permitindo que o React Router gerencie a navegação.
-
-## Solução
-
-Adicionar o arquivo `public/_redirects` que instrui o servidor a redirecionar todas as requisições para o `index.html`:
-
-## Arquivo a Criar
-
-| Arquivo | Descrição |
+| Arquivo | Alteração |
 |---------|-----------|
-| `public/_redirects` | Configuração de redirecionamento para SPA |
+| `src/pages/PublicApiDocs.tsx` | Adicionar botão de exportar PDF e lógica de geração |
 
-## Conteúdo do Arquivo
+## Implementação
 
+### 1. Adicionar imports necessários
+
+```typescript
+import { useRef, useState } from "react";
+import html2pdf from "html2pdf.js";
+import { toast } from "sonner";
+import { Download, Loader2 } from "lucide-react";
 ```
-/*    /index.html   200
+
+### 2. Adicionar estados e ref
+
+```typescript
+const [isExporting, setIsExporting] = useState(false);
+const contentRef = useRef<HTMLDivElement>(null);
 ```
 
-Esta linha significa:
-- `/*` - Qualquer rota
-- `/index.html` - Servir o index.html
-- `200` - Retornar status 200 (não redirecionar, apenas servir)
+### 3. Criar função de exportação
 
-## Por Que Funciona
+```typescript
+const handleExportPDF = async () => {
+  if (!contentRef.current) return;
 
-Após adicionar este arquivo:
-1. Usuário acessa `/docs/api`
-2. Servidor serve `index.html` (com status 200)
-3. React Router carrega e reconhece a rota `/docs/api`
-4. Componente `PublicApiDocs` é renderizado
+  setIsExporting(true);
+  try {
+    toast("Gerando PDF da documentação...");
+    
+    const opt = {
+      margin: [10, 10, 10, 10],
+      filename: `VehicleGuard-API-Docs-${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
 
-## Alternativa: Verificar Publicação
+    await html2pdf().set(opt).from(contentRef.current).save();
+    toast.success("PDF gerado com sucesso!");
+  } catch (error) {
+    console.error("Erro ao gerar PDF:", error);
+    toast.error("Erro ao gerar PDF. Tente novamente.");
+  } finally {
+    setIsExporting(false);
+  }
+};
+```
 
-Caso o arquivo `_redirects` já esteja configurado no hosting, pode ser que a última versão com a rota `/docs/api` não tenha sido publicada para produção. Neste caso, basta fazer um novo deploy/publicação do site.
+### 4. Modificar header para incluir botão
 
-## Teste Após Implementação
+Adicionar ao lado do badge de versão:
 
-Acessar diretamente:
-- `https://app.liratracker.com.br/docs/api`
-- `https://vehicleguard-pro.lovable.app/docs/api`
+```tsx
+<div className="flex items-center gap-3">
+  <Button
+    onClick={handleExportPDF}
+    disabled={isExporting}
+    variant="outline"
+    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+  >
+    {isExporting ? (
+      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+    ) : (
+      <Download className="h-4 w-4 mr-2" />
+    )}
+    Baixar PDF
+  </Button>
+  <Badge variant="outline" className="border-green-500 text-green-400">
+    v1.0
+  </Badge>
+</div>
+```
 
-Ambos devem carregar a página de documentação da API.
+### 5. Envolver conteúdo principal com ref
 
+```tsx
+<main className="container mx-auto px-4 py-8 max-w-6xl" ref={contentRef}>
+  {/* Todo o conteúdo existente */}
+</main>
+```
+
+## Layout Final do Header
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  [Zap Icon] VehicleGuard Pro API          [Baixar PDF] [v1.0]│
+│             Documentação para Integração...                  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Benefícios
+
+- Permite salvar a documentação para consulta offline
+- IAs e desenvolvedores podem usar o PDF como referência
+- Facilita compartilhamento com equipes técnicas
+- Usa a mesma biblioteca `html2pdf.js` já instalada no projeto
+
+## Considerações Técnicas
+
+- A biblioteca `html2pdf.js` já está instalada e sendo usada em `ContractPreview.tsx` e `Reports.tsx`
+- O toast de feedback usa `sonner` já configurado no projeto
+- O PDF será gerado com todo o conteúdo visível da página
