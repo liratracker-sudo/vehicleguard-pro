@@ -44,6 +44,21 @@ interface VehicleData {
   is_armored: boolean
 }
 
+// Determina a fonte de origem baseado nos dados recebidos
+function determineReferralSource(data: {
+  seller_id?: string
+  referral_code?: string
+  how_did_you_hear?: string
+  utm_source?: string
+}): string {
+  if (data.seller_id) return 'seller'
+  if (data.how_did_you_hear === 'indicacao_cliente') return 'client'
+  if (data.how_did_you_hear === 'vendedor') return 'seller'
+  if (data.utm_source) return 'campaign'
+  if (data.how_did_you_hear) return 'organic'
+  return 'direct'
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -82,9 +97,64 @@ serve(async (req) => {
 
     console.log(`Processing registration with ${vehicles.length} vehicles`)
 
-    // Extrair dados do formulário (sem dados de veículo individual)
+    // Extrair dados de rastreamento
+    const companyId = formData.get('company_id') as string
+    const sellerId = formData.get('seller_id') as string || null
+    const referralCode = formData.get('referral_code') as string || null
+    const referralInput = formData.get('referral_input') as string || null
+    const utmSource = formData.get('utm_source') as string || null
+    const utmMedium = formData.get('utm_medium') as string || null
+    const utmCampaign = formData.get('utm_campaign') as string || null
+    const howDidYouHear = formData.get('how_did_you_hear') as string || null
+
+    // Determinar fonte de origem
+    const referralSource = determineReferralSource({
+      seller_id: sellerId || undefined,
+      referral_code: referralCode || undefined,
+      how_did_you_hear: howDidYouHear || undefined,
+      utm_source: utmSource || undefined,
+    })
+
+    // Buscar nome do vendedor se fornecido
+    let referralName: string | null = null
+    let validatedSellerId: string | null = sellerId
+
+    if (referralCode && !sellerId) {
+      // Tentar encontrar vendedor pelo código
+      const { data: seller } = await supabase
+        .from('sellers')
+        .select('id, name')
+        .eq('company_id', companyId)
+        .eq('code', referralCode.toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (seller) {
+        validatedSellerId = seller.id
+        referralName = seller.name
+        console.log(`Found seller by code: ${seller.name}`)
+      }
+    } else if (sellerId) {
+      // Buscar nome do vendedor pelo ID
+      const { data: seller } = await supabase
+        .from('sellers')
+        .select('name')
+        .eq('id', sellerId)
+        .single()
+
+      if (seller) {
+        referralName = seller.name
+      }
+    }
+
+    // Se não achou vendedor mas tem input de referência, usar como nome
+    if (!referralName && referralInput) {
+      referralName = referralInput.toUpperCase()
+    }
+
+    // Extrair dados do formulário
     const registrationData = {
-      company_id: formData.get('company_id') as string,
+      company_id: companyId,
       name: formData.get('name') as string,
       birth_date: convertBrazilDateToISO(formData.get('birth_date') as string),
       email: formData.get('email') as string,
@@ -108,9 +178,19 @@ serve(async (req) => {
       vehicle_color: vehicles[0]?.color || '',
       has_gnv: vehicles[0]?.has_gnv || false,
       is_armored: vehicles[0]?.is_armored || false,
+      // Campos de rastreamento
+      referral_source: referralSource,
+      referral_code: referralCode || referralInput || null,
+      referral_name: referralName,
+      seller_id: validatedSellerId,
+      utm_source: utmSource,
+      utm_medium: utmMedium,
+      utm_campaign: utmCampaign,
+      how_did_you_hear: howDidYouHear,
     }
 
     console.log('Processing registration for:', registrationData.name)
+    console.log('Referral source:', referralSource, 'Seller ID:', validatedSellerId)
 
     // Upload dos documentos
     let documentFrontUrl = null
@@ -211,7 +291,9 @@ serve(async (req) => {
         company_id: registrationData.company_id,
         registration_id: registration.id,
         registration_name: registrationData.name,
-        vehicles_count: vehicles.length
+        vehicles_count: vehicles.length,
+        referral_source: referralSource,
+        referral_name: referralName,
       }
     }).catch(err => {
       console.error('Failed to notify admins:', err)
@@ -223,6 +305,7 @@ serve(async (req) => {
         success: true,
         registration_id: registration.id,
         vehicles_count: vehicles.length,
+        referral_source: referralSource,
         message: 'Cadastro enviado com sucesso!'
       }),
       { 

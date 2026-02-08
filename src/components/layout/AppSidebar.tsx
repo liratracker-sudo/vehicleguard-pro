@@ -16,7 +16,8 @@ import {
   LogOut,
   ChevronRight,
   ChevronDown,
-  User
+  User,
+  UserCheck
 } from "lucide-react"
 
 import {
@@ -55,6 +56,7 @@ const menuGroups = [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
       { title: "Clientes", url: "/clients", icon: Users },
       { title: "Cadastros Pendentes", url: "/registrations", icon: UserPlus, showBadge: true },
+      { title: "Vendedores", url: "/sellers", icon: UserCheck },
     ]
   },
   {

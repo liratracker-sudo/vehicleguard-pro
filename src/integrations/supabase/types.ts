@@ -688,19 +688,28 @@ export type Database = {
           emergency_contact_phone: string
           emergency_contact_relationship: string
           has_gnv: boolean | null
+          how_did_you_hear: string | null
           id: string
           is_armored: boolean | null
           name: string
           neighborhood: string
           number: string
           phone: string
+          referral_code: string | null
+          referral_name: string | null
+          referral_source: string | null
+          referred_by_client_id: string | null
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          seller_id: string | null
           state: string
           status: string | null
           street: string
           updated_at: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
           vehicle_brand: string
           vehicle_color: string
           vehicle_id: string | null
@@ -724,19 +733,28 @@ export type Database = {
           emergency_contact_phone: string
           emergency_contact_relationship: string
           has_gnv?: boolean | null
+          how_did_you_hear?: string | null
           id?: string
           is_armored?: boolean | null
           name: string
           neighborhood: string
           number: string
           phone: string
+          referral_code?: string | null
+          referral_name?: string | null
+          referral_source?: string | null
+          referred_by_client_id?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          seller_id?: string | null
           state: string
           status?: string | null
           street: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           vehicle_brand: string
           vehicle_color: string
           vehicle_id?: string | null
@@ -760,19 +778,28 @@ export type Database = {
           emergency_contact_phone?: string
           emergency_contact_relationship?: string
           has_gnv?: boolean | null
+          how_did_you_hear?: string | null
           id?: string
           is_armored?: boolean | null
           name?: string
           neighborhood?: string
           number?: string
           phone?: string
+          referral_code?: string | null
+          referral_name?: string | null
+          referral_source?: string | null
+          referred_by_client_id?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          seller_id?: string | null
           state?: string
           status?: string | null
           street?: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           vehicle_brand?: string
           vehicle_color?: string
           vehicle_id?: string | null
@@ -793,6 +820,20 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_registrations_referred_by_client_id_fkey"
+            columns: ["referred_by_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_registrations_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
           {
@@ -2876,6 +2917,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "scheduled_reminders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sellers: {
+        Row: {
+          code: string
+          commission_rate: number | null
+          company_id: string
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          phone: string | null
+          registrations_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          commission_rate?: number | null
+          company_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          phone?: string | null
+          registrations_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          commission_rate?: number | null
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          phone?: string | null
+          registrations_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sellers_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
