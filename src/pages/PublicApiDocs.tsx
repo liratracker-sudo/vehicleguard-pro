@@ -447,6 +447,116 @@ for (const client of data.clients) {
                     id="clients-response"
                   />
                 </div>
+
+                <div>
+                  <h4 className="font-medium text-white mb-2">Exemplo em JavaScript</h4>
+                  <CodeBlock 
+                    code={`const response = await fetch(
+  '${baseUrl}?action=all_clients&limit=100',
+  {
+    headers: {
+      'X-API-Key': 'sk_sua_chave_aqui'
+    }
+  }
+);
+
+const data = await response.json();
+
+// Processar clientes
+for (const client of data.clients) {
+  console.log(\`Cliente: \${client.name}\`);
+  console.log(\`  Status: \${client.payment_status}\`);
+  console.log(\`  Veículos: \${client.vehicles.length}\`);
+}`}
+                    id="clients-js"
+                  />
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-white mb-2">Paginação Completa</h4>
+                  <p className="text-slate-400 text-sm mb-3">
+                    Para obter todos os clientes quando há muitos registros, use paginação:
+                  </p>
+                  <CodeBlock 
+                    code={`async function getAllClients(apiKey) {
+  let allClients = [];
+  let offset = 0;
+  const limit = 100;
+  
+  while (true) {
+    const response = await fetch(
+      \`${baseUrl}?action=all_clients&limit=\${limit}&offset=\${offset}\`,
+      { headers: { 'X-API-Key': apiKey } }
+    );
+    
+    const data = await response.json();
+    allClients = [...allClients, ...data.clients];
+    
+    // Verifica se há mais páginas
+    if (!data.pagination.has_more) break;
+    offset += limit;
+  }
+  
+  return allClients;
+}
+
+// Uso
+const clients = await getAllClients('sk_sua_chave_aqui');
+console.log(\`Total: \${clients.length} clientes\`);`}
+                    id="clients-pagination"
+                  />
+                </div>
+
+                <div className="border-t border-slate-700 pt-6 mt-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Badge className="bg-green-600">GET</Badge>
+                    <h4 className="font-medium text-white">Buscar Cliente Específico</h4>
+                  </div>
+                  <p className="text-slate-400 text-sm mb-4">
+                    Busque clientes por CPF/CNPJ, placa, telefone ou nome usando o endpoint <code className="text-blue-400">action=client</code>
+                  </p>
+                  
+                  <div className="bg-slate-900 rounded-lg p-4 space-y-3 mb-4">
+                    <div className="text-sm">
+                      <span className="text-blue-400">document</span>
+                      <span className="text-slate-400 ml-2">- Busca por CPF/CNPJ</span>
+                      <code className="text-slate-300 block mt-1 text-xs">?action=client&document=12345678901</code>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-blue-400">plate</span>
+                      <span className="text-slate-400 ml-2">- Busca por placa do veículo</span>
+                      <code className="text-slate-300 block mt-1 text-xs">?action=client&plate=ABC1234</code>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-blue-400">phone</span>
+                      <span className="text-slate-400 ml-2">- Busca por telefone</span>
+                      <code className="text-slate-300 block mt-1 text-xs">?action=client&phone=11999999999</code>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-blue-400">name</span>
+                      <span className="text-slate-400 ml-2">- Busca por nome (parcial)</span>
+                      <code className="text-slate-300 block mt-1 text-xs">?action=client&name=João</code>
+                    </div>
+                  </div>
+
+                  <CodeBlock 
+                    code={`// Buscar por CPF
+const response = await fetch(
+  '${baseUrl}?action=client&document=12345678901',
+  { headers: { 'X-API-Key': 'sk_sua_chave_aqui' } }
+);
+
+const data = await response.json();
+
+if (data.client) {
+  console.log(\`Encontrado: \${data.client.name}\`);
+  console.log(\`Status: \${data.client.payment_status}\`);
+} else {
+  console.log('Cliente não encontrado');
+}`}
+                    id="client-search"
+                  />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
