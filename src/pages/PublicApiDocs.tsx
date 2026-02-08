@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import html2pdf from "html2pdf.js";
 import { 
   Code, 
   Users, 
@@ -14,16 +16,45 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Zap
+  Zap,
+  Download,
+  Loader2
 } from "lucide-react";
 
 const PublicApiDocs = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const copyToClipboard = (code: string, id: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(id);
     setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const handleExportPDF = async () => {
+    if (!contentRef.current) return;
+
+    setIsExporting(true);
+    try {
+      toast("Gerando PDF da documentação...");
+      
+      const opt = {
+        margin: [10, 10, 10, 10] as [number, number, number, number],
+        filename: `VehicleGuard-API-Docs-${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      };
+
+      await html2pdf().set(opt).from(contentRef.current).save();
+      toast.success("PDF gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar PDF. Tente novamente.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const CodeBlock = ({ code, language = "javascript", id }: { code: string; language?: string; id: string }) => (
@@ -59,14 +90,29 @@ const PublicApiDocs = () => {
                 <p className="text-sm text-slate-400">Documentação para Integração com Traccar</p>
               </div>
             </div>
-            <Badge variant="outline" className="border-green-500 text-green-400">
-              v1.0
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleExportPDF}
+                disabled={isExporting}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Baixar PDF
+              </Button>
+              <Badge variant="outline" className="border-green-500 text-green-400">
+                v1.0
+              </Badge>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-8 max-w-6xl" ref={contentRef}>
         {/* Quick Start */}
         <Card className="mb-8 bg-slate-800/50 border-slate-700">
           <CardHeader>
