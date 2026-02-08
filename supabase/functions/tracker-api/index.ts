@@ -21,7 +21,6 @@ interface ApiKeyData {
   }
 }
 
-// Simple hash function for API key validation
 async function hashApiKey(apiKey: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(apiKey)
@@ -54,7 +53,6 @@ async function validateApiKey(supabase: any, apiKey: string): Promise<ApiKeyData
     return null
   }
 
-  // Update last_used_at
   await supabase
     .from('company_api_keys')
     .update({ last_used_at: new Date().toISOString() })
@@ -106,7 +104,13 @@ function successResponse(data: any) {
   )
 }
 
-// Calculate payment status based on payments
+function calculateDaysOverdue(dueDate: string): number {
+  const now = new Date()
+  const due = new Date(dueDate)
+  const diffTime = now.getTime() - due.getTime()
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24))
+}
+
 function calculatePaymentStatus(payments: any[]): { status: string; days_overdue: number; pending_amount: number } {
   const now = new Date()
   let pendingAmount = 0
@@ -174,7 +178,6 @@ async function handleGetClient(supabase: any, companyId: string, params: URLSear
       if (data.length === 1) {
         client = data[0]
       } else {
-        // Return list of clients for name search
         return successResponse({
           clients: data.map((c: any) => ({
             id: c.id,
@@ -188,7 +191,6 @@ async function handleGetClient(supabase: any, companyId: string, params: URLSear
       }
     }
   } else if (plate) {
-    // Search by vehicle plate
     const { data: vehicleData } = await supabase
       .from('vehicles')
       .select('*, clients!inner(*)')
@@ -220,7 +222,6 @@ async function handleGetClient(supabase: any, companyId: string, params: URLSear
     return errorResponse('Cliente não encontrado', 404)
   }
 
-  // Get payment status
   const { data: payments } = await supabase
     .from('payment_transactions')
     .select('amount, due_date, status')
@@ -266,7 +267,6 @@ async function handleGetVehicles(supabase: any, companyId: string, params: URLSe
     return errorResponse('client_id é obrigatório')
   }
 
-  // Verify client belongs to company
   const { data: client } = await supabase
     .from('clients')
     .select('id')
@@ -309,7 +309,6 @@ async function handleGetPayments(supabase: any, companyId: string, params: URLSe
     return errorResponse('client_id é obrigatório')
   }
 
-  // Verify client belongs to company
   const { data: client } = await supabase
     .from('clients')
     .select('id')
@@ -334,7 +333,6 @@ async function handleGetPayments(supabase: any, companyId: string, params: URLSe
 
   const { data: payments } = await query
 
-  // Calculate summary
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   
@@ -380,7 +378,6 @@ async function handleCreateCharge(supabase: any, companyId: string, body: any) {
     return errorResponse('client_id, amount e due_date são obrigatórios')
   }
 
-  // Verify client belongs to company
   const { data: client } = await supabase
     .from('clients')
     .select('id, name')
@@ -392,7 +389,6 @@ async function handleCreateCharge(supabase: any, companyId: string, body: any) {
     return errorResponse('Cliente não encontrado', 404)
   }
 
-  // Create payment transaction
   const { data: payment, error } = await supabase
     .from('payment_transactions')
     .insert({
@@ -434,7 +430,6 @@ async function handleUpdateCharge(supabase: any, companyId: string, body: any) {
     return errorResponse('charge_id é obrigatório')
   }
 
-  // Verify charge belongs to company
   const { data: existing } = await supabase
     .from('payment_transactions')
     .select('id')
@@ -476,6 +471,366 @@ async function handleUpdateCharge(supabase: any, companyId: string, body: any) {
   })
 }
 
+// NEW: Get all overdue clients for Traccar integration
+async function handleGetOverdueClients(supabase: any, companyId: string, params: URLSearchParams) {
+  const daysMin = parseInt(params.get('days_min') || '1')
+  const daysMax = parseInt(params.get('days_max') || '9999')
+  const blockThreshold = parseInt(params.get('block_threshold') || '5')
+  
+  const today = new Date().toISOString().split('T')[0]
+  
+  // Get all overdue payments with client info
+  const { data: overduePayments, error } = await supabase
+    .from('payment_transactions')
+    .select(`
+      id, amount, due_date, status,
+      clients!inner(id, name, document, phone, email, status, service_status)
+    `)
+    .eq('company_id', companyId)
+    .in('status', ['pending', 'overdue'])
+    .lt('due_date', today)
+  
+  if (error) {
+    console.error('Error fetching overdue payments:', error)
+    return errorResponse('Erro ao buscar pagamentos vencidos', 500)
+  }
+
+  // Group by client and calculate stats
+  const clientMap = new Map<string, any>()
+  
+  for (const payment of overduePayments || []) {
+    const daysOverdue = calculateDaysOverdue(payment.due_date)
+    
+    if (daysOverdue >= daysMin && daysOverdue <= daysMax) {
+      const clientId = payment.clients.id
+      
+      if (!clientMap.has(clientId)) {
+        clientMap.set(clientId, {
+          id: clientId,
+          name: payment.clients.name,
+          document: payment.clients.document,
+          phone: payment.clients.phone,
+          email: payment.clients.email,
+          status: payment.clients.status,
+          service_status: payment.clients.service_status,
+          days_overdue: daysOverdue,
+          pending_amount: payment.amount,
+          overdue_payments_count: 1,
+          should_block: daysOverdue >= blockThreshold,
+          vehicles: []
+        })
+      } else {
+        const existing = clientMap.get(clientId)
+        existing.pending_amount += payment.amount
+        existing.overdue_payments_count += 1
+        existing.days_overdue = Math.max(existing.days_overdue, daysOverdue)
+        existing.should_block = existing.days_overdue >= blockThreshold
+      }
+    }
+  }
+  
+  // Fetch vehicles for each client
+  for (const [clientId, clientData] of clientMap) {
+    const { data: vehicles } = await supabase
+      .from('vehicles')
+      .select('id, license_plate, tracker_device_id, tracker_status, brand, model')
+      .eq('client_id', clientId)
+      .eq('company_id', companyId)
+    
+    clientData.vehicles = (vehicles || []).map((v: any) => ({
+      id: v.id,
+      license_plate: v.license_plate,
+      tracker_device_id: v.tracker_device_id,
+      tracker_status: v.tracker_status,
+      brand: v.brand,
+      model: v.model,
+    }))
+  }
+  
+  const clients = Array.from(clientMap.values())
+    .sort((a, b) => b.days_overdue - a.days_overdue)
+
+  console.log(`[tracker-api] overdue_clients: Found ${clients.length} clients with overdue payments`)
+  
+  return successResponse({
+    clients,
+    summary: {
+      total_clients: clients.length,
+      total_to_block: clients.filter(c => c.should_block).length,
+      block_threshold_days: blockThreshold,
+    }
+  })
+}
+
+// NEW: Sync all vehicles with payment status for Traccar
+async function handleSyncVehicles(supabase: any, companyId: string, params: URLSearchParams) {
+  const blockThreshold = parseInt(params.get('block_threshold') || '5')
+  const includeInactive = params.get('include_inactive') === 'true'
+  
+  let vehicleQuery = supabase
+    .from('vehicles')
+    .select(`
+      id, license_plate, tracker_device_id, tracker_status,
+      brand, model, year, color,
+      clients!inner(id, name, document, phone, email, status, service_status)
+    `)
+    .eq('company_id', companyId)
+  
+  if (!includeInactive) {
+    vehicleQuery = vehicleQuery.eq('clients.status', 'active')
+  }
+  
+  const { data: vehicles, error } = await vehicleQuery
+  
+  if (error) {
+    console.error('Error fetching vehicles:', error)
+    return errorResponse('Erro ao buscar veículos', 500)
+  }
+
+  const result = []
+  
+  for (const vehicle of vehicles || []) {
+    // Get payment status for this client
+    const { data: payments } = await supabase
+      .from('payment_transactions')
+      .select('amount, due_date, status')
+      .eq('client_id', vehicle.clients.id)
+      .in('status', ['pending', 'overdue'])
+    
+    const paymentInfo = calculatePaymentStatus(payments || [])
+    const shouldBlock = paymentInfo.days_overdue >= blockThreshold
+    
+    result.push({
+      id: vehicle.id,
+      license_plate: vehicle.license_plate,
+      tracker_device_id: vehicle.tracker_device_id,
+      tracker_status: vehicle.tracker_status,
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      color: vehicle.color,
+      client_id: vehicle.clients.id,
+      client_name: vehicle.clients.name,
+      client_document: vehicle.clients.document,
+      client_phone: vehicle.clients.phone,
+      client_email: vehicle.clients.email,
+      client_status: vehicle.clients.status,
+      service_status: vehicle.clients.service_status,
+      payment_status: paymentInfo.status,
+      days_overdue: paymentInfo.days_overdue,
+      pending_amount: paymentInfo.pending_amount,
+      should_block: shouldBlock,
+    })
+  }
+
+  console.log(`[tracker-api] sync_vehicles: Found ${result.length} vehicles`)
+  
+  return successResponse({
+    vehicles: result,
+    summary: {
+      total_vehicles: result.length,
+      total_to_block: result.filter(v => v.should_block).length,
+      block_threshold_days: blockThreshold,
+    }
+  })
+}
+
+// NEW: Register block/unblock action from Traccar
+async function handleRegisterBlock(supabase: any, companyId: string, body: any) {
+  const { vehicle_id, client_id, blocked, blocked_by, reason } = body
+
+  if (!vehicle_id && !client_id) {
+    return errorResponse('vehicle_id ou client_id é obrigatório')
+  }
+
+  if (typeof blocked !== 'boolean') {
+    return errorResponse('blocked deve ser true ou false')
+  }
+
+  const newServiceStatus = blocked ? 'blocked' : 'active'
+  const actionType = blocked ? 'block' : 'unblock'
+
+  // Update vehicle tracker status if vehicle_id provided
+  if (vehicle_id) {
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from('vehicles')
+      .select('id, client_id')
+      .eq('id', vehicle_id)
+      .eq('company_id', companyId)
+      .single()
+
+    if (vehicleError || !vehicle) {
+      return errorResponse('Veículo não encontrado', 404)
+    }
+
+    await supabase
+      .from('vehicles')
+      .update({ 
+        tracker_status: blocked ? 'blocked' : 'active',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', vehicle_id)
+
+    // Also update client service status
+    await supabase
+      .from('clients')
+      .update({ 
+        service_status: newServiceStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', vehicle.client_id)
+  }
+
+  // Update client service status if client_id provided
+  if (client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', client_id)
+      .eq('company_id', companyId)
+      .single()
+
+    if (clientError || !client) {
+      return errorResponse('Cliente não encontrado', 404)
+    }
+
+    await supabase
+      .from('clients')
+      .update({ 
+        service_status: newServiceStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', client_id)
+
+    // Update all client vehicles
+    await supabase
+      .from('vehicles')
+      .update({ 
+        tracker_status: blocked ? 'blocked' : 'active',
+        updated_at: new Date().toISOString()
+      })
+      .eq('client_id', client_id)
+      .eq('company_id', companyId)
+  }
+
+  // Log the escalation action
+  const targetClientId = client_id || (vehicle_id ? (await supabase
+    .from('vehicles')
+    .select('client_id')
+    .eq('id', vehicle_id)
+    .single()).data?.client_id : null)
+
+  if (targetClientId) {
+    await supabase.from('client_escalation_history').insert({
+      company_id: companyId,
+      client_id: targetClientId,
+      action_type: `traccar_${actionType}`,
+      previous_status: blocked ? 'active' : 'blocked',
+      new_status: newServiceStatus,
+      days_overdue: 0,
+      action_details: reason || `${actionType} via Traccar sync - ${blocked_by || 'API'}`,
+      escalation_level: blocked ? 3 : 0,
+    })
+  }
+
+  console.log(`[tracker-api] register_block: ${actionType} for ${vehicle_id || client_id} by ${blocked_by}`)
+
+  return successResponse({
+    action: actionType,
+    vehicle_id,
+    client_id: targetClientId,
+    new_status: newServiceStatus,
+    reason,
+    registered_at: new Date().toISOString(),
+  })
+}
+
+// NEW: Get all active clients for initial sync
+async function handleGetAllClients(supabase: any, companyId: string, params: URLSearchParams) {
+  const includeInactive = params.get('include_inactive') === 'true'
+  const limit = parseInt(params.get('limit') || '1000')
+  const offset = parseInt(params.get('offset') || '0')
+  
+  let query = supabase
+    .from('clients')
+    .select('*', { count: 'exact' })
+    .eq('company_id', companyId)
+    .range(offset, offset + limit - 1)
+    .order('name')
+  
+  if (!includeInactive) {
+    query = query.eq('status', 'active')
+  }
+  
+  const { data: clients, error, count } = await query
+  
+  if (error) {
+    console.error('Error fetching clients:', error)
+    return errorResponse('Erro ao buscar clientes', 500)
+  }
+
+  const result = []
+  
+  for (const client of clients || []) {
+    // Get payment status
+    const { data: payments } = await supabase
+      .from('payment_transactions')
+      .select('amount, due_date, status')
+      .eq('client_id', client.id)
+      .in('status', ['pending', 'overdue'])
+    
+    const paymentInfo = calculatePaymentStatus(payments || [])
+    
+    // Get vehicles
+    const { data: vehicles } = await supabase
+      .from('vehicles')
+      .select('id, license_plate, tracker_device_id, tracker_status, brand, model')
+      .eq('client_id', client.id)
+    
+    result.push({
+      id: client.id,
+      name: client.name,
+      document: client.document,
+      phone: client.phone,
+      email: client.email,
+      status: client.status,
+      service_status: client.service_status,
+      address: {
+        street: client.street,
+        number: client.number,
+        complement: client.complement,
+        neighborhood: client.neighborhood,
+        city: client.city,
+        state: client.state,
+        cep: client.cep,
+      },
+      payment_status: paymentInfo.status,
+      days_overdue: paymentInfo.days_overdue,
+      pending_amount: paymentInfo.pending_amount,
+      vehicles: (vehicles || []).map((v: any) => ({
+        id: v.id,
+        license_plate: v.license_plate,
+        tracker_device_id: v.tracker_device_id,
+        tracker_status: v.tracker_status,
+        brand: v.brand,
+        model: v.model,
+      })),
+    })
+  }
+
+  console.log(`[tracker-api] all_clients: Found ${result.length} clients`)
+  
+  return successResponse({
+    clients: result,
+    pagination: {
+      total: count || 0,
+      limit,
+      offset,
+      has_more: (offset + limit) < (count || 0),
+    }
+  })
+}
+
 Deno.serve(async (req) => {
   const startTime = Date.now()
   
@@ -485,7 +840,6 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
   
-  // Get API key from header
   const apiKey = req.headers.get('x-api-key') || req.headers.get('X-API-Key')
   const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip')
   const userAgent = req.headers.get('user-agent')
@@ -494,7 +848,6 @@ Deno.serve(async (req) => {
     return errorResponse('API Key não fornecida. Use o header X-API-Key', 401)
   }
 
-  // Validate API key
   const apiKeyData = await validateApiKey(supabase, apiKey)
   if (!apiKeyData) {
     return errorResponse('API Key inválida ou inativa', 401)
@@ -537,8 +890,35 @@ Deno.serve(async (req) => {
           }
           break
 
+        case 'overdue_clients':
+          if (!apiKeyData.permissions?.read_clients) {
+            response = errorResponse('Sem permissão para ler clientes', 403)
+          } else {
+            requestParams = { ...requestParams, days_min: params.get('days_min'), days_max: params.get('days_max') }
+            response = await handleGetOverdueClients(supabase, apiKeyData.company_id, params)
+          }
+          break
+
+        case 'sync_vehicles':
+          if (!apiKeyData.permissions?.read_vehicles) {
+            response = errorResponse('Sem permissão para ler veículos', 403)
+          } else {
+            requestParams = { ...requestParams, block_threshold: params.get('block_threshold') }
+            response = await handleSyncVehicles(supabase, apiKeyData.company_id, params)
+          }
+          break
+
+        case 'all_clients':
+          if (!apiKeyData.permissions?.read_clients) {
+            response = errorResponse('Sem permissão para ler clientes', 403)
+          } else {
+            requestParams = { ...requestParams, limit: params.get('limit'), offset: params.get('offset') }
+            response = await handleGetAllClients(supabase, apiKeyData.company_id, params)
+          }
+          break
+
         default:
-          response = errorResponse('Ação inválida. Use: client, vehicles ou payments')
+          response = errorResponse('Ação inválida. Use: client, vehicles, payments, overdue_clients, sync_vehicles, all_clients')
       }
     } else if (req.method === 'POST') {
       const body = await req.json()
@@ -561,8 +941,16 @@ Deno.serve(async (req) => {
           }
           break
 
+        case 'register_block':
+          if (!apiKeyData.permissions?.create_charges) {
+            response = errorResponse('Sem permissão para registrar bloqueio', 403)
+          } else {
+            response = await handleRegisterBlock(supabase, apiKeyData.company_id, body)
+          }
+          break
+
         default:
-          response = errorResponse('Ação inválida. Use: create_charge ou update_charge')
+          response = errorResponse('Ação inválida. Use: create_charge, update_charge, register_block')
       }
     } else {
       response = errorResponse('Método não permitido', 405)
@@ -572,9 +960,7 @@ Deno.serve(async (req) => {
     response = errorResponse('Erro interno do servidor', 500)
   }
 
-  // Log API usage
   const responseTime = Date.now() - startTime
-  const responseData = await response.clone().json()
   
   await logApiUsage(
     supabase,
