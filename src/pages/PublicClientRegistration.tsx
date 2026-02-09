@@ -38,6 +38,50 @@ const createEmptyVehicle = (): Vehicle => ({
   is_armored: false
 })
 
+const validateCPF = (cpf: string): boolean => {
+  if (cpf.length !== 11) return false
+  if (/^(\d)\1{10}$/.test(cpf)) return false
+  let sum = 0
+  for (let i = 0; i < 9; i++) sum += parseInt(cpf.charAt(i)) * (10 - i)
+  let rem = (sum * 10) % 11
+  if (rem === 10) rem = 0
+  if (rem !== parseInt(cpf.charAt(9))) return false
+  sum = 0
+  for (let i = 0; i < 10; i++) sum += parseInt(cpf.charAt(i)) * (11 - i)
+  rem = (sum * 10) % 11
+  if (rem === 10) rem = 0
+  if (rem !== parseInt(cpf.charAt(10))) return false
+  return true
+}
+
+const validateCNPJ = (cnpj: string): boolean => {
+  if (cnpj.length !== 14) return false
+  if (/^(\d)\1{13}$/.test(cnpj)) return false
+  const w1 = [5,4,3,2,9,8,7,6,5,4,3,2]
+  const w2 = [6,5,4,3,2,9,8,7,6,5,4,3,2]
+  let sum = 0
+  for (let i = 0; i < 12; i++) sum += parseInt(cnpj.charAt(i)) * w1[i]
+  let rem = sum % 11
+  const d1 = rem < 2 ? 0 : 11 - rem
+  if (d1 !== parseInt(cnpj.charAt(12))) return false
+  sum = 0
+  for (let i = 0; i < 13; i++) sum += parseInt(cnpj.charAt(i)) * w2[i]
+  rem = sum % 11
+  const d2 = rem < 2 ? 0 : 11 - rem
+  if (d2 !== parseInt(cnpj.charAt(13))) return false
+  return true
+}
+
+const validateDocument = (doc: string): string | null => {
+  const clean = doc.replace(/\D/g, '')
+  if (clean.length === 0) return null
+  if (clean.length < 11) return null // ainda digitando
+  if (clean.length === 11) return validateCPF(clean) ? null : "CPF inválido, por favor verifique seus dados"
+  if (clean.length === 14) return validateCNPJ(clean) ? null : "CNPJ inválido, por favor verifique seus dados"
+  if (clean.length > 11 && clean.length < 14) return null // digitando CNPJ
+  return "Documento inválido"
+}
+
 const HOW_DID_YOU_HEAR_OPTIONS = [
   { value: "indicacao_cliente", label: "Indicação de amigo/cliente" },
   { value: "vendedor", label: "Vendedor/Representante" },
@@ -57,6 +101,7 @@ export default function PublicClientRegistration() {
   const [registrationId, setRegistrationId] = useState("")
   const [companyInfo, setCompanyInfo] = useState<any>(null)
   const [sellers, setSellers] = useState<Seller[]>([])
+  const [documentError, setDocumentError] = useState<string | null>(null)
 
   // Dados de rastreamento capturados da URL
   const [trackingData, setTrackingData] = useState({
@@ -220,6 +265,19 @@ export default function PublicClientRegistration() {
     setLoading(true)
 
     try {
+      // Validar documento (CPF/CNPJ)
+      const docError = validateDocument(formData.document)
+      if (docError) {
+        setDocumentError(docError)
+        toast({
+          title: "Documento inválido",
+          description: docError,
+          variant: "destructive"
+        })
+        setLoading(false)
+        return
+      }
+
       // Validar que pelo menos um veículo está preenchido
       const validVehicles = vehicles.filter(v => v.plate.trim() && v.brand.trim() && v.model.trim())
       if (validVehicles.length === 0) {
@@ -423,11 +481,20 @@ export default function PublicClientRegistration() {
                       }
                       
                       setFormData({ ...formData, document: formatted })
+                      setDocumentError(null)
+                    }}
+                    onBlur={() => {
+                      const err = validateDocument(formData.document)
+                      setDocumentError(err)
                     }}
                     placeholder="CPF ou CNPJ"
                     maxLength={18}
                     required
+                    className={documentError ? "border-destructive" : ""}
                   />
+                  {documentError && (
+                    <p className="text-sm text-destructive mt-1">{documentError}</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
