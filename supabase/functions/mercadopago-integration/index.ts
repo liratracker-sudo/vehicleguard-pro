@@ -57,6 +57,58 @@ const validateTokenFormat = (token: string, isSandbox: boolean): { valid: boolea
   return { valid: cleanToken.length > 20, cleanToken, warning }
 }
 
+const validateCPF = (cpf: string): boolean => {
+  if (cpf.length !== 11) return false
+  // Rejeitar sequências repetidas (000.000.000-00, 111.111.111-11, etc.)
+  if (/^(\d)\1{10}$/.test(cpf)) return false
+
+  // Calcular primeiro dígito verificador
+  let sum = 0
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cpf.charAt(i)) * (10 - i)
+  }
+  let remainder = (sum * 10) % 11
+  if (remainder === 10) remainder = 0
+  if (remainder !== parseInt(cpf.charAt(9))) return false
+
+  // Calcular segundo dígito verificador
+  sum = 0
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cpf.charAt(i)) * (11 - i)
+  }
+  remainder = (sum * 10) % 11
+  if (remainder === 10) remainder = 0
+  if (remainder !== parseInt(cpf.charAt(10))) return false
+
+  return true
+}
+
+const validateCNPJ = (cnpj: string): boolean => {
+  if (cnpj.length !== 14) return false
+  if (/^(\d)\1{13}$/.test(cnpj)) return false
+
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+
+  let sum = 0
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(cnpj.charAt(i)) * weights1[i]
+  }
+  let remainder = sum % 11
+  const digit1 = remainder < 2 ? 0 : 11 - remainder
+  if (digit1 !== parseInt(cnpj.charAt(12))) return false
+
+  sum = 0
+  for (let i = 0; i < 13; i++) {
+    sum += parseInt(cnpj.charAt(i)) * weights2[i]
+  }
+  remainder = sum % 11
+  const digit2 = remainder < 2 ? 0 : 11 - remainder
+  if (digit2 !== parseInt(cnpj.charAt(13))) return false
+
+  return true
+}
+
 const validateDocument = (document: string | undefined): string | null => {
   if (!document) return null
   
@@ -74,6 +126,17 @@ const validateDocument = (document: string | undefined): string | null => {
   if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
     console.warn(`[MercadoPago Warning] Documento com tamanho inválido: ${cleanDoc.length} dígitos`)
     return null
+  }
+
+  // Validar dígitos verificadores
+  if (cleanDoc.length === 11) {
+    if (!validateCPF(cleanDoc)) {
+      throw new Error('CPF inválido, por favor verifique seus dados')
+    }
+  } else {
+    if (!validateCNPJ(cleanDoc)) {
+      throw new Error('CNPJ inválido, por favor verifique seus dados')
+    }
   }
   
   return cleanDoc
