@@ -374,7 +374,7 @@ const BillingPage = () => {
                     </TableRow>
                   ) : (
                     sortedPayments.map((payment) => (
-                      <TableRow key={payment.id} className="hover:bg-muted/30">
+                      <TableRow key={payment.id} className="group/row hover:bg-muted/30">
                         <TableCell className="font-medium">
                           {payment.clients?.name || 'Sistema'}
                         </TableCell>
@@ -431,7 +431,7 @@ const BillingPage = () => {
                     </TableRow>
                   ) : (
                     payments.filter(p => p.status === 'cancelled').map((payment) => (
-                      <TableRow key={payment.id} className="hover:bg-muted/30">
+                      <TableRow key={payment.id} className="group/row hover:bg-muted/30">
                         <TableCell className="font-medium">
                           {payment.clients?.name || 'Sistema'}
                         </TableCell>
