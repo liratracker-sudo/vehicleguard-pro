@@ -1,98 +1,35 @@
 
+# Plano: Validacao de CPF/CNPJ com Digitos Verificadores
 
-# Plano: Melhorar Documentação do Endpoint all_clients
+## Problema
+A funcao `validateDocument` (linha 60-80) na edge function `mercadopago-integration` apenas verifica o tamanho do documento (11 ou 14 digitos), sem validar os digitos verificadores. Isso permite que CPFs invalidos cheguem ate a API do Mercado Pago, que retorna o erro generico `"Invalid user identification number"` (codigo 2067).
 
-## Situação Atual
+## Solucao
 
-A documentação do endpoint `all_clients` **já existe** na aba "Clientes" (linhas 363-451), mas está incompleta comparada aos outros endpoints.
+Modificar **1 arquivo**: `supabase/functions/mercadopago-integration/index.ts`
 
-### O que já está documentado:
-- ✅ Endpoint URL
-- ✅ Parâmetros (limit, offset, include_inactive)
-- ✅ Resposta de exemplo com estrutura completa
+### Mudancas:
 
-### O que está faltando:
-- ❌ Exemplo de código JavaScript
-- ❌ Exemplo de paginação
-- ❌ Busca por cliente específico (por CPF/placa/telefone)
+1. **Adicionar funcao `validateCPF(cpf: string): boolean`** - Implementa o algoritmo de validacao dos 2 digitos verificadores do CPF (modulo 11), incluindo rejeicao de CPFs com todos os digitos iguais (ex: 111.111.111-11).
 
-## Mudanças a Implementar
+2. **Adicionar funcao `validateCNPJ(cnpj: string): boolean`** - Implementa validacao dos digitos verificadores do CNPJ (modulo 11 com pesos diferentes).
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/PublicApiDocs.tsx` | Adicionar exemplos de código na seção "Clientes" |
+3. **Atualizar funcao `validateDocument`** (linhas 60-80) - Apos verificar o tamanho, chamar `validateCPF` ou `validateCNPJ` conforme o caso. Se invalido, lancar erro com mensagem amigavel: `"CPF invalido, por favor verifique seus dados"` ou `"CNPJ invalido, por favor verifique seus dados"`.
 
-## Código a Adicionar
+4. **Atualizar o case `create_charge`** (linha 477+) - Garantir que a validacao e chamada antes de enviar dados para a API do Mercado Pago, no trecho onde monta o `identification` do pagador (por volta da linha 510-530).
 
-### 1. Exemplo JavaScript - Listar Todos os Clientes
+### Detalhes Tecnicos
 
-```javascript
-const response = await fetch(
-  '${baseUrl}?action=all_clients&limit=100',
-  {
-    headers: {
-      'X-API-Key': 'sk_sua_chave_aqui'
-    }
-  }
-);
+Algoritmo de validacao do CPF:
+- Calcular primeiro digito verificador usando pesos 10,9,8,7,6,5,4,3,2
+- Calcular segundo digito verificador usando pesos 11,10,9,8,7,6,5,4,3,2
+- Comparar com os digitos 10 e 11 do CPF
+- Rejeitar sequencias repetidas (000.000.000-00, 111.111.111-11, etc.)
 
-const data = await response.json();
-
-// Processar clientes
-for (const client of data.clients) {
-  console.log(`Cliente: ${client.name}`);
-  console.log(`  Status: ${client.payment_status}`);
-  console.log(`  Veículos: ${client.vehicles.length}`);
+A mensagem de erro retornada sera:
+```json
+{
+  "success": false,
+  "error": "CPF inválido, por favor verifique seus dados"
 }
 ```
-
-### 2. Exemplo JavaScript - Paginação Completa
-
-```javascript
-async function getAllClients(apiKey) {
-  let allClients = [];
-  let offset = 0;
-  const limit = 100;
-  
-  while (true) {
-    const response = await fetch(
-      `${baseUrl}?action=all_clients&limit=${limit}&offset=${offset}`,
-      { headers: { 'X-API-Key': apiKey } }
-    );
-    
-    const data = await response.json();
-    allClients = [...allClients, ...data.clients];
-    
-    if (!data.pagination.has_more) break;
-    offset += limit;
-  }
-  
-  return allClients;
-}
-```
-
-### 3. Documentar Busca por Cliente Específico
-
-Também falta documentar o endpoint `action=client` que permite buscar por:
-- CPF/CNPJ
-- Placa do veículo
-- Telefone
-- Nome
-
-```text
-GET ?action=client&document=12345678901
-GET ?action=client&plate=ABC1234
-GET ?action=client&phone=11999999999
-GET ?action=client&name=João
-```
-
-## Resultado Esperado
-
-A seção "Clientes" terá:
-1. **Endpoint base** (já existe)
-2. **Parâmetros** (já existe)  
-3. **Resposta de exemplo** (já existe)
-4. **Exemplo em JavaScript** (novo)
-5. **Exemplo de paginação** (novo)
-6. **Busca por cliente específico** (novo - seção adicional)
-
