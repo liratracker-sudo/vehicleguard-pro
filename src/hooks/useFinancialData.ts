@@ -64,42 +64,47 @@ export function useFinancialData() {
       const sixMonthsAgo = startOfMonth(subMonths(now, 5));
       const thirtyDaysAgo = startOfDay(subDays(now, 29));
 
-      // Executar TODAS as queries em paralelo (10 queries ao invés de 80+)
+      // Formato de data para due_date (campo date, não timestamp)
+      const currentMonthStartStr = format(currentMonthStart, 'yyyy-MM-dd');
+      const currentMonthEndStr = format(currentMonthEnd, 'yyyy-MM-dd');
+      const sixMonthsAgoStr = format(sixMonthsAgo, 'yyyy-MM-dd');
+      const currentMonthEndStr6 = format(currentMonthEnd, 'yyyy-MM-dd');
+
+      // Executar TODAS as queries em paralelo
       const [
-        // Summary data
+        // Summary data - regime de competência (due_date) para receita/despesa mensal
         currentMonthPayments,
         currentMonthExpenses,
         allPaidPayments,
-        // Accounts by gateway - reutiliza allPaidPayments
         // Transactions
         recentPayments,
         recentExpenses,
-        // Monthly data (6 meses em 2 queries)
+        // Monthly data (6 meses) - regime de competência
         sixMonthPayments,
         sixMonthExpenses,
-        // Cash flow (30 dias em 2 queries)
+        // Cash flow (30 dias) - regime de caixa (paid_at)
         thirtyDaysPayments,
         thirtyDaysExpenses,
       ] = await Promise.all([
-        // Current month payments
+        // Current month payments - por competência (due_date) + status paid
         supabase
           .from("payment_transactions")
-          .select("amount, paid_at")
+          .select("amount, due_date")
           .eq("company_id", companyId)
           .eq("status", "paid")
-          .gte("paid_at", currentMonthStart.toISOString())
-          .lte("paid_at", currentMonthEnd.toISOString()),
+          .gte("due_date", currentMonthStartStr)
+          .lte("due_date", currentMonthEndStr),
         
-        // Current month expenses
+        // Current month expenses - por competência (due_date) + status paid
         supabase
           .from("expenses")
-          .select("amount, paid_at")
+          .select("amount, due_date")
           .eq("company_id", companyId)
           .eq("status", "paid")
-          .gte("paid_at", currentMonthStart.toISOString())
-          .lte("paid_at", currentMonthEnd.toISOString()),
+          .gte("due_date", currentMonthStartStr)
+          .lte("due_date", currentMonthEndStr),
         
-        // All paid payments (for total balance and accounts by gateway)
+        // All paid payments (for total balance - regime de caixa)
         supabase
           .from("payment_transactions")
           .select("amount, payment_gateway, status")
@@ -139,25 +144,25 @@ export function useFinancialData() {
           .order("paid_at", { ascending: false })
           .limit(50),
         
-        // 6 months payments (single query)
+        // 6 months payments - regime de competência (due_date)
         supabase
           .from("payment_transactions")
-          .select("amount, paid_at")
+          .select("amount, due_date, status")
           .eq("company_id", companyId)
-          .eq("status", "paid")
-          .gte("paid_at", sixMonthsAgo.toISOString())
-          .lte("paid_at", currentMonthEnd.toISOString()),
+          .neq("status", "cancelled")
+          .gte("due_date", sixMonthsAgoStr)
+          .lte("due_date", currentMonthEndStr6),
         
-        // 6 months expenses (single query)
+        // 6 months expenses - regime de competência (due_date)
         supabase
           .from("expenses")
-          .select("amount, paid_at")
+          .select("amount, due_date, status")
           .eq("company_id", companyId)
-          .eq("status", "paid")
-          .gte("paid_at", sixMonthsAgo.toISOString())
-          .lte("paid_at", currentMonthEnd.toISOString()),
+          .neq("status", "cancelled")
+          .gte("due_date", sixMonthsAgoStr)
+          .lte("due_date", currentMonthEndStr6),
         
-        // 30 days payments (single query)
+        // 30 days payments - regime de caixa (paid_at) para fluxo diário
         supabase
           .from("payment_transactions")
           .select("amount, paid_at")
@@ -165,7 +170,7 @@ export function useFinancialData() {
           .eq("status", "paid")
           .gte("paid_at", thirtyDaysAgo.toISOString()),
         
-        // 30 days expenses (single query)
+        // 30 days expenses - regime de caixa (paid_at) para fluxo diário
         supabase
           .from("expenses")
           .select("amount, paid_at")
@@ -231,22 +236,20 @@ export function useFinancialData() {
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
-      // ========== PROCESSAR MONTHLY DATA (agrupamento em JS) ==========
+      // ========== PROCESSAR MONTHLY DATA - regime de competência (due_date) ==========
       const monthlyData: MonthlyData[] = [];
       for (let i = 5; i >= 0; i--) {
         const date = subMonths(now, i);
-        const monthStart = startOfMonth(date);
-        const monthEnd = endOfMonth(date);
+        const mStart = format(startOfMonth(date), 'yyyy-MM-dd');
+        const mEnd = format(endOfMonth(date), 'yyyy-MM-dd');
         const monthKey = format(date, "MMM");
 
         const monthPayments = sixMonthPayments.data?.filter((p) => {
-          const paidAt = new Date(p.paid_at!);
-          return paidAt >= monthStart && paidAt <= monthEnd;
+          return p.due_date >= mStart && p.due_date <= mEnd && p.status === 'paid';
         }) || [];
 
         const monthExpenses = sixMonthExpenses.data?.filter((e) => {
-          const paidAt = new Date(e.paid_at!);
-          return paidAt >= monthStart && paidAt <= monthEnd;
+          return e.due_date >= mStart && e.due_date <= mEnd && e.status === 'paid';
         }) || [];
 
         const receita = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);

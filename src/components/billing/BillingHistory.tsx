@@ -57,15 +57,19 @@ export function BillingHistory() {
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
 
+      // Usar due_date para regime de competência
+      const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`;
+      const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
       const { data: payments, error } = await supabase
         .from('payment_transactions')
-        .select('amount, status, created_at, due_date, protested_at')
+        .select('amount, status, due_date, paid_at, protested_at')
         .eq('company_id', profile.company_id)
         .neq('status', 'cancelled')
-        .is('protested_at', null) // Excluir cobranças protestadas dos gráficos
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
-        .order('created_at', { ascending: true });
+        .is('protested_at', null)
+        .gte('due_date', startDateStr)
+        .lte('due_date', endDateStr)
+        .order('due_date', { ascending: true });
 
       if (error) throw error;
 
@@ -90,7 +94,7 @@ export function BillingHistory() {
 
       // Process payments - use status directly from database
       payments?.forEach(payment => {
-        const monthKey = payment.created_at.substring(0, 7);
+        const monthKey = payment.due_date.substring(0, 7);
         if (monthlyData[monthKey]) {
           const amount = Number(payment.amount);
           monthlyData[monthKey].total += amount;

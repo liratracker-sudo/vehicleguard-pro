@@ -79,23 +79,23 @@ export function useReportData(selectedDate: Date) {
       const companyId = await getCompanyId();
       if (!companyId) throw new Error('Company not found');
 
-      // Current month payments (revenue)
+      // Current month payments (revenue) - regime de competência (due_date)
       const { data: currentPayments } = await supabase
         .from('payment_transactions')
-        .select('amount, payment_gateway, status, paid_at')
+        .select('amount, payment_gateway, status, due_date')
         .eq('company_id', companyId)
         .eq('status', 'paid')
-        .gte('paid_at', monthStart.toISOString())
-        .lte('paid_at', monthEnd.toISOString());
+        .gte('due_date', format(monthStart, 'yyyy-MM-dd'))
+        .lte('due_date', format(monthEnd, 'yyyy-MM-dd'));
 
-      // Previous month payments
+      // Previous month payments - regime de competência (due_date)
       const { data: prevPayments } = await supabase
         .from('payment_transactions')
-        .select('amount, status, paid_at')
+        .select('amount, status, due_date')
         .eq('company_id', companyId)
         .eq('status', 'paid')
-        .gte('paid_at', prevMonthStart.toISOString())
-        .lte('paid_at', prevMonthEnd.toISOString());
+        .gte('due_date', format(prevMonthStart, 'yyyy-MM-dd'))
+        .lte('due_date', format(prevMonthEnd, 'yyyy-MM-dd'));
 
       // Current month expenses
       const { data: currentExpenses } = await supabase
