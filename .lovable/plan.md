@@ -1,84 +1,35 @@
 
-
-# Plano: Excluir cobranças protestadas dos cálculos financeiros
+# Plano: Sinalizar cobranças protestadas na tabela de cobranças
 
 ## Problema
 
-Quando uma cobrança é marcada como "protestada" (campo `protested_at` preenchido), ela continua sendo contabilizada em:
-- Cards do Dashboard (Vencido, Taxa de Inadimplência)
-- Resumo Financeiro da tela de Cobranças (Vencido, Pendente, Saldo Devedor)
-- Painel de Inadimplência Crítica (lista de 15+ dias)
+Cobranças protestadas aparecem na listagem geral sem nenhuma indicação visual de que foram protestadas. O usuario precisa de uma forma rapida de identificar essas cobranças.
 
-Isso distorce os números financeiros, já que protestos são tratados separadamente na aba "Protestos".
+## Solucao
 
-## Solução
+Adicionar uma verificacao no inicio da funcao `getStatusBadge` para cobranças protestadas, exibindo um badge diferenciado (roxo/violeta com icone de balança) antes de qualquer outra verificacao de status.
 
-Adicionar filtro `protested_at IS NULL` em todas as queries que calculam métricas financeiras, para que cobranças protestadas sejam contabilizadas **apenas** na aba de Protestos.
+## Arquivo a alterar
 
-## Arquivos a alterar
-
-| Arquivo | O que muda |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `src/hooks/useDashboardStats.ts` | Adicionar `.is('protested_at', null)` nas queries de overdue (linha 116), upcoming (linha 124) e total payments (linha 130) |
-| `supabase/functions/billing-management/index.ts` | Na action `get_company_balance`, adicionar `.is('protested_at', null)` na query (linha 337) |
-| `src/components/billing/CriticalDelinquencyPanel.tsx` | Adicionar `.is('protested_at', null)` na query de pagamentos críticos (linha 119) |
+| `src/pages/Billing.tsx` | Adicionar verificacao de `protested_at` no inicio de `getStatusBadge` |
 
-## Detalhes Técnicos
+## Detalhes Tecnicos
 
-### 1. `useDashboardStats.ts` - 3 queries afetadas
+Na funcao `getStatusBadge` (linha 168), adicionar como **primeira verificacao**:
 
-**Overdue payments** (calcula valor vencido e taxa de inadimplência):
 ```typescript
-// Antes
-.eq("status", "overdue")
-
-// Depois
-.eq("status", "overdue")
-.is("protested_at", null)
+if (payment.protested_at) {
+  return (
+    <Badge className="bg-purple-600 hover:bg-purple-700 text-white border-0 font-medium">
+      <Scale className="h-3 w-3 mr-1" />
+      Protestado
+    </Badge>
+  )
+}
 ```
 
-**Upcoming payments** (próximos 7 dias):
-```typescript
-// Adicionar
-.is("protested_at", null)
-```
+O icone `Scale` ja esta importado no arquivo (linha 7). A cor roxa/violeta diferencia visualmente das demais badges (verde=pago, vermelho=vencido, laranja=esgotando, azul=pendente).
 
-**Total payments** (base para taxa de inadimplência):
-```typescript
-// Adicionar
-.is("protested_at", null)
-```
-
-### 2. `billing-management/index.ts` - Edge Function
-
-Na query `get_company_balance`, adicionar filtro para excluir protestados:
-```typescript
-// Antes
-.select('amount, status, due_date')
-.eq('company_id', userCompanyId)
-
-// Depois
-.select('amount, status, due_date, protested_at')
-.eq('company_id', userCompanyId)
-.is('protested_at', null)
-```
-
-### 3. `CriticalDelinquencyPanel.tsx`
-
-Na query de inadimplência crítica (15+ dias), excluir protestados:
-```typescript
-// Antes
-.in('status', ['pending', 'overdue'])
-
-// Depois
-.in('status', ['pending', 'overdue'])
-.is('protested_at', null)
-```
-
-## Resultado esperado
-
-- Cobranças protestadas deixam de inflar os valores de "Vencido" e "Saldo Devedor"
-- Taxa de inadimplência do Dashboard reflete apenas cobranças ativas (não protestadas)
-- Painel de Inadimplência Crítica não exibe clientes já protestados
-- Aba "Protestos" continua funcionando normalmente com seus próprios cálculos
-
+Nenhuma outra alteracao e necessaria pois o campo `protested_at` ja vem na query do `usePayments`.
