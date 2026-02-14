@@ -166,6 +166,15 @@ const BillingPage = () => {
 
   // Função para obter badge de status
   const getStatusBadge = (payment: any) => {
+    if (payment.protested_at) {
+      return (
+        <Badge className="bg-purple-600 hover:bg-purple-700 text-white border-0 font-medium">
+          <Scale className="h-3 w-3 mr-1" />
+          Protestado
+        </Badge>
+      )
+    }
+
     if (payment.status === 'paid') {
       return (
         <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 font-medium">
