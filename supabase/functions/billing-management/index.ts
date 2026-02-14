@@ -335,7 +335,8 @@ serve(async (req) => {
         const { data: payments, error: paymentsError } = await supabase
           .from('payment_transactions')
           .select('amount, status, due_date')
-          .eq('company_id', userCompanyId);
+          .eq('company_id', userCompanyId)
+          .is('protested_at', null);
 
         if (paymentsError) throw paymentsError;
 

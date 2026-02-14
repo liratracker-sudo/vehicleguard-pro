@@ -117,6 +117,7 @@ export function CriticalDelinquencyPanel() {
         `)
         .eq('company_id', profile.company_id)
         .in('status', ['pending', 'overdue'])
+        .is('protested_at', null)
         .lte('due_date', fifteenDaysAgo.toISOString().split('T')[0])
         .order('due_date', { ascending: true });
 
