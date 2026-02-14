@@ -53,6 +53,8 @@ const BillingPage = () => {
     return 'all'
   })
   const [showStats, setShowStats] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 50
   const { toast } = useToast()
   
   const { payments, loading, error, loadPayments } = usePayments()
@@ -74,6 +76,11 @@ const BillingPage = () => {
       console.error('Error loading company balance:', error)
     }
   }
+
+  // Reset page on filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, clientIdFilter])
 
   const clearClientFilter = () => {
     setSearchParams({})
@@ -133,6 +140,24 @@ const BillingPage = () => {
     const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
     return dateA - dateB;
   });
+
+  // Pagination
+  const totalPages = Math.ceil(sortedPayments.length / ITEMS_PER_PAGE)
+  const paginatedPayments = sortedPayments.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+  const startItem = sortedPayments.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, sortedPayments.length)
+
+  const getPageNumbers = () => {
+    const pages: number[] = []
+    let start = Math.max(1, currentPage - 2)
+    let end = Math.min(totalPages, start + 4)
+    start = Math.max(1, end - 4)
+    for (let i = start; i <= end; i++) pages.push(i)
+    return pages
+  }
 
   const totalReceived = companyBalance?.total_received ?? payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
   const totalPending = companyBalance?.total_pending ?? payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0)
@@ -198,7 +223,9 @@ const BillingPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Cobranças</h1>
             <p className="text-sm text-muted-foreground">
-              {filteredPayments.length} cobranças ativas
+              {sortedPayments.length > 0 
+                ? `Exibindo ${startItem}-${endItem} de ${sortedPayments.length} cobranças`
+                : '0 cobranças'}
             </p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -366,14 +393,14 @@ const BillingPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedPayments.length === 0 ? (
+                  {paginatedPayments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhuma cobrança encontrada
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedPayments.map((payment) => (
+                    paginatedPayments.map((payment) => (
                       <TableRow key={payment.id} className="group/row hover:bg-muted/30">
                         <TableCell className="font-medium">
                           {payment.clients?.name || 'Sistema'}
@@ -406,6 +433,39 @@ const BillingPage = () => {
                   )}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-1 pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                {getPageNumbers().map(page => (
+                  <Button
+                    key={page}
+                    variant={page === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className="w-9 px-0"
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Próximo
+                </Button>
               </div>
             )}
           </TabsContent>
