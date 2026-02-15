@@ -1,35 +1,61 @@
 
-# Plano: Sinalizar cobranças protestadas na tabela de cobranças
+# Corrigir baixa automatica de pagamentos Mercado Pago
 
-## Problema
+## Problema confirmado
 
-Cobranças protestadas aparecem na listagem geral sem nenhuma indicação visual de que foram protestadas. O usuario precisa de uma forma rapida de identificar essas cobranças.
+Ao criar o PIX para o cliente RODRIGO ARANTES PIRES no Mercado Pago, o campo `notification_url` foi enviado como `null`. Por isso, quando o pagamento foi feito (por ANGELA MARIA ARANTES MOTTA via PIX - R$ 69,21), o Mercado Pago nao enviou o webhook de confirmacao e o sistema nao deu baixa automatica.
+
+A baixa que aparece no sistema foi feita pelo **Asaas** (que tambem tinha uma cobranca para o mesmo cliente), nao pelo Mercado Pago.
 
 ## Solucao
 
-Adicionar uma verificacao no inicio da funcao `getStatusBadge` para cobranças protestadas, exibindo um badge diferenciado (roxo/violeta com icone de balança) antes de qualquer outra verificacao de status.
+Adicionar `notification_url` apontando para a edge function `mercadopago-webhook` em dois pontos do arquivo `supabase/functions/mercadopago-integration/index.ts`:
 
-## Arquivo a alterar
+## Alteracoes
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/pages/Billing.tsx` | Adicionar verificacao de `protested_at` no inicio de `getStatusBadge` |
+### 1. Pagamento PIX direto (linha 584)
 
-## Detalhes Tecnicos
-
-Na funcao `getStatusBadge` (linha 168), adicionar como **primeira verificacao**:
+Adicionar `notification_url` no objeto `paymentData`:
 
 ```typescript
-if (payment.protested_at) {
-  return (
-    <Badge className="bg-purple-600 hover:bg-purple-700 text-white border-0 font-medium">
-      <Scale className="h-3 w-3 mr-1" />
-      Protestado
-    </Badge>
-  )
+const paymentData: any = {
+  transaction_amount: Number(data.value),
+  description: data.description || 'Pagamento',
+  payment_method_id: 'pix',
+  payer: { ... },
+  external_reference: data.externalReference,
+  date_of_expiration: expirationISO,
+  notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`
 }
 ```
 
-O icone `Scale` ja esta importado no arquivo (linha 7). A cor roxa/violeta diferencia visualmente das demais badges (verde=pago, vermelho=vencido, laranja=esgotando, azul=pendente).
+### 2. Checkout Preferences - boleto/cartao (linha 674)
 
-Nenhuma outra alteracao e necessaria pois o campo `protested_at` ja vem na query do `usePayments`.
+Adicionar `notification_url` no objeto `preferenceData`:
+
+```typescript
+const preferenceData: any = {
+  items: [...],
+  payer: { ... },
+  external_reference: data.externalReference,
+  notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`,
+  payment_methods: { ... },
+  date_of_expiration: ...
+}
+```
+
+### Deploy
+
+Apos as alteracoes, a edge function `mercadopago-integration` sera redeployada.
+
+## Fluxo corrigido
+
+1. Sistema cria pagamento PIX no MP **com notification_url**
+2. Cliente paga o PIX (mesmo de conta de terceiro)
+3. Mercado Pago envia webhook para `mercadopago-webhook`
+4. Webhook busca transacao pelo `external_id`, atualiza status para `paid`
+5. Trigger `notify_payment_confirmed` dispara notificacao automatica
+
+## Resultado esperado
+
+Todos os pagamentos futuros via Mercado Pago (PIX, boleto, cartao) terao baixa automatica, independente de quem paga.
