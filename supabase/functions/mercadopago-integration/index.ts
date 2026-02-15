@@ -581,7 +581,8 @@ serve(async (req) => {
               last_name: data.customer?.name?.split(' ').slice(1).join(' ') || 'MercadoPago'
             },
             external_reference: data.externalReference,
-            date_of_expiration: expirationISO
+            date_of_expiration: expirationISO,
+            notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`
           }
 
           // Só adiciona identificação se o documento for válido
@@ -665,6 +666,7 @@ serve(async (req) => {
             } : undefined
           },
           external_reference: data.externalReference,
+          notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`,
           payment_methods: {
             excluded_payment_types: data.billingType === 'BOLETO'
               ? [{ id: 'credit_card' }, { id: 'debit_card' }]
