@@ -396,6 +396,29 @@ serve(async (req) => {
   }
 });
 
+// Reset stuck 'sending' notifications back to 'pending' (older than 10 minutes)
+async function resetStuckSendingNotifications() {
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('payment_notifications')
+    .update({ 
+      status: 'pending', 
+      updated_at: new Date().toISOString() 
+    })
+    .eq('status', 'sending')
+    .lt('updated_at', tenMinutesAgo)
+    .select('id');
+  
+  if (error) {
+    console.error('❌ Error resetting stuck sending notifications:', error.message);
+  }
+  
+  if (data?.length) {
+    console.log(`🔓 Reset ${data.length} stuck 'sending' notifications back to 'pending'`);
+  }
+  return data?.length || 0;
+}
+
 async function processNotifications(force = false) {
   console.log('🚀 [CHECKPOINT] Starting notification processing...', { force });
   
@@ -404,10 +427,16 @@ async function processNotifications(force = false) {
     failed: 0,
     created: 0,
     skipped: 0,
-    recreated: 0
+    recreated: 0,
+    unstuck: 0
   };
   
   try {
+    // 0. Reset stuck 'sending' notifications
+    console.log('🔓 [STEP 0/3] Resetting stuck sending notifications...');
+    results.unstuck = await resetStuckSendingNotifications();
+    console.log(`✅ [STEP 0/3] Done: ${results.unstuck} unstuck`);
+
     // 1. Limpar e recriar notificações de cobranças já vencidas com horário incorreto
     console.log('📋 [STEP 1/3] Recreating overdue notifications...');
     const recreatedResults = await recreateOverdueNotifications();
