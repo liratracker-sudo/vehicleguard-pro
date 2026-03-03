@@ -1,61 +1,68 @@
 
-# Corrigir baixa automatica de pagamentos Mercado Pago
 
-## Problema confirmado
+# Diagnostico: Notificações de cobrança não estão sendo enviadas
 
-Ao criar o PIX para o cliente RODRIGO ARANTES PIRES no Mercado Pago, o campo `notification_url` foi enviado como `null`. Por isso, quando o pagamento foi feito (por ANGELA MARIA ARANTES MOTTA via PIX - R$ 69,21), o Mercado Pago nao enviou o webhook de confirmacao e o sistema nao deu baixa automatica.
+## Problema identificado
 
-A baixa que aparece no sistema foi feita pelo **Asaas** (que tambem tinha uma cobranca para o mesmo cliente), nao pelo Mercado Pago.
+Existem **65 notificações travadas com status 'sending'** que nunca foram concluídas. Isso acontece porque:
 
-## Solucao
+1. O job marca notificações como `sending` antes de enviar (lock otimista)
+2. Se o job sofre timeout ou erro, o cleanup marca o **cron_execution_logs** como `failed`
+3. **MAS as notificações que já estavam em `sending` NUNCA são resetadas para `pending`**
+4. Como a query busca apenas `status = 'pending'`, essas notificações ficam presas para sempre
 
-Adicionar `notification_url` apontando para a edge function `mercadopago-webhook` em dois pontos do arquivo `supabase/functions/mercadopago-integration/index.ts`:
+Dados atuais confirmam:
+- 65 notificações stuck em `sending` (desde 28/fev ate hoje)
+- Jobs de 12:00, 12:30 e 13:00 de hoje falharam por timeout
+- Jobs de 11:00 e 11:30 rodaram com sucesso mas enviaram **0 notificações** (porque as pendentes de hoje já estavam travadas como `sending`)
 
-## Alteracoes
+## Solução
 
-### 1. Pagamento PIX direto (linha 584)
+### 1. Adicionar cleanup de notificações stuck no inicio de cada execução
 
-Adicionar `notification_url` no objeto `paymentData`:
+No arquivo `supabase/functions/billing-notifications/index.ts`, adicionar uma função que reseta notificações com status `sending` há mais de 10 minutos de volta para `pending`. Isso será chamado no início do `processNotifications()`.
 
 ```typescript
-const paymentData: any = {
-  transaction_amount: Number(data.value),
-  description: data.description || 'Pagamento',
-  payment_method_id: 'pix',
-  payer: { ... },
-  external_reference: data.externalReference,
-  date_of_expiration: expirationISO,
-  notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`
+// Antes do Step 1 em processNotifications():
+async function resetStuckSendingNotifications() {
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('payment_notifications')
+    .update({ 
+      status: 'pending', 
+      updated_at: new Date().toISOString() 
+    })
+    .eq('status', 'sending')
+    .lt('updated_at', tenMinutesAgo)
+    .select('id');
+  
+  if (data?.length) {
+    console.log(`🔓 Reset ${data.length} stuck 'sending' notifications back to 'pending'`);
+  }
+  return data?.length || 0;
 }
 ```
 
-### 2. Checkout Preferences - boleto/cartao (linha 674)
+### 2. Corrigir as 65 notificações travadas agora (SQL imediato)
 
-Adicionar `notification_url` no objeto `preferenceData`:
+Executar migration para resetar as notificações stuck existentes:
 
-```typescript
-const preferenceData: any = {
-  items: [...],
-  payer: { ... },
-  external_reference: data.externalReference,
-  notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`,
-  payment_methods: { ... },
-  date_of_expiration: ...
-}
+```sql
+UPDATE payment_notifications 
+SET status = 'pending', updated_at = now() 
+WHERE status = 'sending';
 ```
 
-### Deploy
+### Arquivos a alterar
 
-Apos as alteracoes, a edge function `mercadopago-integration` sera redeployada.
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/billing-notifications/index.ts` | Adicionar `resetStuckSendingNotifications()` e chamar no início de `processNotifications()` |
+| Migration SQL | Resetar as 65 notificações travadas em `sending` |
 
-## Fluxo corrigido
+### Resultado esperado
 
-1. Sistema cria pagamento PIX no MP **com notification_url**
-2. Cliente paga o PIX (mesmo de conta de terceiro)
-3. Mercado Pago envia webhook para `mercadopago-webhook`
-4. Webhook busca transacao pelo `external_id`, atualiza status para `paid`
-5. Trigger `notify_payment_confirmed` dispara notificacao automatica
+- Notificações travadas serão automaticamente recuperadas a cada execução do cron
+- As 65 notificações stuck serão imediatamente desbloqueadas
+- Próxima execução do cron (dentro da janela 14h-16h Brasil) enviará as notificações pendentes
 
-## Resultado esperado
-
-Todos os pagamentos futuros via Mercado Pago (PIX, boleto, cartao) terao baixa automatica, independente de quem paga.
