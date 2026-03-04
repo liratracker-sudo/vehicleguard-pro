@@ -1,68 +1,68 @@
 
 
-# Diagnostico: Notificações de cobrança não estão sendo enviadas
+# Diagnóstico: Por que o cron de billing-notifications falha
 
-## Problema identificado
+## Causa raiz: Colisão de workers
 
-Existem **65 notificações travadas com status 'sending'** que nunca foram concluídas. Isso acontece porque:
+O Supabase tem um limite de workers (compute resources) simultâneos. A cada execução do cron, **duas funções disparam no mesmo segundo exato**:
 
-1. O job marca notificações como `sending` antes de enviar (lock otimista)
-2. Se o job sofre timeout ou erro, o cleanup marca o **cron_execution_logs** como `failed`
-3. **MAS as notificações que já estavam em `sending` NUNCA são resetadas para `pending`**
-4. Como a query busca apenas `status = 'pending'`, essas notificações ficam presas para sempre
+| Hora | `process-scheduled-reminders` | `billing-notifications` | Resultado |
+|------|-------------------------------|------------------------|-----------|
+| 12:00:00 | ✅ 200 (ganhou o worker) | ❌ 546 WORKER_LIMIT | billing falhou |
+| 12:30:00 | ✅ 200 (ganhou o worker) | ❌ 546 WORKER_LIMIT | billing falhou |
 
-Dados atuais confirmam:
-- 65 notificações stuck em `sending` (desde 28/fev ate hoje)
-- Jobs de 12:00, 12:30 e 13:00 de hoje falharam por timeout
-- Jobs de 11:00 e 11:30 rodaram com sucesso mas enviaram **0 notificações** (porque as pendentes de hoje já estavam travadas como `sending`)
+O cron `process-scheduled-reminders` roda **a cada minuto** (`* * * * *`), então colide com `billing-notifications` nos minutos `:00` e `:30`. Como ambas tentam iniciar ao mesmo tempo, o Supabase rejeita a segunda por falta de workers.
+
+Nos horários 11:00 e 11:30 de hoje, o billing rodou com sucesso (19s e 10s). Mas às 12:00 e 12:30, perdeu a disputa pelo worker.
+
+## Estado atual (04/03)
+
+- **19 pendentes**, **1 sending** (stuck), **16 enviadas**, **2 ignoradas**
+- O job das 12:30 está registrado como `running` (nunca terminou)
 
 ## Solução
 
-### 1. Adicionar cleanup de notificações stuck no inicio de cada execução
+### 1. Deslocar o horário do billing-notifications para evitar colisão
 
-No arquivo `supabase/functions/billing-notifications/index.ts`, adicionar uma função que reseta notificações com status `sending` há mais de 10 minutos de volta para `pending`. Isso será chamado no início do `processNotifications()`.
-
-```typescript
-// Antes do Step 1 em processNotifications():
-async function resetStuckSendingNotifications() {
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from('payment_notifications')
-    .update({ 
-      status: 'pending', 
-      updated_at: new Date().toISOString() 
-    })
-    .eq('status', 'sending')
-    .lt('updated_at', tenMinutesAgo)
-    .select('id');
-  
-  if (data?.length) {
-    console.log(`🔓 Reset ${data.length} stuck 'sending' notifications back to 'pending'`);
-  }
-  return data?.length || 0;
-}
-```
-
-### 2. Corrigir as 65 notificações travadas agora (SQL imediato)
-
-Executar migration para resetar as notificações stuck existentes:
+Mudar o schedule de `0,30` para `2,32` (2 minutos de offset):
 
 ```sql
-UPDATE payment_notifications 
-SET status = 'pending', updated_at = now() 
-WHERE status = 'sending';
+-- Remover crons antigos
+SELECT cron.unschedule('process-billing-notifications');
+SELECT cron.unschedule('process-billing-notifications-afternoon');
+
+-- Recriar com horários deslocados
+SELECT cron.schedule(
+  'process-billing-notifications',
+  '2,32 11,12,13,14 * * *',
+  $$ SELECT net.http_post(...) $$
+);
+
+SELECT cron.schedule(
+  'process-billing-notifications-afternoon', 
+  '2 17,18,19 * * *',
+  $$ SELECT net.http_post(...) $$
+);
 ```
+
+### 2. Adicionar timeouts nas chamadas externas na Edge Function
+
+No `billing-notifications/index.ts`, envolver chamadas a `whatsapp-evolution` e `ai-collection` com `Promise.race` e timeout individual:
+
+- `check_connection`: timeout 10s
+- `ai-collection`: timeout 20s  
+- `send_message`: timeout 30s
+
+Se timeout: marcar notificação como `failed` com motivo, em vez de deixar em `sending`.
+
+### 3. Recuperar as notificações stuck de hoje
+
+O Step 0 (reset de `sending` > 10 min) já existe na função. Basta disparar uma execução manual agora, ou a próxima execução automática (14:02 UTC com o novo schedule) resolverá.
 
 ### Arquivos a alterar
 
-| Arquivo | Alteração |
+| Recurso | Alteração |
 |---------|-----------|
-| `supabase/functions/billing-notifications/index.ts` | Adicionar `resetStuckSendingNotifications()` e chamar no início de `processNotifications()` |
-| Migration SQL | Resetar as 65 notificações travadas em `sending` |
-
-### Resultado esperado
-
-- Notificações travadas serão automaticamente recuperadas a cada execução do cron
-- As 65 notificações stuck serão imediatamente desbloqueadas
-- Próxima execução do cron (dentro da janela 14h-16h Brasil) enviará as notificações pendentes
+| Migration SQL (cron.schedule) | Offset de 2 min nos horários |
+| `supabase/functions/billing-notifications/index.ts` | Timeouts individuais nas chamadas externas |
 
