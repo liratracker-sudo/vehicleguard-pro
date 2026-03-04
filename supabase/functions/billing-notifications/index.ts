@@ -81,6 +81,31 @@ async function preloadConfigurations(companyIds: string[]) {
   console.log(`✅ Cache carregado em ${Date.now() - startTime}ms: ${companyCache.notificationSettings.size} notification settings, ${companyCache.whatsappSettings.size} whatsapp settings, ${companyCache.companyDomains.size} domains`);
 }
 
+// Helper: invoke edge function with timeout
+async function invokeWithTimeout(
+  functionName: string, 
+  body: any, 
+  timeoutMs: number,
+  label: string
+): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const result = await Promise.race([
+      supabase.functions.invoke(functionName, { body }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`TIMEOUT: ${label} excedeu ${timeoutMs / 1000}s`)), timeoutMs)
+      )
+    ]);
+    clearTimeout(timeoutId);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
 // Função para verificar conexão WhatsApp com cache
 async function checkWhatsAppConnectionCached(companyId: string): Promise<{ connected: boolean; error?: string }> {
   // Verificar se já temos no cache
@@ -97,19 +122,17 @@ async function checkWhatsAppConnectionCached(companyId: string): Promise<{ conne
     return result;
   }
   
-  // Verificar conexão
+  // Verificar conexão com timeout de 10s
   console.log(`📱 Verificando conexão WhatsApp para empresa ${companyId}...`);
   try {
-    const connectionCheck = await supabase.functions.invoke('whatsapp-evolution', {
-      body: {
-        action: 'checkConnection',
-        payload: {
-          instance_url: whatsappSettings.instance_url,
-          api_token: whatsappSettings.api_token,
-          instance_name: whatsappSettings.instance_name
-        }
+    const connectionCheck = await invokeWithTimeout('whatsapp-evolution', {
+      action: 'checkConnection',
+      payload: {
+        instance_url: whatsappSettings.instance_url,
+        api_token: whatsappSettings.api_token,
+        instance_name: whatsappSettings.instance_name
       }
-    });
+    }, 10000, `checkConnection(${companyId})`);
     
     const result = {
       connected: connectionCheck.data?.connected || false,
@@ -120,7 +143,9 @@ async function checkWhatsAppConnectionCached(companyId: string): Promise<{ conne
     console.log(`📱 WhatsApp connection status para ${companyId}: ${result.connected ? '✅ conectado' : '❌ desconectado'}`);
     return result;
   } catch (error) {
-    const result = { connected: false, error: error instanceof Error ? error.message : String(error) };
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`⏰ WhatsApp checkConnection timeout/error for ${companyId}:`, errorMsg);
+    const result = { connected: false, error: errorMsg };
     companyCache.whatsappConnectionStatus.set(companyId, result);
     return result;
   }
@@ -1282,19 +1307,17 @@ async function sendSingleNotification(notification: any) {
   
   // GERAR MENSAGEM COM IA (com fallback para mensagem padrão)
   try {
-    const aiResponse = await supabase.functions.invoke('ai-collection', {
-      body: {
-        action: 'process_specific_payment',
-        company_id: notification.company_id,
-        client_id: notification.client_id,
-        payment_id: payment.id,
-        event_type: notification.event_type,
-        days_overdue: notification.event_type === 'post_due' ? notification.offset_days : 0,
-        amount: payment.amount,
-        due_date: payment.due_date,
-        client_name: client.name
-      }
-    });
+    const aiResponse = await invokeWithTimeout('ai-collection', {
+      action: 'process_specific_payment',
+      company_id: notification.company_id,
+      client_id: notification.client_id,
+      payment_id: payment.id,
+      event_type: notification.event_type,
+      days_overdue: notification.event_type === 'post_due' ? notification.offset_days : 0,
+      amount: payment.amount,
+      due_date: payment.due_date,
+      client_name: client.name
+    }, 20000, `ai-collection(${notification.id})`);
     
     if (aiResponse.error || !aiResponse.data?.generated_message) {
       const errorMsg = aiResponse.error?.message || 'IA não retornou mensagem';
@@ -1357,21 +1380,19 @@ async function sendSingleNotification(notification: any) {
   console.log(`📤 Sending unified message for notification ${notification.id}...`);
   console.log('Message preview:', fullMessage.substring(0, 150) + '...');
   
-  const response = await supabase.functions.invoke('whatsapp-evolution', {
-    body: {
-      action: 'send_message',
-      payload: {
-        instance_url: whatsappSettings.instance_url,
-        api_token: whatsappSettings.api_token,
-        instance_name: whatsappSettings.instance_name,
-        phone_number: client.phone,
-        message: fullMessage,
-        company_id: notification.company_id,
-        client_id: notification.client_id,
-        linkPreview: false  // Disable link preview for cleaner message
-      }
+  const response = await invokeWithTimeout('whatsapp-evolution', {
+    action: 'send_message',
+    payload: {
+      instance_url: whatsappSettings.instance_url,
+      api_token: whatsappSettings.api_token,
+      instance_name: whatsappSettings.instance_name,
+      phone_number: client.phone,
+      message: fullMessage,
+      company_id: notification.company_id,
+      client_id: notification.client_id,
+      linkPreview: false
     }
-  });
+  }, 30000, `send_message(${notification.id})`);
 
   // Check message result
   if (response.error) {
