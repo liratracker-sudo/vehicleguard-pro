@@ -31,10 +31,26 @@ export interface MonthlyRevenue {
   revenue: number;
 }
 
+async function getCompanyId(): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("company_id")
+    .single();
+  return profile?.company_id || null;
+}
+
 export function useDashboardStats() {
+  // Single shared company_id query
+  const { data: companyId } = useQuery({
+    queryKey: ["dashboard-company-id"],
+    queryFn: getCompanyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Fetch main stats
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
+    queryKey: ["dashboard-stats", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<DashboardStats> => {
       const now = new Date();
       const currentMonthStart = startOfMonth(now);
@@ -43,19 +59,6 @@ export function useDashboardStats() {
       const sevenDaysFromNow = new Date(now);
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-      // Get user's company_id
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .single();
-
-      if (!profile?.company_id) {
-        throw new Error("Company not found");
-      }
-
-      const companyId = profile.company_id;
-
-      // Fetch all stats in parallel
       const [
         activeClientsResult,
         lastMonthClientsResult,
@@ -67,68 +70,59 @@ export function useDashboardStats() {
         upcomingResult,
         totalPaymentsResult,
       ] = await Promise.all([
-        // Active clients
         supabase
           .from("clients")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("status", "active"),
-        // Last month active clients
         supabase
           .from("clients")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("status", "active")
           .lt("created_at", currentMonthStart.toISOString()),
-        // Active vehicles
         supabase
           .from("vehicles")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("is_active", true),
-        // Last month vehicles
         supabase
           .from("vehicles")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("is_active", true)
           .lt("created_at", currentMonthStart.toISOString()),
-        // Current month revenue
         supabase
           .from("payment_transactions")
           .select("amount")
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("status", "paid")
           .gte("paid_at", currentMonthStart.toISOString()),
-        // Last month revenue
         supabase
           .from("payment_transactions")
           .select("amount")
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("status", "paid")
           .gte("paid_at", lastMonthStart.toISOString())
           .lt("paid_at", lastMonthEnd.toISOString()),
-        // Overdue payments - buscar pelo status 'overdue'
         supabase
           .from("payment_transactions")
           .select("amount")
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("status", "overdue")
           .is("protested_at", null),
-        // Upcoming payments (next 7 days)
         supabase
           .from("payment_transactions")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .eq("status", "pending")
           .gte("due_date", now.toISOString().split("T")[0])
           .lte("due_date", sevenDaysFromNow.toISOString().split("T")[0])
           .is("protested_at", null),
-        // Total payments for default rate calculation (inclui overdue)
         supabase
           .from("payment_transactions")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
+          .eq("company_id", companyId!)
           .in("status", ["paid", "pending", "overdue"])
           .is("protested_at", null),
       ]);
@@ -162,26 +156,18 @@ export function useDashboardStats() {
 
   // Fetch recent clients
   const { data: recentClients, isLoading: clientsLoading } = useQuery({
-    queryKey: ["dashboard-recent-clients"],
+    queryKey: ["dashboard-recent-clients", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<RecentClient[]> => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .single();
-
-      if (!profile?.company_id) return [];
-
-      // Get recent clients
       const { data: clients } = await supabase
         .from("clients")
         .select("id, name, email, phone, status, created_at")
-        .eq("company_id", profile.company_id)
+        .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(5);
 
       if (!clients) return [];
 
-      // Get contracts with plans for these clients
       const clientIds = clients.map(c => c.id);
       const { data: contracts } = await supabase
         .from("contracts")
@@ -189,7 +175,6 @@ export function useDashboardStats() {
         .in("client_id", clientIds)
         .eq("status", "active");
 
-      // Map plan names to clients
       const clientPlanMap = new Map<string, string>();
       contracts?.forEach(contract => {
         if (contract.plans && !clientPlanMap.has(contract.client_id)) {
@@ -209,39 +194,46 @@ export function useDashboardStats() {
     },
   });
 
-  // Fetch monthly revenue for chart
+  // Fetch monthly revenue - single query instead of 6 sequential
   const { data: monthlyRevenue, isLoading: revenueLoading } = useQuery({
-    queryKey: ["dashboard-monthly-revenue"],
+    queryKey: ["dashboard-monthly-revenue", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<MonthlyRevenue[]> => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .single();
-
-      if (!profile?.company_id) return [];
-
-      const months: MonthlyRevenue[] = [];
       const now = new Date();
+      const sixMonthsAgo = startOfMonth(subMonths(now, 5));
 
-      // Get last 6 months
+      // Single query for all 6 months
+      const { data: payments } = await supabase
+        .from("payment_transactions")
+        .select("amount, paid_at")
+        .eq("company_id", companyId!)
+        .eq("status", "paid")
+        .gte("paid_at", sixMonthsAgo.toISOString());
+
+      // Group by month in JavaScript
+      const monthMap = new Map<string, number>();
       for (let i = 5; i >= 0; i--) {
         const monthDate = subMonths(now, i);
-        const monthStart = startOfMonth(monthDate);
-        const monthEnd = startOfMonth(subMonths(monthDate, -1));
+        const key = format(monthDate, "yyyy-MM");
+        monthMap.set(key, 0);
+      }
 
-        const { data: payments } = await supabase
-          .from("payment_transactions")
-          .select("amount")
-          .eq("company_id", profile.company_id)
-          .eq("status", "paid")
-          .gte("paid_at", monthStart.toISOString())
-          .lt("paid_at", monthEnd.toISOString());
+      payments?.forEach(p => {
+        if (p.paid_at) {
+          const key = p.paid_at.substring(0, 7); // "yyyy-MM"
+          if (monthMap.has(key)) {
+            monthMap.set(key, (monthMap.get(key) || 0) + Number(p.amount));
+          }
+        }
+      });
 
-        const revenue = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
+      const months: MonthlyRevenue[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(now, i);
+        const key = format(monthDate, "yyyy-MM");
         months.push({
           month: format(monthDate, "MMM", { locale: ptBR }),
-          revenue,
+          revenue: monthMap.get(key) || 0,
         });
       }
 
