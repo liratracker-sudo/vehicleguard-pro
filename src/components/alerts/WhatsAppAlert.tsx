@@ -105,8 +105,8 @@ export const WhatsAppAlert: React.FC = () => {
   useEffect(() => {
     loadAlerts();
     
-    // Refresh alerts every 30 seconds
-    const interval = setInterval(loadAlerts, 30000);
+    // Refresh alerts every 2 minutes
+    const interval = setInterval(loadAlerts, 120000);
     
     return () => clearInterval(interval);
   }, []);

@@ -259,8 +259,10 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Verificação inicial e periódica (mais conservadora)
   useEffect(() => {
-    // Verificar conexão imediatamente apenas uma vez
-    checkConnection();
+    // Atrasar verificação inicial em 5s para não bloquear o carregamento da UI
+    const initialTimer = setTimeout(() => {
+      checkConnection();
+    }, 5000);
 
     // Verificar a cada 5 minutos (aumentado de 2 minutos)
     const interval = setInterval(() => {
@@ -274,6 +276,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Cleanup
     return () => {
+      clearTimeout(initialTimer);
       clearInterval(interval);
     };
   }, []); // Remover dependências para evitar re-execução
