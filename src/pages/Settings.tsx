@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
+import { WhatsAppProvider } from "@/contexts/WhatsAppContext"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PaymentGatewayConfig } from "@/components/settings/PaymentGatewayConfig"
 import { PaymentGatewayRules } from "@/components/settings/PaymentGatewayRules"
