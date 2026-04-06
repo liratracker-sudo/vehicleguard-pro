@@ -676,21 +676,18 @@ export default function PublicClientRegistration() {
             <CardContent className="space-y-4">
               <div>
                 <Label>Selecione uma opção</Label>
-                <Select
+                <select
                   value={howDidYouHear}
-                  onValueChange={setHowDidYouHear}
+                  onChange={(e) => setHowDidYouHear(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione como nos conheceu" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOW_DID_YOU_HEAR_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="" disabled>Selecione como nos conheceu</option>
+                  {HOW_DID_YOU_HEAR_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Mostrar campo de indicação se selecionou vendedor ou indicação de cliente */}
