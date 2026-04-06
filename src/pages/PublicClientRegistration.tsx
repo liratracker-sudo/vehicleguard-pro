@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+// Native select used instead of Radix Select to avoid mobile Chrome blank-screen bug
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { CheckCircle2, Plus, Trash2, Car, UserPlus } from "lucide-react"
@@ -625,23 +625,21 @@ export default function PublicClientRegistration() {
                 </div>
                 <div>
                   <Label>Grau de Parentesco *</Label>
-                  <Select
+                  <select
                     value={formData.emergency_contact_relationship}
-                    onValueChange={(value) => setFormData({ ...formData, emergency_contact_relationship: value })}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact_relationship: e.target.value })}
+                    required
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Pai">Pai</SelectItem>
-                      <SelectItem value="Mãe">Mãe</SelectItem>
-                      <SelectItem value="Cônjuge">Cônjuge</SelectItem>
-                      <SelectItem value="Irmão(ã)">Irmão(ã)</SelectItem>
-                      <SelectItem value="Filho(a)">Filho(a)</SelectItem>
-                      <SelectItem value="Amigo(a)">Amigo(a)</SelectItem>
-                      <SelectItem value="Outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <option value="" disabled>Selecione</option>
+                    <option value="Pai">Pai</option>
+                    <option value="Mãe">Mãe</option>
+                    <option value="Cônjuge">Cônjuge</option>
+                    <option value="Irmão(ã)">Irmão(ã)</option>
+                    <option value="Filho(a)">Filho(a)</option>
+                    <option value="Amigo(a)">Amigo(a)</option>
+                    <option value="Outro">Outro</option>
+                  </select>
                 </div>
               </div>
               <div>
@@ -678,21 +676,18 @@ export default function PublicClientRegistration() {
             <CardContent className="space-y-4">
               <div>
                 <Label>Selecione uma opção</Label>
-                <Select
+                <select
                   value={howDidYouHear}
-                  onValueChange={setHowDidYouHear}
+                  onChange={(e) => setHowDidYouHear(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione como nos conheceu" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOW_DID_YOU_HEAR_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="" disabled>Selecione como nos conheceu</option>
+                  {HOW_DID_YOU_HEAR_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Mostrar campo de indicação se selecionou vendedor ou indicação de cliente */}
