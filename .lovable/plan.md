@@ -1,56 +1,57 @@
 
 
-# Fix: Tela em branco ao selecionar opção no Select (mobile Chrome)
+# Fix: Melhorar tratamento de erro de login quando Supabase está fora
 
 ## Problema
 
-No formulário público de cadastro (`/cadastro/:slug`), ao selecionar "Cônjuge" (ou potencialmente qualquer item) no dropdown de "Grau de Parentesco", a tela fica completamente em branco no Chrome mobile. Isso é um bug conhecido do Radix UI Select em dispositivos móveis -- o portal/overlay do dropdown não fecha corretamente e cobre toda a página.
+Quando o Supabase está com timeout (banco Postgres indisponível), o `signInWithPassword` retorna um erro sem `message` legível, e o toast mostra "Erro ao fazer login - {}".
 
 ## Causa raiz
 
-O componente `SelectContent` usa `SelectPrimitive.Portal` que cria um overlay modal. No Chrome mobile, ao selecionar um item, o overlay pode não ser removido do DOM corretamente, deixando a tela "coberta" por um elemento invisível. Isso afeta **todos** os Selects da página pública, não apenas o de parentesco.
+Os auth logs confirmam que o Postgres do Supabase está com timeout de conexão (504). O erro retornado pelo SDK não tem `.message` padrão nesses casos, resultando em `{}` no toast.
 
 ## Solução
 
-Substituir todos os componentes `Select` do formulário público por elementos `<select>` nativos do HTML. No mobile, selects nativos abrem o picker nativo do sistema operacional (mais confiável e melhor UX). Isso resolve o bug sem afetar o restante da aplicação que usa Radix Select internamente.
+### `src/pages/Auth.tsx`
 
-## Alterações
+Melhorar o tratamento de erro no `signIn` para:
+1. Detectar erros de rede/timeout e mostrar mensagem amigável
+2. Usar `JSON.stringify` como fallback para erros sem `.message`
+3. Adicionar mensagem específica para quando o servidor não responde
 
-### `src/pages/PublicClientRegistration.tsx`
+Alteração no bloco `if (error)` da função `signIn`:
 
-Criar um componente auxiliar `NativeSelect` simples e substituir os 3 usos de `<Select>` nesta página:
-
-1. **Grau de Parentesco** (linha 628-644) -- o que está causando o bug
-2. **Estado** (se usar Select) -- verificar e converter também
-3. **Como conheceu** (linha 680+) -- converter também
-
-O `NativeSelect` será um `<select>` estilizado com Tailwind para manter a aparência visual consistente com o resto do formulário:
-
-```tsx
-// Componente inline no arquivo
-const NativeSelect = ({ value, onChange, placeholder, children, required }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    required={required}
-    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-  >
-    <option value="" disabled>{placeholder}</option>
-    {children}
-  </select>
-)
+```typescript
+if (error) {
+  let description = "Erro desconhecido. Tente novamente."
+  if (error.message === "Invalid login credentials") {
+    description = "Credenciais inválidas. Verifique seu email e senha."
+  } else if (error.message && error.message.length > 0) {
+    description = error.message
+  } else if (error.status === 504 || error.status === 500) {
+    description = "Servidor temporariamente indisponível. Tente novamente em alguns minutos."
+  } else {
+    description = "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+  }
+  
+  toast({
+    title: "Erro ao fazer login",
+    description,
+    variant: "destructive"
+  })
+}
 ```
 
-Substituições:
-- `<Select onValueChange=...>` → `<NativeSelect onChange=...>`
-- `<SelectItem value="X">X</SelectItem>` → `<option value="X">X</option>`
+## Sobre a indisponibilidade atual
 
-Nenhum outro arquivo precisa ser alterado. A mudança é isolada à página pública.
+O banco Supabase está retornando 504 (timeout) nas conexões Postgres. Isso precisa ser resolvido no painel do Supabase:
+- Verificar se o projeto não está pausado
+- Reiniciar o banco se necessário (Settings > General > Restart project)
+- Verificar se o plano não excedeu limites de conexão
 
-## Resultado esperado
+## Resultado
 
-- Selects funcionam perfeitamente no Chrome mobile com picker nativo
-- Sem tela em branco ao selecionar qualquer opção
-- Visual consistente com o formulário
-- Zero impacto no restante da aplicação
+- Mensagem clara para o usuário quando o servidor está fora
+- Sem mais "{}" no toast de erro
+- A correção não resolve a indisponibilidade do Supabase (isso é infraestrutura), mas melhora a experiência do usuário
 
