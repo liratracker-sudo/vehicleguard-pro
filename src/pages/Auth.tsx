@@ -75,11 +75,19 @@ const AuthPage = () => {
     })
 
     if (error) {
+      let description = "Erro desconhecido. Tente novamente."
+      if (error.message === "Invalid login credentials") {
+        description = "Credenciais inválidas. Verifique seu email e senha."
+      } else if (error.message && error.message.length > 0) {
+        description = error.message
+      } else if ((error as any).status === 504 || (error as any).status === 500) {
+        description = "Servidor temporariamente indisponível. Tente novamente em alguns minutos."
+      } else {
+        description = "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+      }
       toast({
         title: "Erro ao fazer login",
-        description: error.message === "Invalid login credentials" 
-          ? "Credenciais inválidas. Verifique seu email e senha."
-          : error.message,
+        description,
         variant: "destructive"
       })
     } else {
