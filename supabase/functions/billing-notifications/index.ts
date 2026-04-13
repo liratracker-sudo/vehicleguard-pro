@@ -1330,6 +1330,15 @@ async function sendSingleNotification(notification: any) {
   if (response.error) {
     const errorMsg = `HTTP Error: ${response.error.message}`;
     console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
+    
+    // 🔌 CIRCUIT BREAKER: Detectar desconexão a partir do erro real de envio
+    if (errorMsg.includes('WORKER_LIMIT') || errorMsg.includes('timeout') || errorMsg.includes('not connected')) {
+      await logWhatsAppAlert(notification.company_id, `WhatsApp erro de envio (circuit breaker): ${errorMsg}`, { name: client.name, phone: client.phone });
+      const circuitBreakerError = new Error(`[CIRCUIT_BREAKER] Erro de envio WhatsApp: ${errorMsg}`);
+      (circuitBreakerError as any).isCircuitBreaker = true;
+      throw circuitBreakerError;
+    }
+    
     await logWhatsAppAlert(notification.company_id, `Erro na API WhatsApp: ${errorMsg}`, { name: client.name, phone: client.phone });
     throw new Error(errorMsg);
   }
@@ -1338,9 +1347,12 @@ async function sendSingleNotification(notification: any) {
     const errorMsg = response.data.error || response.data.message || 'Falha no envio da mensagem';
     console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
     
-    if (errorMsg.includes('not connected') || errorMsg.includes('WhatsApp instance not connected') || errorMsg.includes('não autenticado')) {
+    // 🔌 CIRCUIT BREAKER: Detectar desconexão real do WhatsApp
+    if (errorMsg.includes('not connected') || errorMsg.includes('WhatsApp instance not connected') || errorMsg.includes('não autenticado') || errorMsg.includes('disconnected')) {
       await logWhatsAppAlert(notification.company_id, `WhatsApp desconectado durante envio: ${errorMsg}`, { name: client.name, phone: client.phone });
-      throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
+      const circuitBreakerError = new Error(`[CIRCUIT_BREAKER] WhatsApp desconectado: ${errorMsg}`);
+      (circuitBreakerError as any).isCircuitBreaker = true;
+      throw circuitBreakerError;
     }
     
     await logWhatsAppAlert(notification.company_id, `Erro no envio: ${errorMsg}`, { name: client.name, phone: client.phone });
