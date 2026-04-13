@@ -34,7 +34,6 @@ function resetCache() {
     notificationSettings: new Map(),
     whatsappSettings: new Map(),
     companyDomains: new Map(),
-    whatsappConnectionStatus: new Map(),
   };
   console.log('🗑️ Cache resetado para nova execução');
 }
