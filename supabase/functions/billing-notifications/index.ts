@@ -20,14 +20,12 @@ interface CompanyCache {
   notificationSettings: Map<string, any>;
   whatsappSettings: Map<string, any>;
   companyDomains: Map<string, string | null>;
-  whatsappConnectionStatus: Map<string, { connected: boolean; error?: string }>;
 }
 
 let companyCache: CompanyCache = {
   notificationSettings: new Map(),
   whatsappSettings: new Map(),
   companyDomains: new Map(),
-  whatsappConnectionStatus: new Map(),
 };
 
 // Função para resetar cache no início de cada execução
