@@ -20,14 +20,12 @@ interface CompanyCache {
   notificationSettings: Map<string, any>;
   whatsappSettings: Map<string, any>;
   companyDomains: Map<string, string | null>;
-  whatsappConnectionStatus: Map<string, { connected: boolean; error?: string }>;
 }
 
 let companyCache: CompanyCache = {
   notificationSettings: new Map(),
   whatsappSettings: new Map(),
   companyDomains: new Map(),
-  whatsappConnectionStatus: new Map(),
 };
 
 // Função para resetar cache no início de cada execução
@@ -36,7 +34,6 @@ function resetCache() {
     notificationSettings: new Map(),
     whatsappSettings: new Map(),
     companyDomains: new Map(),
-    whatsappConnectionStatus: new Map(),
   };
   console.log('🗑️ Cache resetado para nova execução');
 }
@@ -103,51 +100,6 @@ async function invokeWithTimeout(
   } catch (error) {
     clearTimeout(timeoutId);
     throw error;
-  }
-}
-
-// Função para verificar conexão WhatsApp com cache
-async function checkWhatsAppConnectionCached(companyId: string): Promise<{ connected: boolean; error?: string }> {
-  // Verificar se já temos no cache
-  if (companyCache.whatsappConnectionStatus.has(companyId)) {
-    console.log(`📱 WhatsApp connection (cached) para empresa ${companyId}`);
-    return companyCache.whatsappConnectionStatus.get(companyId)!;
-  }
-  
-  // Buscar configurações do cache
-  const whatsappSettings = companyCache.whatsappSettings.get(companyId);
-  if (!whatsappSettings) {
-    const result = { connected: false, error: 'Configurações do WhatsApp não encontradas' };
-    companyCache.whatsappConnectionStatus.set(companyId, result);
-    return result;
-  }
-  
-  // Verificar conexão com timeout de 10s
-  console.log(`📱 Verificando conexão WhatsApp para empresa ${companyId}...`);
-  try {
-    const connectionCheck = await invokeWithTimeout('whatsapp-evolution', {
-      action: 'checkConnection',
-      payload: {
-        instance_url: whatsappSettings.instance_url,
-        api_token: whatsappSettings.api_token,
-        instance_name: whatsappSettings.instance_name
-      }
-    }, 10000, `checkConnection(${companyId})`);
-    
-    const result = {
-      connected: connectionCheck.data?.connected || false,
-      error: connectionCheck.error?.message || connectionCheck.data?.error
-    };
-    
-    companyCache.whatsappConnectionStatus.set(companyId, result);
-    console.log(`📱 WhatsApp connection status para ${companyId}: ${result.connected ? '✅ conectado' : '❌ desconectado'}`);
-    return result;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`⏰ WhatsApp checkConnection timeout/error for ${companyId}:`, errorMsg);
-    const result = { connected: false, error: errorMsg };
-    companyCache.whatsappConnectionStatus.set(companyId, result);
-    return result;
   }
 }
 
@@ -1269,27 +1221,7 @@ async function sendSingleNotification(notification: any) {
   const paymentLink = `${baseUrl}/checkout/${payment.id}`;
   console.log(`📎 Payment link generated: ${paymentLink} (domain: ${sanitizedDomain || 'fallback'})`);
 
-  // OTIMIZAÇÃO: Verificar conexão WhatsApp usando cache (apenas 1x por empresa)
-  console.log(`Validating WhatsApp connection for company ${notification.company_id} (cached)...`);
-  const connectionStatus = await checkWhatsAppConnectionCached(notification.company_id);
-
-  // 🔌 CIRCUIT BREAKER: Se WhatsApp desconectado, marcar como failed e parar processamento
-  if (!connectionStatus.connected) {
-    const errorMsg = connectionStatus.error || 'WhatsApp não está conectado';
-    console.error(`🔌 [CIRCUIT BREAKER] Connection check failed for company ${notification.company_id}:`, errorMsg);
-    
-    // Log WhatsApp disconnection alert with client info
-    await logWhatsAppAlert(
-      notification.company_id, 
-      `WhatsApp desconectado: ${errorMsg}`,
-      { name: client.name, phone: client.phone }
-    );
-    
-    // CIRCUIT BREAKER: Lançar erro específico que será tratado de forma especial
-    const circuitBreakerError = new Error(`[CIRCUIT_BREAKER] WhatsApp desconectado para empresa ${notification.company_id}. Reconectar para continuar. Erro: ${errorMsg}`);
-    (circuitBreakerError as any).isCircuitBreaker = true;
-    throw circuitBreakerError;
-  }
+  // Conexão WhatsApp é validada implicitamente no envio real (sem check prévio bloqueante)
 
   // Format payment info for AI message generation
   const dueDate = new Date(payment.due_date);
@@ -1398,6 +1330,15 @@ async function sendSingleNotification(notification: any) {
   if (response.error) {
     const errorMsg = `HTTP Error: ${response.error.message}`;
     console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
+    
+    // 🔌 CIRCUIT BREAKER: Detectar desconexão a partir do erro real de envio
+    if (errorMsg.includes('WORKER_LIMIT') || errorMsg.includes('timeout') || errorMsg.includes('not connected')) {
+      await logWhatsAppAlert(notification.company_id, `WhatsApp erro de envio (circuit breaker): ${errorMsg}`, { name: client.name, phone: client.phone });
+      const circuitBreakerError = new Error(`[CIRCUIT_BREAKER] Erro de envio WhatsApp: ${errorMsg}`);
+      (circuitBreakerError as any).isCircuitBreaker = true;
+      throw circuitBreakerError;
+    }
+    
     await logWhatsAppAlert(notification.company_id, `Erro na API WhatsApp: ${errorMsg}`, { name: client.name, phone: client.phone });
     throw new Error(errorMsg);
   }
@@ -1406,9 +1347,12 @@ async function sendSingleNotification(notification: any) {
     const errorMsg = response.data.error || response.data.message || 'Falha no envio da mensagem';
     console.error(`❌ Message failed for notification ${notification.id}:`, errorMsg);
     
-    if (errorMsg.includes('not connected') || errorMsg.includes('WhatsApp instance not connected') || errorMsg.includes('não autenticado')) {
+    // 🔌 CIRCUIT BREAKER: Detectar desconexão real do WhatsApp
+    if (errorMsg.includes('not connected') || errorMsg.includes('WhatsApp instance not connected') || errorMsg.includes('não autenticado') || errorMsg.includes('disconnected')) {
       await logWhatsAppAlert(notification.company_id, `WhatsApp desconectado durante envio: ${errorMsg}`, { name: client.name, phone: client.phone });
-      throw new Error(`WhatsApp não autenticado — reconectar o número para continuar os envios.`);
+      const circuitBreakerError = new Error(`[CIRCUIT_BREAKER] WhatsApp desconectado: ${errorMsg}`);
+      (circuitBreakerError as any).isCircuitBreaker = true;
+      throw circuitBreakerError;
     }
     
     await logWhatsAppAlert(notification.company_id, `Erro no envio: ${errorMsg}`, { name: client.name, phone: client.phone });
