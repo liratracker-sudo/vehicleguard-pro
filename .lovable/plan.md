@@ -1,57 +1,59 @@
 
 
-# Fix: Melhorar tratamento de erro de login quando Supabase está fora
+# Diagnóstico: Notificações de cobrança paradas há dias
 
-## Problema
+## Problema encontrado
 
-Quando o Supabase está com timeout (banco Postgres indisponível), o `signInWithPassword` retorna um erro sem `message` legível, e o toast mostra "Erro ao fazer login - {}".
+Analisei os logs do cron e do banco de dados. O problema é claro:
 
-## Causa raiz
+**Todas as execuções do cron retornam `"sent":0, "failed":1`** — todas as notificações estão falhando com o erro:
+> "WhatsApp desconectado - reconecte para retomar envios"
 
-Os auth logs confirmam que o Postgres do Supabase está com timeout de conexão (504). O erro retornado pelo SDK não tem `.message` padrão nesses casos, resultando em `{}` no toast.
+Isso acontece porque antes de enviar qualquer notificação, o sistema chama `checkConnection` na edge function `whatsapp-evolution` (com timeout de 10s). Essa chamada está falhando ou retornando "desconectado", o que ativa o **circuit breaker** que **para todo o processamento da empresa**.
 
-## Solução
+Porém, o WhatsApp **ESTÁ conectado** — os logs mostram mensagens sendo enviadas com sucesso agora mesmo (confirmações de pagamento, cobranças manuais).
 
-### `src/pages/Auth.tsx`
+**Causa raiz**: A chamada `supabase.functions.invoke('whatsapp-evolution', { checkConnection })` dentro da `billing-notifications` provavelmente está dando timeout (WORKER_LIMIT) quando executada pelo cron, porque as edge functions compartilham workers e o cron dispara várias ao mesmo tempo.
 
-Melhorar o tratamento de erro no `signIn` para:
-1. Detectar erros de rede/timeout e mostrar mensagem amigável
-2. Usar `JSON.stringify` como fallback para erros sem `.message`
-3. Adicionar mensagem específica para quando o servidor não responde
+Além disso, há **31 notificações pendentes** acumuladas desde 24 de março que nunca foram processadas, e **67 notificações marcadas como "failed"** nos últimos 7 dias.
 
-Alteração no bloco `if (error)` da função `signIn`:
+## Solução proposta
 
-```typescript
-if (error) {
-  let description = "Erro desconhecido. Tente novamente."
-  if (error.message === "Invalid login credentials") {
-    description = "Credenciais inválidas. Verifique seu email e senha."
-  } else if (error.message && error.message.length > 0) {
-    description = error.message
-  } else if (error.status === 504 || error.status === 500) {
-    description = "Servidor temporariamente indisponível. Tente novamente em alguns minutos."
-  } else {
-    description = "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
-  }
-  
-  toast({
-    title: "Erro ao fazer login",
-    description,
-    variant: "destructive"
-  })
-}
+### 1. Remover a verificação de conexão bloqueante
+
+Em vez de verificar conexão antes de cada envio (o que causa WORKER_LIMIT e timeout), o sistema deve **tentar enviar diretamente** e tratar o erro se falhar. O `sendText` da Evolution API já retorna erro se a instância estiver desconectada.
+
+### 2. Ajustar o circuit breaker
+
+Manter o circuit breaker, mas ativá-lo apenas quando o **envio real** falhar com erro de conexão (não em um check prévio).
+
+### 3. Reprocessar notificações travadas
+
+Converter as 67 notificações `failed` com erro "WhatsApp desconectado" de volta para `pending`, e as 31 notificações pendentes antigas que nunca foram tentadas.
+
+## Alterações técnicas
+
+### `supabase/functions/billing-notifications/index.ts`
+
+1. **Remover** a função `checkWhatsAppConnectionCached` e sua chamada em `sendSingleNotification` (linhas 1272-1291)
+2. **Manter** o circuit breaker no catch do `sendSingleNotification` (linhas 734-757), mas detectar erro de conexão a partir da resposta do `sendText` real
+3. Atualizar `sendSingleNotification` para capturar erros de envio que indiquem desconexão do WhatsApp e lançar circuit breaker nesses casos
+
+### Migração SQL
+
+Reprocessar notificações travadas:
+```sql
+UPDATE payment_notifications 
+SET status = 'pending', attempts = 0, last_error = NULL 
+WHERE status = 'failed' 
+AND last_error ILIKE '%WhatsApp desconectado%'
+AND scheduled_for >= now() - interval '14 days';
 ```
 
-## Sobre a indisponibilidade atual
+## Resultado esperado
 
-O banco Supabase está retornando 504 (timeout) nas conexões Postgres. Isso precisa ser resolvido no painel do Supabase:
-- Verificar se o projeto não está pausado
-- Reiniciar o banco se necessário (Settings > General > Restart project)
-- Verificar se o plano não excedeu limites de conexão
-
-## Resultado
-
-- Mensagem clara para o usuário quando o servidor está fora
-- Sem mais "{}" no toast de erro
-- A correção não resolve a indisponibilidade do Supabase (isso é infraestrutura), mas melhora a experiência do usuário
+- Notificações voltam a ser enviadas imediatamente na próxima execução do cron
+- Sem dependência de uma chamada extra de `checkConnection` que consome workers
+- Circuit breaker continua protegendo contra envios repetidos quando WhatsApp realmente estiver fora
+- ~67 notificações falhadas serão reprocessadas
 
