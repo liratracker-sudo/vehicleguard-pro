@@ -14,6 +14,8 @@ export interface DashboardStats {
   vehiclesTrendValue: number;
   revenueTrendValue: number;
   defaultRate: number;
+  receivableThisMonth: number;
+  receivableThisMonthCount: number;
 }
 
 export interface RecentClient {
@@ -58,6 +60,8 @@ export function useDashboardStats() {
       const lastMonthEnd = startOfMonth(now);
       const sevenDaysFromNow = new Date(now);
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const endOfMonthStr = format(endOfMonth, 'yyyy-MM-dd');
 
       const [
         activeClientsResult,
@@ -69,6 +73,7 @@ export function useDashboardStats() {
         overdueResult,
         upcomingResult,
         totalPaymentsResult,
+        receivableThisMonthResult,
       ] = await Promise.all([
         supabase
           .from("clients")
@@ -125,6 +130,14 @@ export function useDashboardStats() {
           .eq("company_id", companyId!)
           .in("status", ["paid", "pending", "overdue"])
           .is("protested_at", null),
+        supabase
+          .from("payment_transactions")
+          .select("amount")
+          .eq("company_id", companyId!)
+          .in("status", ["pending", "overdue"])
+          .is("protested_at", null)
+          .gte("due_date", format(currentMonthStart, 'yyyy-MM-dd'))
+          .lte("due_date", endOfMonthStr),
       ]);
 
       const activeClients = activeClientsResult.count || 0;
@@ -138,6 +151,8 @@ export function useDashboardStats() {
       const upcomingCount = upcomingResult.count || 0;
       const totalPayments = totalPaymentsResult.count || 0;
       const defaultRate = totalPayments > 0 ? (overdueCount / totalPayments) * 100 : 0;
+      const receivableThisMonth = receivableThisMonthResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const receivableThisMonthCount = receivableThisMonthResult.data?.length || 0;
 
       return {
         activeClients,
@@ -150,6 +165,8 @@ export function useDashboardStats() {
         vehiclesTrendValue: totalVehicles - lastMonthVehicles,
         revenueTrendValue: monthlyRevenue - lastMonthRevenue,
         defaultRate,
+        receivableThisMonth,
+        receivableThisMonthCount,
       };
     },
   });
