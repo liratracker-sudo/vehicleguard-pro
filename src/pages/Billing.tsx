@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle, Scale } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle, Scale, CalendarCheck, Clock, TrendingUp } from "lucide-react"
 import { CriticalDelinquencyPanel } from "@/components/billing/CriticalDelinquencyPanel"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -163,6 +163,15 @@ const BillingPage = () => {
   const totalPending = companyBalance?.total_pending ?? payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0)
   const totalOverdue = companyBalance?.total_overdue ?? payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0)
   const totalBalance = companyBalance?.total_balance ?? (totalPending + totalOverdue)
+  const receivedThisMonth = companyBalance?.received_this_month ?? 0
+  const receivableThisMonth = companyBalance?.receivable_this_month ?? 0
+  const receivableThisMonthCount = companyBalance?.receivable_this_month_count ?? 0
+  const pendingFuture = companyBalance?.pending_future ?? 0
+  const pendingFutureCount = companyBalance?.pending_future_count ?? 0
+  const overdueCount = companyBalance?.overdue_count ?? 0
+
+  const currentMonthLabel = new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
+  const nextMonthLabel = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + ' em diante'
 
   // Função para obter badge de status
   const getStatusBadge = (payment: any) => {
@@ -269,19 +278,22 @@ const BillingPage = () => {
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+              {/* Linha 1: Mês Atual */}
               <ModernStatCard
-                title="Recebido"
-                value={`R$ ${totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                title={`Recebido (${currentMonthLabel})`}
+                value={`R$ ${receivedThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                 icon={<DollarSign className="h-5 w-5" />}
                 variant="success"
+                description="Pagos no mês atual"
                 className="py-2"
               />
               <ModernStatCard
-                title="Pendente"
-                value={`R$ ${totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<Calendar className="h-5 w-5" />}
+                title={`A Receber (${currentMonthLabel})`}
+                value={`R$ ${receivableThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<CalendarCheck className="h-5 w-5" />}
                 variant="warning"
+                description={`${receivableThisMonthCount} cobrança(s) até fim do mês`}
                 className="py-2"
               />
               <ModernStatCard
@@ -289,13 +301,32 @@ const BillingPage = () => {
                 value={`R$ ${totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                 icon={<AlertCircle className="h-5 w-5" />}
                 variant="danger"
+                description={`${overdueCount} cobrança(s) em atraso`}
+                className="py-2"
+              />
+              {/* Linha 2: Visão Geral */}
+              <ModernStatCard
+                title="Pendente Total"
+                value={`R$ ${(totalPending + totalOverdue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<Clock className="h-5 w-5" />}
+                variant="info"
+                description="Todas as pendentes"
+                className="py-2"
+              />
+              <ModernStatCard
+                title={`Próximos Meses`}
+                value={`R$ ${pendingFuture.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<Calendar className="h-5 w-5" />}
+                variant="default"
+                description={`${pendingFutureCount} cobrança(s) - ${nextMonthLabel}`}
                 className="py-2"
               />
               <ModernStatCard
                 title="Saldo Devedor"
                 value={`R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<AlertCircle className="h-5 w-5" />}
+                icon={<TrendingUp className="h-5 w-5" />}
                 variant="info"
+                description="Vencido + Pendente"
                 className="py-2"
               />
             </div>

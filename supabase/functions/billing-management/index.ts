@@ -334,37 +334,69 @@ serve(async (req) => {
         // Get company's payment summary
         const { data: payments, error: paymentsError } = await supabase
           .from('payment_transactions')
-          .select('amount, status, due_date')
+          .select('amount, status, due_date, paid_at')
           .eq('company_id', userCompanyId)
           .is('protested_at', null);
 
         if (paymentsError) throw paymentsError;
 
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
+        const monthStart = new Date(currentYear, currentMonth, 1);
+        const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+
         const summary = {
           total_received: 0,
           total_pending: 0,
           total_overdue: 0,
-          total_balance: 0
+          total_balance: 0,
+          received_this_month: 0,
+          receivable_this_month: 0,
+          pending_future: 0,
+          overdue_count: 0,
+          receivable_this_month_count: 0,
+          pending_future_count: 0,
         };
 
-        const today = new Date();
-        
         payments?.forEach(payment => {
           const amount = Number(payment.amount);
+          const dueDate = payment.due_date ? new Date(payment.due_date) : null;
+          const paidAt = payment.paid_at ? new Date(payment.paid_at) : null;
           
           switch (payment.status) {
             case 'paid':
               summary.total_received += amount;
+              if (paidAt && paidAt >= monthStart && paidAt <= monthEnd) {
+                summary.received_this_month += amount;
+              }
               break;
             case 'pending':
-              if (payment.due_date && new Date(payment.due_date) < today) {
+              if (dueDate && dueDate < today) {
                 summary.total_overdue += amount;
+                summary.overdue_count++;
+                if (dueDate >= monthStart) {
+                  summary.receivable_this_month += amount;
+                  summary.receivable_this_month_count++;
+                }
               } else {
                 summary.total_pending += amount;
+                if (dueDate && dueDate <= monthEnd) {
+                  summary.receivable_this_month += amount;
+                  summary.receivable_this_month_count++;
+                } else if (dueDate && dueDate > monthEnd) {
+                  summary.pending_future += amount;
+                  summary.pending_future_count++;
+                }
               }
               break;
             case 'overdue':
               summary.total_overdue += amount;
+              summary.overdue_count++;
+              if (dueDate && dueDate >= monthStart) {
+                summary.receivable_this_month += amount;
+                summary.receivable_this_month_count++;
+              }
               break;
           }
         });
