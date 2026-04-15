@@ -7,6 +7,12 @@ interface CompanyBalance {
   total_pending: number;
   total_overdue: number;
   total_balance: number;
+  received_this_month?: number;
+  receivable_this_month?: number;
+  pending_future?: number;
+  overdue_count?: number;
+  receivable_this_month_count?: number;
+  pending_future_count?: number;
 }
 
 export function useBillingManagement() {
