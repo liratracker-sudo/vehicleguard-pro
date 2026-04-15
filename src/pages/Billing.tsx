@@ -278,19 +278,22 @@ const BillingPage = () => {
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+              {/* Linha 1: Mês Atual */}
               <ModernStatCard
-                title="Recebido"
-                value={`R$ ${totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                title={`Recebido (${currentMonthLabel})`}
+                value={`R$ ${receivedThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                 icon={<DollarSign className="h-5 w-5" />}
                 variant="success"
+                description="Pagos no mês atual"
                 className="py-2"
               />
               <ModernStatCard
-                title="Pendente"
-                value={`R$ ${totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<Calendar className="h-5 w-5" />}
+                title={`A Receber (${currentMonthLabel})`}
+                value={`R$ ${receivableThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<CalendarCheck className="h-5 w-5" />}
                 variant="warning"
+                description={`${receivableThisMonthCount} cobrança(s) até fim do mês`}
                 className="py-2"
               />
               <ModernStatCard
@@ -298,13 +301,32 @@ const BillingPage = () => {
                 value={`R$ ${totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                 icon={<AlertCircle className="h-5 w-5" />}
                 variant="danger"
+                description={`${overdueCount} cobrança(s) em atraso`}
+                className="py-2"
+              />
+              {/* Linha 2: Visão Geral */}
+              <ModernStatCard
+                title="Pendente Total"
+                value={`R$ ${(totalPending + totalOverdue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<Clock className="h-5 w-5" />}
+                variant="info"
+                description="Todas as pendentes"
+                className="py-2"
+              />
+              <ModernStatCard
+                title={`Próximos Meses`}
+                value={`R$ ${pendingFuture.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                icon={<Calendar className="h-5 w-5" />}
+                variant="default"
+                description={`${pendingFutureCount} cobrança(s) - ${nextMonthLabel}`}
                 className="py-2"
               />
               <ModernStatCard
                 title="Saldo Devedor"
                 value={`R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<AlertCircle className="h-5 w-5" />}
+                icon={<TrendingUp className="h-5 w-5" />}
                 variant="info"
+                description="Vencido + Pendente"
                 className="py-2"
               />
             </div>
