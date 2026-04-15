@@ -163,6 +163,15 @@ const BillingPage = () => {
   const totalPending = companyBalance?.total_pending ?? payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0)
   const totalOverdue = companyBalance?.total_overdue ?? payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0)
   const totalBalance = companyBalance?.total_balance ?? (totalPending + totalOverdue)
+  const receivedThisMonth = companyBalance?.received_this_month ?? 0
+  const receivableThisMonth = companyBalance?.receivable_this_month ?? 0
+  const receivableThisMonthCount = companyBalance?.receivable_this_month_count ?? 0
+  const pendingFuture = companyBalance?.pending_future ?? 0
+  const pendingFutureCount = companyBalance?.pending_future_count ?? 0
+  const overdueCount = companyBalance?.overdue_count ?? 0
+
+  const currentMonthLabel = new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
+  const nextMonthLabel = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + ' em diante'
 
   // Função para obter badge de status
   const getStatusBadge = (payment: any) => {
