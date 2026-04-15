@@ -151,6 +151,8 @@ export function useDashboardStats() {
       const upcomingCount = upcomingResult.count || 0;
       const totalPayments = totalPaymentsResult.count || 0;
       const defaultRate = totalPayments > 0 ? (overdueCount / totalPayments) * 100 : 0;
+      const receivableThisMonth = receivableThisMonthResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const receivableThisMonthCount = receivableThisMonthResult.data?.length || 0;
 
       return {
         activeClients,
@@ -163,6 +165,8 @@ export function useDashboardStats() {
         vehiclesTrendValue: totalVehicles - lastMonthVehicles,
         revenueTrendValue: monthlyRevenue - lastMonthRevenue,
         defaultRate,
+        receivableThisMonth,
+        receivableThisMonthCount,
       };
     },
   });

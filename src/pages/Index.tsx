@@ -1,4 +1,4 @@
-import { Users, Car, DollarSign, AlertCircle } from "lucide-react"
+import { Users, Car, DollarSign, AlertCircle, CalendarCheck } from "lucide-react"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { FuturisticStatCard } from "@/components/ui/futuristic-stat-card"
 import { RecentClients } from "@/components/dashboard/RecentClients"
@@ -42,7 +42,7 @@ const Index = () => {
 
         {/* Main Metrics - Futuristic Grid */}
         {isLoading ? (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
             {Array.from({ length: 4 }).map((_, index) => (
               <FuturisticStatCard
                 key={index}
@@ -54,7 +54,7 @@ const Index = () => {
             ))}
           </div>
         ) : stats && (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
             <FuturisticStatCard
               title="Clientes Ativos"
               value={stats.activeClients.toLocaleString('pt-BR')}
