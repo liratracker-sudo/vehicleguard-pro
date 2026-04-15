@@ -324,53 +324,133 @@ const BillingPage = () => {
               {/* Linha 1: Mês Atual */}
               <ModernStatCard
                 title={`Recebido (${currentMonthLabel})`}
-                value={`R$ ${receivedThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                value={fmtBRL(receivedThisMonth)}
                 icon={<DollarSign className="h-5 w-5" />}
                 variant="success"
                 description="Pagos no mês atual"
                 className="py-2"
               />
-              <ModernStatCard
-                title={`A Receber (${currentMonthLabel})`}
-                value={`R$ ${receivableThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<CalendarCheck className="h-5 w-5" />}
-                variant="warning"
-                description={`${receivableThisMonthCount} cobrança(s) até fim do mês`}
-                className="py-2"
-              />
-              <ModernStatCard
-                title="Vencido"
-                value={`R$ ${totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<AlertCircle className="h-5 w-5" />}
-                variant="danger"
-                description={`${overdueCount} cobrança(s) em atraso`}
-                className="py-2"
-              />
+              
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title={`A Receber (${currentMonthLabel})`}
+                      value={fmtBRL(receivableThisMonth)}
+                      icon={<CalendarCheck className="h-5 w-5" />}
+                      variant="warning"
+                      description={`${receivableThisMonthCount} cobrança(s) até fim do mês`}
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="bottom">
+                  <p className="font-semibold mb-2 text-foreground">Composição - A Receber</p>
+                  <div className="space-y-1.5">
+                    {breakdowns.receivableMonth.overdueInMonth.count > 0 && (
+                      <div className="flex justify-between"><span className="text-destructive">Vencido</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.overdueInMonth.amount)} ({breakdowns.receivableMonth.overdueInMonth.count})</span></div>
+                    )}
+                    {breakdowns.receivableMonth.today.count > 0 && (
+                      <div className="flex justify-between"><span className="text-destructive">Vence hoje</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.today.amount)} ({breakdowns.receivableMonth.today.count})</span></div>
+                    )}
+                    {breakdowns.receivableMonth.next7.count > 0 && (
+                      <div className="flex justify-between"><span className="text-amber-500">Próx. 7 dias</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.next7.amount)} ({breakdowns.receivableMonth.next7.count})</span></div>
+                    )}
+                    {breakdowns.receivableMonth.rest.count > 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Restante do mês</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.rest.amount)} ({breakdowns.receivableMonth.rest.count})</span></div>
+                    )}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title="Vencido"
+                      value={fmtBRL(totalOverdue)}
+                      icon={<AlertCircle className="h-5 w-5" />}
+                      variant="danger"
+                      description={`${overdueCount} cobrança(s) em atraso`}
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="bottom">
+                  <p className="font-semibold mb-2 text-foreground">Composição - Vencidos</p>
+                  <div className="space-y-1.5">
+                    {breakdowns.overdue.d1to7.count > 0 && (
+                      <div className="flex justify-between"><span className="text-amber-500">1-7 dias atraso</span><span className="font-medium">{fmtBRL(breakdowns.overdue.d1to7.amount)} ({breakdowns.overdue.d1to7.count})</span></div>
+                    )}
+                    {breakdowns.overdue.d8to15.count > 0 && (
+                      <div className="flex justify-between"><span className="text-orange-500">8-15 dias atraso</span><span className="font-medium">{fmtBRL(breakdowns.overdue.d8to15.amount)} ({breakdowns.overdue.d8to15.count})</span></div>
+                    )}
+                    {breakdowns.overdue.d15plus.count > 0 && (
+                      <div className="flex justify-between"><span className="text-destructive">+15 dias atraso</span><span className="font-medium">{fmtBRL(breakdowns.overdue.d15plus.amount)} ({breakdowns.overdue.d15plus.count})</span></div>
+                    )}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              
               {/* Linha 2: Visão Geral */}
-              <ModernStatCard
-                title="Pendente Total"
-                value={`R$ ${(totalPending + totalOverdue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<Clock className="h-5 w-5" />}
-                variant="info"
-                description="Todas as pendentes"
-                className="py-2"
-              />
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title="Pendente Total"
+                      value={fmtBRL(totalPending + totalOverdue)}
+                      icon={<Clock className="h-5 w-5" />}
+                      variant="info"
+                      description="Todas as pendentes"
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="top">
+                  <p className="font-semibold mb-2 text-foreground">Composição - Pendente Total</p>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-destructive">Vencido</span><span className="font-medium">{fmtBRL(totalOverdue)} ({overdueCount})</span></div>
+                    <div className="flex justify-between"><span className="text-amber-500">A Receber (mês)</span><span className="font-medium">{fmtBRL(receivableThisMonth)} ({receivableThisMonthCount})</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Próximos meses</span><span className="font-medium">{fmtBRL(pendingFuture)} ({pendingFutureCount})</span></div>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              
               <ModernStatCard
                 title={`Próximos Meses`}
-                value={`R$ ${pendingFuture.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                value={fmtBRL(pendingFuture)}
                 icon={<Calendar className="h-5 w-5" />}
                 variant="default"
                 description={`${pendingFutureCount} cobrança(s) - ${nextMonthLabel}`}
                 className="py-2"
               />
-              <ModernStatCard
-                title="Saldo Devedor"
-                value={`R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<TrendingUp className="h-5 w-5" />}
-                variant="info"
-                description="Vencido + Pendente"
-                className="py-2"
-              />
+              
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title="Saldo Devedor"
+                      value={fmtBRL(totalBalance)}
+                      icon={<TrendingUp className="h-5 w-5" />}
+                      variant="info"
+                      description="Vencido + Pendente"
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="top">
+                  <p className="font-semibold mb-2 text-foreground">Composição - Saldo Devedor</p>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-destructive">Vencido</span><span className="font-medium">{fmtBRL(totalOverdue)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Pendente</span><span className="font-medium">{fmtBRL(totalPending)}</span></div>
+                    <div className="flex justify-between border-t border-border pt-1 mt-1"><span className="font-semibold">Total</span><span className="font-bold">{fmtBRL(totalBalance)}</span></div>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
             </div>
           </CollapsibleContent>
         </Collapsible>
