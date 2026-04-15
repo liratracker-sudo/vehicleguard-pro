@@ -4,7 +4,8 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle, Scale, CalendarCheck, Clock, TrendingUp } from "lucide-react"
+import { Plus, DollarSign, AlertCircle, Calendar, Search, X, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertTriangle, Scale, CalendarCheck, Clock, TrendingUp, Info } from "lucide-react"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { CriticalDelinquencyPanel } from "@/components/billing/CriticalDelinquencyPanel"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -173,6 +174,47 @@ const BillingPage = () => {
   const currentMonthLabel = new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
   const nextMonthLabel = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + ' em diante'
 
+  // Compute breakdowns from payments for tooltips
+  const fmtBRL = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  
+  const breakdowns = (() => {
+    const activePayments = payments.filter(p => p.status !== 'cancelled' && !p.protested_at)
+    
+    // Overdue breakdown by ranges
+    const overduePayments = activePayments.filter(p => p.status === 'overdue')
+    const overdue1to7 = overduePayments.filter(p => { const d = Math.abs(daysUntil(p.due_date)); return d >= 1 && d <= 7 })
+    const overdue8to15 = overduePayments.filter(p => { const d = Math.abs(daysUntil(p.due_date)); return d >= 8 && d <= 15 })
+    const overdue15plus = overduePayments.filter(p => Math.abs(daysUntil(p.due_date)) > 15)
+
+    // Receivable this month breakdown
+    const pendingThisMonth = activePayments.filter(p => 
+      (p.status === 'pending' || p.status === 'overdue') && 
+      p.due_date && new Date(p.due_date) >= monthStart && new Date(p.due_date) <= monthEnd
+    )
+    const dueTodayItems = pendingThisMonth.filter(p => daysUntil(p.due_date) === 0)
+    const dueNext7 = pendingThisMonth.filter(p => { const d = daysUntil(p.due_date); return d >= 1 && d <= 7 })
+    const dueRest = pendingThisMonth.filter(p => daysUntil(p.due_date) > 7)
+    const overdueInMonth = pendingThisMonth.filter(p => daysUntil(p.due_date) < 0)
+
+    return {
+      overdue: {
+        d1to7: { amount: overdue1to7.reduce((s, p) => s + p.amount, 0), count: overdue1to7.length },
+        d8to15: { amount: overdue8to15.reduce((s, p) => s + p.amount, 0), count: overdue8to15.length },
+        d15plus: { amount: overdue15plus.reduce((s, p) => s + p.amount, 0), count: overdue15plus.length },
+      },
+      receivableMonth: {
+        overdueInMonth: { amount: overdueInMonth.reduce((s, p) => s + p.amount, 0), count: overdueInMonth.length },
+        today: { amount: dueTodayItems.reduce((s, p) => s + p.amount, 0), count: dueTodayItems.length },
+        next7: { amount: dueNext7.reduce((s, p) => s + p.amount, 0), count: dueNext7.length },
+        rest: { amount: dueRest.reduce((s, p) => s + p.amount, 0), count: dueRest.length },
+      },
+    }
+  })()
+
   // Função para obter badge de status
   const getStatusBadge = (payment: any) => {
     if (payment.protested_at) {
@@ -282,53 +324,133 @@ const BillingPage = () => {
               {/* Linha 1: Mês Atual */}
               <ModernStatCard
                 title={`Recebido (${currentMonthLabel})`}
-                value={`R$ ${receivedThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                value={fmtBRL(receivedThisMonth)}
                 icon={<DollarSign className="h-5 w-5" />}
                 variant="success"
                 description="Pagos no mês atual"
                 className="py-2"
               />
-              <ModernStatCard
-                title={`A Receber (${currentMonthLabel})`}
-                value={`R$ ${receivableThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<CalendarCheck className="h-5 w-5" />}
-                variant="warning"
-                description={`${receivableThisMonthCount} cobrança(s) até fim do mês`}
-                className="py-2"
-              />
-              <ModernStatCard
-                title="Vencido"
-                value={`R$ ${totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<AlertCircle className="h-5 w-5" />}
-                variant="danger"
-                description={`${overdueCount} cobrança(s) em atraso`}
-                className="py-2"
-              />
+              
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title={`A Receber (${currentMonthLabel})`}
+                      value={fmtBRL(receivableThisMonth)}
+                      icon={<CalendarCheck className="h-5 w-5" />}
+                      variant="warning"
+                      description={`${receivableThisMonthCount} cobrança(s) até fim do mês`}
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="bottom">
+                  <p className="font-semibold mb-2 text-foreground">Composição - A Receber</p>
+                  <div className="space-y-1.5">
+                    {breakdowns.receivableMonth.overdueInMonth.count > 0 && (
+                      <div className="flex justify-between"><span className="text-destructive">Vencido</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.overdueInMonth.amount)} ({breakdowns.receivableMonth.overdueInMonth.count})</span></div>
+                    )}
+                    {breakdowns.receivableMonth.today.count > 0 && (
+                      <div className="flex justify-between"><span className="text-destructive">Vence hoje</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.today.amount)} ({breakdowns.receivableMonth.today.count})</span></div>
+                    )}
+                    {breakdowns.receivableMonth.next7.count > 0 && (
+                      <div className="flex justify-between"><span className="text-amber-500">Próx. 7 dias</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.next7.amount)} ({breakdowns.receivableMonth.next7.count})</span></div>
+                    )}
+                    {breakdowns.receivableMonth.rest.count > 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Restante do mês</span><span className="font-medium">{fmtBRL(breakdowns.receivableMonth.rest.amount)} ({breakdowns.receivableMonth.rest.count})</span></div>
+                    )}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title="Vencido"
+                      value={fmtBRL(totalOverdue)}
+                      icon={<AlertCircle className="h-5 w-5" />}
+                      variant="danger"
+                      description={`${overdueCount} cobrança(s) em atraso`}
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="bottom">
+                  <p className="font-semibold mb-2 text-foreground">Composição - Vencidos</p>
+                  <div className="space-y-1.5">
+                    {breakdowns.overdue.d1to7.count > 0 && (
+                      <div className="flex justify-between"><span className="text-amber-500">1-7 dias atraso</span><span className="font-medium">{fmtBRL(breakdowns.overdue.d1to7.amount)} ({breakdowns.overdue.d1to7.count})</span></div>
+                    )}
+                    {breakdowns.overdue.d8to15.count > 0 && (
+                      <div className="flex justify-between"><span className="text-orange-500">8-15 dias atraso</span><span className="font-medium">{fmtBRL(breakdowns.overdue.d8to15.amount)} ({breakdowns.overdue.d8to15.count})</span></div>
+                    )}
+                    {breakdowns.overdue.d15plus.count > 0 && (
+                      <div className="flex justify-between"><span className="text-destructive">+15 dias atraso</span><span className="font-medium">{fmtBRL(breakdowns.overdue.d15plus.amount)} ({breakdowns.overdue.d15plus.count})</span></div>
+                    )}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              
               {/* Linha 2: Visão Geral */}
-              <ModernStatCard
-                title="Pendente Total"
-                value={`R$ ${(totalPending + totalOverdue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<Clock className="h-5 w-5" />}
-                variant="info"
-                description="Todas as pendentes"
-                className="py-2"
-              />
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title="Pendente Total"
+                      value={fmtBRL(totalPending + totalOverdue)}
+                      icon={<Clock className="h-5 w-5" />}
+                      variant="info"
+                      description="Todas as pendentes"
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="top">
+                  <p className="font-semibold mb-2 text-foreground">Composição - Pendente Total</p>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-destructive">Vencido</span><span className="font-medium">{fmtBRL(totalOverdue)} ({overdueCount})</span></div>
+                    <div className="flex justify-between"><span className="text-amber-500">A Receber (mês)</span><span className="font-medium">{fmtBRL(receivableThisMonth)} ({receivableThisMonthCount})</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Próximos meses</span><span className="font-medium">{fmtBRL(pendingFuture)} ({pendingFutureCount})</span></div>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+              
               <ModernStatCard
                 title={`Próximos Meses`}
-                value={`R$ ${pendingFuture.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                value={fmtBRL(pendingFuture)}
                 icon={<Calendar className="h-5 w-5" />}
                 variant="default"
                 description={`${pendingFutureCount} cobrança(s) - ${nextMonthLabel}`}
                 className="py-2"
               />
-              <ModernStatCard
-                title="Saldo Devedor"
-                value={`R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                icon={<TrendingUp className="h-5 w-5" />}
-                variant="info"
-                description="Vencido + Pendente"
-                className="py-2"
-              />
+              
+              <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                  <div className="cursor-pointer relative">
+                    <ModernStatCard
+                      title="Saldo Devedor"
+                      value={fmtBRL(totalBalance)}
+                      icon={<TrendingUp className="h-5 w-5" />}
+                      variant="info"
+                      description="Vencido + Pendente"
+                      className="py-2"
+                    />
+                    <Info className="absolute top-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-72 text-sm" side="top">
+                  <p className="font-semibold mb-2 text-foreground">Composição - Saldo Devedor</p>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between"><span className="text-destructive">Vencido</span><span className="font-medium">{fmtBRL(totalOverdue)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Pendente</span><span className="font-medium">{fmtBRL(totalPending)}</span></div>
+                    <div className="flex justify-between border-t border-border pt-1 mt-1"><span className="font-semibold">Total</span><span className="font-bold">{fmtBRL(totalBalance)}</span></div>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
             </div>
           </CollapsibleContent>
         </Collapsible>
