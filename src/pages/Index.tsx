@@ -86,6 +86,16 @@ const Index = () => {
               } : undefined}
             />
             <FuturisticStatCard
+              title="A Receber Este Mês"
+              value={formatCurrency(stats.receivableThisMonth)}
+              icon={<CalendarCheck className="h-5 w-5" />}
+              variant="default"
+              trend={stats.receivableThisMonthCount > 0 ? {
+                value: `${stats.receivableThisMonthCount} cobrança${stats.receivableThisMonthCount !== 1 ? 's' : ''} pendente${stats.receivableThisMonthCount !== 1 ? 's' : ''}`,
+                isPositive: true
+              } : undefined}
+            />
+            <FuturisticStatCard
               title="Inadimplência"
               value={`${stats.defaultRate.toFixed(1)}%`}
               icon={<AlertCircle className="h-5 w-5" />}
