@@ -14,6 +14,8 @@ export interface DashboardStats {
   vehiclesTrendValue: number;
   revenueTrendValue: number;
   defaultRate: number;
+  receivableThisMonth: number;
+  receivableThisMonthCount: number;
 }
 
 export interface RecentClient {
