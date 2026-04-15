@@ -60,6 +60,8 @@ export function useDashboardStats() {
       const lastMonthEnd = startOfMonth(now);
       const sevenDaysFromNow = new Date(now);
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const endOfMonthStr = format(endOfMonth, 'yyyy-MM-dd');
 
       const [
         activeClientsResult,
@@ -71,6 +73,7 @@ export function useDashboardStats() {
         overdueResult,
         upcomingResult,
         totalPaymentsResult,
+        receivableThisMonthResult,
       ] = await Promise.all([
         supabase
           .from("clients")
@@ -127,6 +130,14 @@ export function useDashboardStats() {
           .eq("company_id", companyId!)
           .in("status", ["paid", "pending", "overdue"])
           .is("protested_at", null),
+        supabase
+          .from("payment_transactions")
+          .select("amount")
+          .eq("company_id", companyId!)
+          .in("status", ["pending", "overdue"])
+          .is("protested_at", null)
+          .gte("due_date", format(currentMonthStart, 'yyyy-MM-dd'))
+          .lte("due_date", endOfMonthStr),
       ]);
 
       const activeClients = activeClientsResult.count || 0;
