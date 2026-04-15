@@ -1,59 +1,48 @@
 
 
-# Diagnóstico: Notificações de cobrança paradas há dias
+# Detalhar cards financeiros na tela de Cobranças
 
-## Problema encontrado
+## Problema
 
-Analisei os logs do cron e do banco de dados. O problema é claro:
+Os 4 cards atuais (Recebido, Pendente, Vencido, Saldo Devedor) somam **todos os pagamentos sem filtro de período**, misturando mês atual com meses futuros. O valor "Pendente" de R$ 6.138,30 inclui cobranças de maio em diante, confundindo o usuário.
 
-**Todas as execuções do cron retornam `"sent":0, "failed":1`** — todas as notificações estão falhando com o erro:
-> "WhatsApp desconectado - reconecte para retomar envios"
+## Solução
 
-Isso acontece porque antes de enviar qualquer notificação, o sistema chama `checkConnection` na edge function `whatsapp-evolution` (com timeout de 10s). Essa chamada está falhando ou retornando "desconectado", o que ativa o **circuit breaker** que **para todo o processamento da empresa**.
+Reorganizar os cards em **6 cards** com separação clara entre mês atual e totais gerais:
 
-Porém, o WhatsApp **ESTÁ conectado** — os logs mostram mensagens sendo enviadas com sucesso agora mesmo (confirmações de pagamento, cobranças manuais).
-
-**Causa raiz**: A chamada `supabase.functions.invoke('whatsapp-evolution', { checkConnection })` dentro da `billing-notifications` provavelmente está dando timeout (WORKER_LIMIT) quando executada pelo cron, porque as edge functions compartilham workers e o cron dispara várias ao mesmo tempo.
-
-Além disso, há **31 notificações pendentes** acumuladas desde 24 de março que nunca foram processadas, e **67 notificações marcadas como "failed"** nos últimos 7 dias.
-
-## Solução proposta
-
-### 1. Remover a verificação de conexão bloqueante
-
-Em vez de verificar conexão antes de cada envio (o que causa WORKER_LIMIT e timeout), o sistema deve **tentar enviar diretamente** e tratar o erro se falhar. O `sendText` da Evolution API já retorna erro se a instância estiver desconectada.
-
-### 2. Ajustar o circuit breaker
-
-Manter o circuit breaker, mas ativá-lo apenas quando o **envio real** falhar com erro de conexão (não em um check prévio).
-
-### 3. Reprocessar notificações travadas
-
-Converter as 67 notificações `failed` com erro "WhatsApp desconectado" de volta para `pending`, e as 31 notificações pendentes antigas que nunca foram tentadas.
+```text
+┌─────────────────┬──────────────────┬─────────────────┐
+│  Recebido        │  A Receber       │   Vencido       │
+│  (mês atual)     │  (mês atual)     │  (em atraso)    │
+│  R$ 20.133,90    │  R$ 3.859,50     │  R$ 1.119,73    │
+│  Abr/2025        │  até 30/04       │  10 cobranças   │
+├─────────────────┼──────────────────┼─────────────────┤
+│  Pendente Total  │  Próximos Meses  │  Saldo Devedor  │
+│  (todos os meses)│  (mai em diante) │  (vencido+pend) │
+│  R$ 6.138,30     │  R$ 2.278,80     │  R$ 7.258,03    │
+│  todas pendentes │  futuro          │  total geral    │
+└─────────────────┴──────────────────┴─────────────────┘
+```
 
 ## Alterações técnicas
 
-### `supabase/functions/billing-notifications/index.ts`
+### 1. Edge function `billing-management` — action `get_company_balance`
 
-1. **Remover** a função `checkWhatsAppConnectionCached` e sua chamada em `sendSingleNotification` (linhas 1272-1291)
-2. **Manter** o circuit breaker no catch do `sendSingleNotification` (linhas 734-757), mas detectar erro de conexão a partir da resposta do `sendText` real
-3. Atualizar `sendSingleNotification` para capturar erros de envio que indiquem desconexão do WhatsApp e lançar circuit breaker nesses casos
+Adicionar campos ao retorno calculando com filtro de data:
+- `received_this_month`: pagos com `paid_at` no mês corrente
+- `receivable_this_month`: pendentes/vencidos com `due_date` até fim do mês
+- `pending_future`: pendentes com `due_date` após fim do mês
 
-### Migração SQL
+Manter os campos existentes para não quebrar nada.
 
-Reprocessar notificações travadas:
-```sql
-UPDATE payment_notifications 
-SET status = 'pending', attempts = 0, last_error = NULL 
-WHERE status = 'failed' 
-AND last_error ILIKE '%WhatsApp desconectado%'
-AND scheduled_for >= now() - interval '14 days';
-```
+### 2. `src/pages/Billing.tsx` — cards do resumo financeiro
 
-## Resultado esperado
+- Grid de 3 colunas em 2 linhas (6 cards)
+- Linha 1: **Recebido (Mês)**, **A Receber (Mês)**, **Vencido**
+- Linha 2: **Pendente Total**, **Próximos Meses**, **Saldo Devedor**
+- Cada card com subtítulo indicando o período (ex: "Abril/2025", "Mai em diante")
 
-- Notificações voltam a ser enviadas imediatamente na próxima execução do cron
-- Sem dependência de uma chamada extra de `checkConnection` que consome workers
-- Circuit breaker continua protegendo contra envios repetidos quando WhatsApp realmente estiver fora
-- ~67 notificações falhadas serão reprocessadas
+### 3. Interface `CompanyBalance` em `useBillingManagement.ts`
+
+Adicionar os 3 novos campos opcionais ao tipo.
 
