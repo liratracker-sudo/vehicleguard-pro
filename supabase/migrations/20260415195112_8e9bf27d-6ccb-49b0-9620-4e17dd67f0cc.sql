@@ -1,0 +1,1 @@
+UPDATE payment_notifications SET status = 'pending', attempts = 0, last_error = NULL WHERE status = 'failed' AND event_type = 'post_due' AND last_error ILIKE '%WhatsApp desconectado%';
