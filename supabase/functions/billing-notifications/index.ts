@@ -1653,12 +1653,12 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     }
     
     // Check if we already have notifications for this payment
-    // Only check 'pending' status - sent notifications should not block new ones
+    // Check ALL statuses to avoid recreating already sent/failed notifications
     const { data: existingNotifications } = await supabase
       .from('payment_notifications')
       .select('event_type, offset_days, scheduled_for, status')
       .eq('payment_id', payment.id)
-      .eq('status', 'pending'); // Only check pending to avoid duplicates
+      .in('status', ['pending', 'sent', 'failed', 'skipped', 'sending']);
 
     // Criar mapa das notificações existentes
     const existingKeys = new Set();
