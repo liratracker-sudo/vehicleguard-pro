@@ -174,6 +174,47 @@ const BillingPage = () => {
   const currentMonthLabel = new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
   const nextMonthLabel = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + ' em diante'
 
+  // Compute breakdowns from payments for tooltips
+  const fmtBRL = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  
+  const breakdowns = (() => {
+    const activePayments = payments.filter(p => p.status !== 'cancelled' && !p.protested_at)
+    
+    // Overdue breakdown by ranges
+    const overduePayments = activePayments.filter(p => p.status === 'overdue')
+    const overdue1to7 = overduePayments.filter(p => { const d = Math.abs(daysUntil(p.due_date)); return d >= 1 && d <= 7 })
+    const overdue8to15 = overduePayments.filter(p => { const d = Math.abs(daysUntil(p.due_date)); return d >= 8 && d <= 15 })
+    const overdue15plus = overduePayments.filter(p => Math.abs(daysUntil(p.due_date)) > 15)
+
+    // Receivable this month breakdown
+    const pendingThisMonth = activePayments.filter(p => 
+      (p.status === 'pending' || p.status === 'overdue') && 
+      p.due_date && new Date(p.due_date) >= monthStart && new Date(p.due_date) <= monthEnd
+    )
+    const dueTodayItems = pendingThisMonth.filter(p => daysUntil(p.due_date) === 0)
+    const dueNext7 = pendingThisMonth.filter(p => { const d = daysUntil(p.due_date); return d >= 1 && d <= 7 })
+    const dueRest = pendingThisMonth.filter(p => daysUntil(p.due_date) > 7)
+    const overdueInMonth = pendingThisMonth.filter(p => daysUntil(p.due_date) < 0)
+
+    return {
+      overdue: {
+        d1to7: { amount: overdue1to7.reduce((s, p) => s + p.amount, 0), count: overdue1to7.length },
+        d8to15: { amount: overdue8to15.reduce((s, p) => s + p.amount, 0), count: overdue8to15.length },
+        d15plus: { amount: overdue15plus.reduce((s, p) => s + p.amount, 0), count: overdue15plus.length },
+      },
+      receivableMonth: {
+        overdueInMonth: { amount: overdueInMonth.reduce((s, p) => s + p.amount, 0), count: overdueInMonth.length },
+        today: { amount: dueTodayItems.reduce((s, p) => s + p.amount, 0), count: dueTodayItems.length },
+        next7: { amount: dueNext7.reduce((s, p) => s + p.amount, 0), count: dueNext7.length },
+        rest: { amount: dueRest.reduce((s, p) => s + p.amount, 0), count: dueRest.length },
+      },
+    }
+  })()
+
   // Função para obter badge de status
   const getStatusBadge = (payment: any) => {
     if (payment.protested_at) {
