@@ -1,57 +1,87 @@
+<final-text>Diagnóstico confirmado
 
+- O WhatsApp não é o bloqueio principal. O envio manual funcionou e os logs de `whatsapp-evolution` mostram envio com sucesso hoje.
+- O problema real está no fluxo automático da edge function `billing-notifications`.
 
-# Fix: Notificações de cobrança vencida não são criadas
+Evidências que encontrei
 
-## Problema identificado
+1. O job automático está travando hoje
+- Em `cron_execution_logs`, as execuções automáticas de hoje ficaram assim:
+  - 11:02, 11:32, 12:02, 12:32, 13:02, 13:32, 14:02 UTC: `failed`
+  - erro: `Timeout automático - job travado por mais de 10 minutos`
+  - 14:32 UTC: ainda `running`
+- Também confirmei que hoje não houve nenhuma notificação marcada como `sent`.
 
-O sistema cria notificações `pre_due` (antes do vencimento) e `on_due` (no dia) normalmente, mas **não consegue criar novas notificações `post_due`** para cobranças já vencidas.
+2. A LIRA TRACKER não tinha fila pronta para envio agora
+- A LIRA tem 12 cobranças vencidas/para hoje.
+- Mas ela está com `0` notificações `pending` vencendo agora (`scheduled_for <= now()+5min`).
+- Ou seja: o automático não tinha nada pronto para mandar da LIRA neste momento.
+- As pendentes atuais da LIRA são majoritariamente futuras (`pre_due`), não de vencidos.
 
-**Causa raiz**: Bug na lógica de `createNotificationsForCompany` (linha 1657):
-
-1. A query de notificações existentes filtra apenas `status = 'pending'`
-2. Para cobranças vencidas (ex: COSME, 5d atraso), o sistema tenta criar `post_due` com `offset_days=1`
-3. Porém já existe uma notificação `offset_days=1` com status `sent` no banco
-4. O `upsert` com `ignoreDuplicates: true` rejeita silenciosamente a inserção
-5. A variável `notificationCreated = true` faz o loop parar, então dias 2-5 nunca são tentados
-6. Na próxima execução, o ciclo se repete indefinidamente
-
-**Dados confirmados**:
-- COSME (5d atraso): tem `post_due offset_days=1` como `sent`, nenhum `pending` — sistema trava tentando criar dia 1
-- CLAYTON (36d atraso): mesmo padrão
-- 73 cobranças vencidas da LIRA TRACKER sem nenhuma notificação `post_due` pendente
-
-## Solução
-
-Alterar a query de notificações existentes em `createNotificationsForCompany` para incluir **todos os status** (`sent`, `failed`, `skipped`) além de `pending`, evitando que o sistema tente recriar notificações já enviadas.
-
-### Alteração em `supabase/functions/billing-notifications/index.ts`
-
-**Linha 1657-1661**: Mudar a query `existingNotifications` de:
-```typescript
-.eq('status', 'pending')  // ← BUG: ignora sent/failed
+3. A função está morrendo antes de criar a fila nova da LIRA
+No código atual de `billing-notifications`, a ordem é:
+```text
+1. reset stuck sending
+2. recreate overdue
+3. send pending notifications
+4. create missing notifications
 ```
-Para:
-```typescript
-.in('status', ['pending', 'sent', 'failed', 'skipped'])  // ← Considera TODOS os status
-```
+- Se o passo 3 demora demais, o passo 4 nunca roda.
+- É exatamente isso que explica a LIRA: como não havia fila pronta para agora, ela dependia do passo 4 para gerar notificações de vencidos/vence hoje — mas a função está travando antes disso.
 
-Isso faz o sistema reconhecer que `offset_days=1` já foi enviado, pular para `offset_days=2`, e criar a próxima notificação corretamente.
+4. Existe backlog pesado em outras empresas consumindo o tempo da função
+- Há empresas com muitas notificações prontas para agora:
+  - uma empresa com 104 pendentes prontas
+  - outra com 12 pendentes prontas
+- A função ainda aplica:
+  - IA por mensagem
+  - timeout de envio
+  - delay anti-ban de 5 a 8s
+  - até 25 notificações por empresa
+- Com esse volume, a execução estoura o timeout global de 280s e morre no meio.
 
-### Ação complementar no banco
+5. O cron real está diferente do que o código/migration sugere
+- Os jobs ativos no banco hoje são:
+  - `process-billing-notifications`
+  - `process-billing-notifications-afternoon`
+- Eles não estão configurados no padrão “a cada 5 minutos” mostrado em migration mais recente.
+- Isso reduz a chance de recuperação rápida quando uma execução trava.
 
-Executar SQL para resetar as 204 notificações `post_due` falhadas por "WhatsApp desconectado" que ficaram presas desde antes da reconexão:
+Conclusão objetiva
 
-```sql
-UPDATE payment_notifications 
-SET status = 'pending', attempts = 0, last_error = NULL 
-WHERE status = 'failed' 
-AND event_type = 'post_due'
-AND last_error ILIKE '%WhatsApp desconectado%';
-```
+- O envio manual funciona porque fala direto com a função e o WhatsApp está operacional.
+- O envio automático falha porque `billing-notifications` está estourando tempo de execução.
+- Como a função tenta enviar backlog de outras empresas antes de criar as notificações faltantes, a LIRA fica sem gerar as notificações de vencidos/hoje.
 
-## Resultado esperado
+Plano de correção
 
-- Cobranças vencidas passarão a receber notificações progressivas (dia 1, 2, 3... até 18)
-- O cron não ficará mais preso tentando criar a mesma notificação repetidamente
-- As 204 notificações travadas serão reprocessadas
+1. Reordenar o fluxo da edge function
+- Mover `createMissingNotifications()` para antes de `sendPendingNotificationsParallel()`.
+- Assim a LIRA gera primeiro as notificações de vencidos/vence hoje, mesmo se o envio depois travar.
 
+2. Colocar limite de tempo por empresa
+- Se uma empresa consumir muito tempo, interromper só ela e seguir para as demais.
+- Evita que uma fila grande derrube o processamento global.
+
+3. Reduzir o lote por empresa / tornar o processamento mais justo
+- Em vez de deixar uma empresa monopolizar a execução, processar lotes menores por rodada.
+- Isso distribui melhor entre as empresas e evita starvation da LIRA.
+
+4. Ajustar o cron real do banco
+- Padronizar os jobs ativos com a estratégia desejada.
+- Remover drift entre migration e cron efetivo.
+
+5. Melhorar observabilidade
+- Adicionar logs explícitos por etapa e por empresa dentro de `billing-notifications`.
+- Hoje o diagnóstico depende muito do banco e pouco de logs da própria função.
+
+6. Limpeza operacional após correção
+- Destravar a execução que ficou `running`
+- Resetar item preso em `sending`, se necessário
+- Forçar recriação/processamento das notificações vencidas da LIRA
+
+Resultado esperado após a correção
+
+- A LIRA volta a gerar notificações automáticas para cobranças vencidas e do dia
+- Uma empresa com backlog não bloqueia mais as outras
+- O sistema automático deixa de depender do envio manual para “destravar” o fluxo</final-text>
