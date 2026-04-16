@@ -420,19 +420,30 @@ async function processNotifications(force = false) {
     results.recreated = recreatedResults.recreated;
     console.log(`✅ [STEP 1/3] Done: ${results.recreated} recreated`);
     
-    // 2. Send pending notifications POR EMPRESA em PARALELO
-    console.log('📤 [STEP 2/3] Sending pending notifications (parallel by company)...');
+    // 2. Create new notifications for payments without them (MOVED BEFORE SENDING)
+    // Isso garante que TODAS as empresas tenham fila gerada (vencidos/hoje/futuro)
+    // mesmo que a fase de envio depois estoure o tempo.
+    console.log('📝 [STEP 2/3] Creating missing notifications (BEFORE sending to avoid starvation)...');
+    try {
+      const createdResults = await Promise.race([
+        createMissingNotifications(),
+        new Promise<{ created: number; skipped: number }>((_, reject) =>
+          setTimeout(() => reject(new Error('createMissingNotifications timeout (90s)')), 90000)
+        )
+      ]);
+      results.created = createdResults.created;
+      results.skipped = createdResults.skipped;
+      console.log(`✅ [STEP 2/3] Done: ${results.created} created, ${results.skipped} skipped`);
+    } catch (createErr) {
+      console.error('⚠️ [STEP 2/3] createMissingNotifications failed/timeout, continuing to send phase:', createErr instanceof Error ? createErr.message : createErr);
+    }
+
+    // 3. Send pending notifications POR EMPRESA em PARALELO
+    console.log('📤 [STEP 3/3] Sending pending notifications (parallel by company)...');
     const sentResults = await sendPendingNotificationsParallel(force);
     results.sent = sentResults.sent;
     results.failed = sentResults.failed;
-    console.log(`✅ [STEP 2/3] Done: ${results.sent} sent, ${results.failed} failed`);
-    
-    // 3. Create new notifications for payments without them
-    console.log('📝 [STEP 3/3] Creating missing notifications...');
-    const createdResults = await createMissingNotifications();
-    results.created = createdResults.created;
-    results.skipped = createdResults.skipped;
-    console.log(`✅ [STEP 3/3] Done: ${results.created} created, ${results.skipped} skipped`);
+    console.log(`✅ [STEP 3/3] Done: ${results.sent} sent, ${results.failed} failed`);
     
   } catch (error) {
     console.error('❌ Error in processNotifications:', error instanceof Error ? error.message : error);
