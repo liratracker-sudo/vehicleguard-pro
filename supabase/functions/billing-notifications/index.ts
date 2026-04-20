@@ -1798,10 +1798,10 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
     }
 
     // Post-due notifications (for overdue payments)
-    // NOVA LÓGICA: Criar apenas a PRÓXIMA notificação respeitando o intervalo de 6h
+    // LÓGICA CORRIGIDA: respeita unique constraint (company_id, payment_id, event_type, offset_days)
+    // Cria a próxima notificação faltante, sem usar dispatchIndex (que conflita com a constraint)
     if (isOverdue) {
       const postDueDays = settings.post_due_days || [1, 3, 7, 15, 30];
-      const postDueTimes = settings.post_due_times_per_day || 2;
       const intervalHours = settings.post_due_interval_hours || 6;
       
       // Parse send_hour
@@ -1809,15 +1809,15 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
       const baseHour = parseInt(timeParts[0]) || 9;
       const minute = parseInt(timeParts[1]) || 0;
       
-      // Verificar se já enviamos notificação nas últimas 6 horas
-      const sixHoursAgo = new Date(now.getTime() - intervalHours * 60 * 60 * 1000);
+      // Guard de cadência: evitar criar nova se já enviamos uma nas últimas N horas
+      const intervalAgo = new Date(now.getTime() - intervalHours * 60 * 60 * 1000);
       const { data: recentPostDue } = await supabase
         .from('payment_notifications')
         .select('sent_at')
         .eq('payment_id', payment.id)
         .eq('event_type', 'post_due')
         .eq('status', 'sent')
-        .gte('sent_at', sixHoursAgo.toISOString())
+        .gte('sent_at', intervalAgo.toISOString())
         .limit(1);
       
       if (recentPostDue && recentPostDue.length > 0) {
@@ -1825,46 +1825,39 @@ async function createNotificationsForCompany(settings: any, specificPaymentId?: 
         continue;
       }
       
-      // Encontrar o próximo slot disponível para notificação
-      let notificationCreated = false;
+      // Conjunto de offset_days que JÁ existem (qualquer status) — respeita unique constraint
+      const existingOffsetDays = new Set<number>(
+        existingNotifications
+          .filter((n: any) => n.event_type === 'post_due')
+          .map((n: any) => n.offset_days)
+      );
       
+      // Encontrar primeiro targetDays que: (a) cliente já alcançou; (b) não existe ainda
+      let notificationCreated = false;
       for (const targetDays of postDueDays) {
         if (notificationCreated) break;
-        if (daysPastDue < targetDays) continue; // Ainda não chegou neste dia
+        if (daysPastDue < targetDays) continue;
+        if (existingOffsetDays.has(targetDays)) continue;
         
-        // Verificar se já tem notificação pendente para este dia
-        for (let dispatchIndex = 0; dispatchIndex < postDueTimes; dispatchIndex++) {
-          const key = `post_due_${targetDays}_${dispatchIndex}`;
-          if (existingKeys.has(key)) continue;
-          
-          // Criar notificação
-          let scheduledDate = setBrazilTime(now, baseHour, minute, true);
-          
-          // Adicionar intervalo para o segundo disparo do dia
-          if (dispatchIndex > 0) {
-            scheduledDate.setHours(scheduledDate.getHours() + (dispatchIndex * intervalHours));
-          }
-          
-          // Se a hora já passou hoje, agendar para agora + 5 min
-          if (scheduledDate.getTime() < now.getTime()) {
-            scheduledDate = new Date(now.getTime() + 5 * 60 * 1000);
-          }
-          
-          notifications.push({
-            company_id: settings.company_id,
-            payment_id: payment.id,
-            client_id: payment.client_id,
-            event_type: 'post_due',
-            offset_days: targetDays,
-            scheduled_for: scheduledDate.toISOString(),
-            status: 'pending',
-            attempts: 0
-          });
-          
-          console.log(`📝 Created post_due notification for payment ${payment.id}: day ${targetDays}, dispatch ${dispatchIndex}`);
-          notificationCreated = true;
-          break; // Criar apenas UMA notificação por vez
+        // Agendar para hoje no horário configurado (com jitter); se já passou, agendar para 5min
+        let scheduledDate = setBrazilTime(now, baseHour, minute, true);
+        if (scheduledDate.getTime() < now.getTime()) {
+          scheduledDate = new Date(now.getTime() + 5 * 60 * 1000);
         }
+        
+        notifications.push({
+          company_id: settings.company_id,
+          payment_id: payment.id,
+          client_id: payment.client_id,
+          event_type: 'post_due',
+          offset_days: targetDays,
+          scheduled_for: scheduledDate.toISOString(),
+          status: 'pending',
+          attempts: 0
+        });
+        
+        console.log(`📝 Created post_due notification for payment ${payment.id}: day ${targetDays}`);
+        notificationCreated = true;
       }
     }
   }
