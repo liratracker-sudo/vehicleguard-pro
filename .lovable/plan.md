@@ -1,87 +1,85 @@
-<final-text>Diagnóstico confirmado
 
-- O WhatsApp não é o bloqueio principal. O envio manual funcionou e os logs de `whatsapp-evolution` mostram envio com sucesso hoje.
-- O problema real está no fluxo automático da edge function `billing-notifications`.
 
-Evidências que encontrei
+# Fix definitivo: notificações de cobranças vencidas estagnadas
 
-1. O job automático está travando hoje
-- Em `cron_execution_logs`, as execuções automáticas de hoje ficaram assim:
-  - 11:02, 11:32, 12:02, 12:32, 13:02, 13:32, 14:02 UTC: `failed`
-  - erro: `Timeout automático - job travado por mais de 10 minutos`
-  - 14:32 UTC: ainda `running`
-- Também confirmei que hoje não houve nenhuma notificação marcada como `sent`.
+## Causa raiz (confirmada)
 
-2. A LIRA TRACKER não tinha fila pronta para envio agora
-- A LIRA tem 12 cobranças vencidas/para hoje.
-- Mas ela está com `0` notificações `pending` vencendo agora (`scheduled_for <= now()+5min`).
-- Ou seja: o automático não tinha nada pronto para mandar da LIRA neste momento.
-- As pendentes atuais da LIRA são majoritariamente futuras (`pre_due`), não de vencidos.
+A função `createNotificationsForCompany` em `billing-notifications/index.ts` tenta criar múltiplos disparos por dia (`dispatchIndex 0` e `1`) usando `offset_days` igual para ambos. Mas a constraint unique do banco é `(company_id, payment_id, event_type, offset_days)` — não inclui `dispatchIndex`.
 
-3. A função está morrendo antes de criar a fila nova da LIRA
-No código atual de `billing-notifications`, a ordem é:
+**Resultado:** O loop interno (linha 1831-1868) cria UMA notificação por execução (`break` após criar), com chave `post_due_${offset_days}_1` que não existe em `existingKeys`. Mas no upsert, o banco rejeita silenciosamente porque já existe linha com o mesmo `offset_days`. O contador `created` retorna 0 e o cliente **nunca recebe a próxima notificação** (offset 2, 3, 5, 7...).
+
+**Evidência confirmada no banco:**
+- CLAYTON RODRIGUES (38 dias atraso, LIRA TRACKER): apenas 1 `post_due` criada (`offset_days=1` em 11/03), nada mais nos 27 dias seguintes
+- IAGO RODRIGUES (21d), COSME (7d), MARCELLE (7d): mesmo padrão — só `offset_days=1` existe
+- LIRA tem `post_due_days=[1..18]` configurado, deveria ter 18 notificações por cliente vencido
+- 491 notificações `post_due` em estado `failed` (todas da CLS PRIMER, instância WhatsApp desconectada — problema separado)
+
+## Solução
+
+### 1. Reescrever a lógica de criação de `post_due` (linhas 1800-1869)
+
+- **Remover** o conceito de `dispatchIndex` que conflita com a unique constraint
+- **Lógica nova:** percorrer `postDueDays` em ordem; pular `targetDays` se já existe qualquer `post_due` com aquele `offset_days` (em qualquer status); criar a primeira ausente que cliente já alcançou (`daysPastDue >= targetDays`); marcar `notificationCreated=true` e sair
+- **Manter** o controle de "última enviada nas últimas 6h" como guard de cadência (linhas 1813-1826), mas só para evitar dois envios no mesmo dia, não para impedir criação futura
+
+### 2. Recriar notificações faltantes para clientes vencidos da LIRA TRACKER
+
+Após o deploy, executar uma rotina única para gerar todas as `post_due` faltantes dos clientes vencidos visíveis na tela do usuário:
+- CLAYTON (38d): criar offsets 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
+- IAGO (21d): criar offsets 2..18
+- COSME, MARCELLE (7d): criar offsets 2..7
+- RENAN, TÂNIA (2d): criar offsets 2
+
+Agendadas para hoje no horário configurado (09:00 + jitter), em sequência respeitando intervalo anti-ban.
+
+### 3. Limpeza das 491 notificações `failed` da CLS PRIMER
+
+Estas falharam por WhatsApp desconectado da CLS PRIMER (instância em estado `unknown`). Resetar para `pending` apenas as cuja `scheduled_for >= hoje`, para que sejam reprocessadas quando a empresa reconectar o WhatsApp. As mais antigas (>3 dias) ficam como `failed` (já não são úteis).
+
+## Detalhes técnicos
+
+### Mudança no código (`supabase/functions/billing-notifications/index.ts`, linhas 1800-1869)
+
 ```text
-1. reset stuck sending
-2. recreate overdue
-3. send pending notifications
-4. create missing notifications
+// PSEUDO-CÓDIGO da nova lógica:
+if (isOverdue) {
+  // Guard: só não criar se já mandamos algo nas últimas 6h
+  const recentSent = await query post_due sent in last 6h
+  if (recentSent.length > 0) continue;
+  
+  // Conjunto de offset_days que JÁ TÊM uma row (qualquer status)
+  const existingOffsetDays = new Set(
+    existingNotifications
+      .filter(n => n.event_type === 'post_due')
+      .map(n => n.offset_days)
+  );
+  
+  // Encontrar primeiro targetDays que: (a) cliente já alcançou; (b) não existe ainda
+  for (const targetDays of postDueDays) {
+    if (daysPastDue < targetDays) continue;
+    if (existingOffsetDays.has(targetDays)) continue;
+    
+    // Criar UMA notificação para este offset_days
+    notifications.push({ ..., offset_days: targetDays, scheduled_for: today@send_hour })
+    break; // próxima execução cria o próximo dia
+  }
+}
 ```
-- Se o passo 3 demora demais, o passo 4 nunca roda.
-- É exatamente isso que explica a LIRA: como não havia fila pronta para agora, ela dependia do passo 4 para gerar notificações de vencidos/vence hoje — mas a função está travando antes disso.
 
-4. Existe backlog pesado em outras empresas consumindo o tempo da função
-- Há empresas com muitas notificações prontas para agora:
-  - uma empresa com 104 pendentes prontas
-  - outra com 12 pendentes prontas
-- A função ainda aplica:
-  - IA por mensagem
-  - timeout de envio
-  - delay anti-ban de 5 a 8s
-  - até 25 notificações por empresa
-- Com esse volume, a execução estoura o timeout global de 280s e morre no meio.
+### Migração SQL (executada após o deploy)
 
-5. O cron real está diferente do que o código/migration sugere
-- Os jobs ativos no banco hoje são:
-  - `process-billing-notifications`
-  - `process-billing-notifications-afternoon`
-- Eles não estão configurados no padrão “a cada 5 minutos” mostrado em migration mais recente.
-- Isso reduz a chance de recuperação rápida quando uma execução trava.
+1. **Gerar `post_due` faltantes para vencidos da LIRA TRACKER** (8 clientes, ~60 inserts)
+2. **Resetar `failed` recentes da CLS PRIMER** que ainda fazem sentido (`scheduled_for >= CURRENT_DATE - 1`)
 
-Conclusão objetiva
+### Não inclui
 
-- O envio manual funciona porque fala direto com a função e o WhatsApp está operacional.
-- O envio automático falha porque `billing-notifications` está estourando tempo de execução.
-- Como a função tenta enviar backlog de outras empresas antes de criar as notificações faltantes, a LIRA fica sem gerar as notificações de vencidos/hoje.
+- Reconexão do WhatsApp da CLS PRIMER (ação manual do operador da empresa)
+- Mudança no cron schedule (já validado funcionando a cada 30 min)
+- Refatoração do conceito de múltiplos disparos por dia (não suportado pela constraint atual; pode ser feito em iteração futura adicionando `dispatch_index` ao constraint)
 
-Plano de correção
+## Resultado esperado
 
-1. Reordenar o fluxo da edge function
-- Mover `createMissingNotifications()` para antes de `sendPendingNotificationsParallel()`.
-- Assim a LIRA gera primeiro as notificações de vencidos/vence hoje, mesmo se o envio depois travar.
+- LIRA TRACKER volta a gerar e enviar `post_due` progressivas (dia 2, 3, 5, 7... até 18) para cada cliente vencido
+- CLS PRIMER terá fila pronta assim que reconectar WhatsApp
+- Loop não fica mais preso tentando inserir duplicatas
 
-2. Colocar limite de tempo por empresa
-- Se uma empresa consumir muito tempo, interromper só ela e seguir para as demais.
-- Evita que uma fila grande derrube o processamento global.
-
-3. Reduzir o lote por empresa / tornar o processamento mais justo
-- Em vez de deixar uma empresa monopolizar a execução, processar lotes menores por rodada.
-- Isso distribui melhor entre as empresas e evita starvation da LIRA.
-
-4. Ajustar o cron real do banco
-- Padronizar os jobs ativos com a estratégia desejada.
-- Remover drift entre migration e cron efetivo.
-
-5. Melhorar observabilidade
-- Adicionar logs explícitos por etapa e por empresa dentro de `billing-notifications`.
-- Hoje o diagnóstico depende muito do banco e pouco de logs da própria função.
-
-6. Limpeza operacional após correção
-- Destravar a execução que ficou `running`
-- Resetar item preso em `sending`, se necessário
-- Forçar recriação/processamento das notificações vencidas da LIRA
-
-Resultado esperado após a correção
-
-- A LIRA volta a gerar notificações automáticas para cobranças vencidas e do dia
-- Uma empresa com backlog não bloqueia mais as outras
-- O sistema automático deixa de depender do envio manual para “destravar” o fluxo</final-text>
