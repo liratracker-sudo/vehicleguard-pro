@@ -78,7 +78,7 @@ export function ProtestedPaymentsTab() {
   const [showContactDialog, setShowContactDialog] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   const { toast } = useToast()
-  const { undoProtest } = useBillingManagement()
+  const { undoProtest, deletePayment } = useBillingManagement()
 
   useEffect(() => {
     loadProtestedPayments()
