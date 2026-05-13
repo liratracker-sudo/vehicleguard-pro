@@ -78,7 +78,7 @@ export function ProtestedPaymentsTab() {
   const [showContactDialog, setShowContactDialog] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   const { toast } = useToast()
-  const { undoProtest } = useBillingManagement()
+  const { undoProtest, deletePayment } = useBillingManagement()
 
   useEffect(() => {
     loadProtestedPayments()
@@ -216,27 +216,13 @@ export function ProtestedPaymentsTab() {
 
   const handleWriteOff = async (payment: ProtestedPayment) => {
     try {
-      const { error } = await supabase
-        .from('payment_transactions')
-        .update({ 
-          status: 'cancelled',
-          notes: `Baixa por perda - ${payment.notes || ''} | Protestado em ${formatDateBR(payment.protested_at)}`
-        })
-        .eq('id', payment.id)
-
-      if (error) throw error
-
-      toast({
-        title: "Baixa por perda",
-        description: "O pagamento foi marcado como perda e removido dos protestos."
-      })
+      await deletePayment(
+        payment.id,
+        `Baixa por perda | Protestado em ${formatDateBR(payment.protested_at)}`
+      )
       loadProtestedPayments()
     } catch (error) {
       console.error('Error writing off payment:', error)
-      toast({
-        title: "Erro ao dar baixa",
-        variant: "destructive"
-      })
     }
   }
 
