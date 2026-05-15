@@ -65,10 +65,6 @@ const BillingPage = () => {
   
   const [companyBalance, setCompanyBalance] = useState<any>(null)
 
-  useEffect(() => {
-    loadCompanyBalance()
-  }, [])
-
   const loadCompanyBalance = async () => {
     try {
       const balance = await getCompanyBalance()
@@ -77,6 +73,19 @@ const BillingPage = () => {
       console.error('Error loading company balance:', error)
     }
   }
+
+  // Refetch balance whenever the payments list changes (after mutations, realtime updates, etc.)
+  // This keeps the "Vencido" / summary cards in sync with the actual list.
+  useEffect(() => {
+    loadCompanyBalance()
+  }, [payments])
+
+  // Refetch on window focus to avoid showing stale snapshots
+  useEffect(() => {
+    const onFocus = () => loadCompanyBalance()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
 
   // Reset page on filter changes
   useEffect(() => {

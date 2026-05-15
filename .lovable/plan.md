@@ -1,38 +1,59 @@
+# Diagnóstico — Vencido do dashboard divergente da lista
 
-# Fix: erro ao dar baixa por perda em cliente protestado
+## O que verifiquei no banco (LIRA TRACKER)
 
-## Causa raiz
+Consultando `payment_transactions` agora:
 
-Em `src/components/billing/ProtestedPaymentsTab.tsx`, a função `handleWriteOff` (linhas 217–241) faz um `update` direto em `payment_transactions` setando:
+- `status = 'overdue'` (não protestado): **10 cobranças**, total **R$ 950,80**
+- `status = 'pending'` com `due_date < hoje`: **0**
+- Soma das 10 linhas visíveis na sua print da lista (THIAGO, FLAVIO, WILLIAN, YURI, CLAYTON, COSME, ALEXANDRO, MOISES, DIOGO, HUGO) = **R$ 950,80** — bate exatamente com o que existe no banco.
 
-```ts
-{ status: 'cancelled', notes: `Baixa por perda - ...` }
-```
+Ou seja: hoje, no banco, existem **10 cobranças vencidas somando R$ 950,80**.
 
-A coluna **`notes` não existe** em `payment_transactions`. Colunas reais relacionadas a cancelamento: `cancellation_reason`, `cancelled_at`, `cancelled_by`. O PostgREST devolve erro `42703 column "notes" does not exist` e o `catch` exibe o toast genérico "Erro ao dar baixa" sem detalhes.
+O card do dashboard mostra **R$ 1.550,90 / 19 cobranças** — esse número **não corresponde a nenhum recorte atual** dos dados (nem incluindo protestadas, nem pending+pastdue, nem cancelled).
 
-Confirmado consultando o schema atual e as policies/triggers da tabela — RLS está correto, o problema é puramente o nome da coluna inexistente.
+## Causa provável
 
-## Correção
+O card "Vencido" é alimentado por `companyBalance` (edge function `billing-management → get_company_balance`). Esse valor está vindo de um snapshot/cache antigo (provavelmente da última vez que a página foi aberta antes de pagamentos serem confirmados/cancelados/baixados nas últimas horas).
 
-Substituir o `update` direto pelo edge function já existente `billing-management` com `action: 'delete_payment'`, que:
-- Marca como `cancelled` (soft-delete, conforme memória do projeto)
-- Preenche `cancellation_reason`, `cancelled_at`, `cancelled_by`
-- Mantém auditoria coerente
+A página `Billing.tsx` carrega `companyBalance` uma vez no mount e não revalida quando:
+- Um pagamento é marcado como pago
+- Uma cobrança é cancelada / baixada por perda
+- O webhook do gateway atualiza status
+- O cron diário roda e ajusta `status` para `overdue`
 
-### Mudança em `ProtestedPaymentsTab.tsx`
+A lista (`payments`) é recarregada via realtime/refetch, mas o `companyBalance` fica estagnado — gerando exatamente esse tipo de divergência (card maior que a lista atual).
 
-1. Expandir o destructuring de `useBillingManagement()` para incluir `deletePayment`.
-2. Reescrever `handleWriteOff` para chamar `deletePayment(payment.id, "Baixa por perda | Protestado em <data>")` e recarregar a lista. O toast de sucesso/erro já é tratado pelo hook.
+## Plano de correção
+
+### 1. Forçar revalidação do `companyBalance`
+Em `src/pages/Billing.tsx`:
+- Recarregar `companyBalance` sempre que `payments` mudar (ou em paralelo ao `loadPayments`)
+- Recarregar após qualquer ação que altere status: marcar pago, cancelar, dar baixa por perda, protestar, despromover protesto
+- Adicionar botão de refresh manual no header "Ver Resumo Financeiro" (opcional)
+
+### 2. Garantir consistência da fonte de verdade
+Hoje o card usa `companyBalance.total_overdue` (server) com fallback para `payments.filter(status='overdue')` (client, limitado a 500 registros). Vou padronizar:
+- Quando `companyBalance` carregar com sucesso, usar sempre o valor server-side
+- Quando falhar/estiver carregando, mostrar skeleton em vez de fallback inconsistente
+- Adicionar `staleTime` curto e `refetchOnWindowFocus` para evitar dados velhos
+
+### 3. Verificar se há registros "fantasma" em outra empresa
+Se após aplicar os itens 1 e 2 o card ainda mostrar 19/1.550,90, isso indica que você está logado em uma empresa diferente da LIRA TRACKER (que é a empresa dos clientes da print da lista). Nesse caso o problema é outro (ex.: cache de `company_id` no `getCompanyId()`), e eu trato em iteração separada.
+
+## Detalhes técnicos
+
+- `src/pages/Billing.tsx` (linhas ~66, 163-172): adicionar `loadCompanyBalance()` no mesmo `useEffect` que recarrega `payments`, e chamar em `onSuccess` das mutações
+- `src/hooks/useBillingManagement.ts` (`getCompanyBalance`): manter assinatura, apenas garantir que retorna sempre dados frescos (sem cache em memória)
+- Não vou alterar a lógica do edge function `get_company_balance` — ela já está correta (conta `status='overdue'` + `status='pending' AND due_date < hoje`, exclui protestadas)
 
 ## Resultado esperado
 
-- Botão "Dar baixa por perda" funciona
-- Pagamento sai da lista de protestos com `status='cancelled'`
-- `cancellation_reason` preenchido com a motivação
-- Toast de sucesso exibido normalmente
+- Card "Vencido" passa a mostrar **R$ 950,80 / 10 cobranças** (valor real atual)
+- Após qualquer baixa/pagamento/cancelamento, o card atualiza imediatamente
+- Lista e card sempre coerentes entre si
 
-## Fora do escopo
+## Fora de escopo
 
-- Outras ações da aba Protestos
-- Adicionar coluna `notes` ao schema (desnecessário; `cancellation_reason` já cobre)
+- Mudar a regra de negócio de "vencido" (continua sendo `status='overdue'` + `pending past-due`, sem protestadas)
+- Recalcular histórico ou forçar reprocessamento do cron de status
