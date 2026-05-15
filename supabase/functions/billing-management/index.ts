@@ -372,22 +372,15 @@ serve(async (req) => {
               }
               break;
             case 'pending':
-              if (dueDate && dueDate < today) {
-                summary.total_overdue += amount;
-                summary.overdue_count++;
-                if (dueDate >= monthStart) {
-                  summary.receivable_this_month += amount;
-                  summary.receivable_this_month_count++;
-                }
-              } else {
-                summary.total_pending += amount;
-                if (dueDate && dueDate <= monthEnd) {
-                  summary.receivable_this_month += amount;
-                  summary.receivable_this_month_count++;
-                } else if (dueDate && dueDate > monthEnd) {
-                  summary.pending_future += amount;
-                  summary.pending_future_count++;
-                }
+              // Alinhado com Dashboard: pending past-due NÃO conta como vencido aqui.
+              // O cron diário é responsável por flipar pending → overdue.
+              summary.total_pending += amount;
+              if (dueDate && dueDate <= monthEnd) {
+                summary.receivable_this_month += amount;
+                summary.receivable_this_month_count++;
+              } else if (dueDate && dueDate > monthEnd) {
+                summary.pending_future += amount;
+                summary.pending_future_count++;
               }
               break;
             case 'overdue':
