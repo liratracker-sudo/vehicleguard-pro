@@ -1,41 +1,33 @@
-# Alinhar "Vencido" entre Dashboard e Cobranças
+## Problema
 
-## Causa raiz da divergência
+- Card "Recebido (mai de 2026)" no Billing: **R$ 3.052,12** — usa `paid_at` (regime de caixa) em `billing-management/get_company_balance`.
+- Relatório Fluxo de Caixa (mai/2026) — Total Entradas: **R$ 2.453,01** — usa `due_date` (regime de competência) em `useReportData.ts`.
 
-Os dois cards usam regras diferentes para classificar uma cobrança como vencida:
+Pela regra do projeto ("Accrual basis para tendências, Cash basis para Daily Flow"), o **Fluxo de Caixa deve ser regime de caixa** (data de recebimento), então o card está certo e o relatório está errado.
 
-**Dashboard** (`src/hooks/useDashboardStats.ts`, linhas 113-118):
-```
-status = 'overdue' AND protested_at IS NULL
-```
+## Correção
 
-**Cobranças** (`supabase/functions/billing-management/index.ts`, linhas 362-402, action `get_company_balance`):
-```
-(status = 'overdue')                                  -- linhas 393-399
-OR (status = 'pending' AND due_date < today)          -- linhas 374-377
--- ambos com protested_at IS NULL (já filtrado na query)
-```
+Em `src/hooks/useReportData.ts`:
 
-Ou seja, a página Cobranças "promove" para Vencido também as `pending` cujo vencimento já passou mas que ainda não foram migradas para `overdue` pelo cron diário. O Dashboard ignora essas. Daí o card mostrar 18 / R$ 1.496,00 enquanto o Dashboard mostra um número menor.
+1. **Cash Flow (entradas do mês)** — trocar filtro de `due_date` para `paid_at` no fetch `currentPayments` e `prevPayments`. Estas variáveis alimentam `cashFlowData.inflows/totalInflows/periodBalance` e `monthlyReport`.
 
-A regra oficial do projeto (memory `Overdue Handling`) é: **usar sempre `status='overdue'`**. O cron é responsável por flipar `pending → overdue` no dia do vencimento.
+2. **Saldo acumulado** — manter como está (soma de todos `paid` menos despesas pagas).
 
-## Mudança proposta
+3. **DRE** permanece por competência? Hoje DRE também usa `currentPayments` (mesmo fetch). Como o card "Recebido" e o Fluxo são caixa, e o usuário só reportou divergência no Fluxo de Caixa, vou:
+   - Renomear o fetch atual para `currentPaymentsCash` (filtrado por `paid_at`) e usá-lo em Cash Flow + Monthly Report.
+   - Manter DRE coerente: como hoje DRE = Fluxo no código, ele passa a ser caixa também (consistente com `received_this_month` do dashboard/billing).
 
-Em `supabase/functions/billing-management/index.ts`, action `get_company_balance` (lin 362-402):
+## Arquivo afetado
 
-1. Remover o ramo que joga `pending && due_date < today` em `total_overdue` / `overdue_count`.
-2. Tratar essas cobranças como `pending` normais (entram em `total_pending`; entram em `receivable_this_month` se `due_date <= monthEnd`; em `pending_future` se `due_date > monthEnd`). Ou seja, o `case 'pending'` passa a usar apenas o caminho do `else` atual, sem checar `dueDate < today`.
-3. `case 'overdue'` permanece como está (já alinhado com o Dashboard).
+- `src/hooks/useReportData.ts` — apenas as duas queries de `payment_transactions` com `status='paid'` (current e previous month) trocam `.gte/.lte('due_date', ...)` por `.gte/.lte('paid_at', ...)` (com cast ISO completo do início/fim do mês).
 
-Resultado: card "Vencido" da página Cobranças passa a mostrar exatamente o mesmo conjunto que o Dashboard (`status='overdue'`, não protestadas). Qualquer pendente atrasada sem o cron ter rodado aparece em "Em aberto / A receber" — comportamento consistente com toda a plataforma.
+## Fora de escopo
 
-## Não escopo
+- `billing-management` (já correto).
+- Dashboard (`useDashboardStats`).
+- Despesas (continuam por `due_date` para pagas, comportamento atual).
+- Relatório de Inadimplência / Protestos.
 
-- Não mudar a regra do Dashboard.
-- Não mexer no cron diário que faz `pending → overdue`.
-- Não alterar a aba Protestos.
-- Sem migration; só edge function.
+## Validação
 
-## Arquivo a editar
-- `supabase/functions/billing-management/index.ts` (apenas a função `get_company_balance`)
+Após a mudança, em mai/2026: `Total Entradas` do Fluxo de Caixa deve bater com `Recebido (mai de 2026)` = R$ 3.052,12.
