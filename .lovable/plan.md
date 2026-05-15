@@ -1,59 +1,41 @@
-# Diagnóstico — Vencido do dashboard divergente da lista
+# Alinhar "Vencido" entre Dashboard e Cobranças
 
-## O que verifiquei no banco (LIRA TRACKER)
+## Causa raiz da divergência
 
-Consultando `payment_transactions` agora:
+Os dois cards usam regras diferentes para classificar uma cobrança como vencida:
 
-- `status = 'overdue'` (não protestado): **10 cobranças**, total **R$ 950,80**
-- `status = 'pending'` com `due_date < hoje`: **0**
-- Soma das 10 linhas visíveis na sua print da lista (THIAGO, FLAVIO, WILLIAN, YURI, CLAYTON, COSME, ALEXANDRO, MOISES, DIOGO, HUGO) = **R$ 950,80** — bate exatamente com o que existe no banco.
+**Dashboard** (`src/hooks/useDashboardStats.ts`, linhas 113-118):
+```
+status = 'overdue' AND protested_at IS NULL
+```
 
-Ou seja: hoje, no banco, existem **10 cobranças vencidas somando R$ 950,80**.
+**Cobranças** (`supabase/functions/billing-management/index.ts`, linhas 362-402, action `get_company_balance`):
+```
+(status = 'overdue')                                  -- linhas 393-399
+OR (status = 'pending' AND due_date < today)          -- linhas 374-377
+-- ambos com protested_at IS NULL (já filtrado na query)
+```
 
-O card do dashboard mostra **R$ 1.550,90 / 19 cobranças** — esse número **não corresponde a nenhum recorte atual** dos dados (nem incluindo protestadas, nem pending+pastdue, nem cancelled).
+Ou seja, a página Cobranças "promove" para Vencido também as `pending` cujo vencimento já passou mas que ainda não foram migradas para `overdue` pelo cron diário. O Dashboard ignora essas. Daí o card mostrar 18 / R$ 1.496,00 enquanto o Dashboard mostra um número menor.
 
-## Causa provável
+A regra oficial do projeto (memory `Overdue Handling`) é: **usar sempre `status='overdue'`**. O cron é responsável por flipar `pending → overdue` no dia do vencimento.
 
-O card "Vencido" é alimentado por `companyBalance` (edge function `billing-management → get_company_balance`). Esse valor está vindo de um snapshot/cache antigo (provavelmente da última vez que a página foi aberta antes de pagamentos serem confirmados/cancelados/baixados nas últimas horas).
+## Mudança proposta
 
-A página `Billing.tsx` carrega `companyBalance` uma vez no mount e não revalida quando:
-- Um pagamento é marcado como pago
-- Uma cobrança é cancelada / baixada por perda
-- O webhook do gateway atualiza status
-- O cron diário roda e ajusta `status` para `overdue`
+Em `supabase/functions/billing-management/index.ts`, action `get_company_balance` (lin 362-402):
 
-A lista (`payments`) é recarregada via realtime/refetch, mas o `companyBalance` fica estagnado — gerando exatamente esse tipo de divergência (card maior que a lista atual).
+1. Remover o ramo que joga `pending && due_date < today` em `total_overdue` / `overdue_count`.
+2. Tratar essas cobranças como `pending` normais (entram em `total_pending`; entram em `receivable_this_month` se `due_date <= monthEnd`; em `pending_future` se `due_date > monthEnd`). Ou seja, o `case 'pending'` passa a usar apenas o caminho do `else` atual, sem checar `dueDate < today`.
+3. `case 'overdue'` permanece como está (já alinhado com o Dashboard).
 
-## Plano de correção
+Resultado: card "Vencido" da página Cobranças passa a mostrar exatamente o mesmo conjunto que o Dashboard (`status='overdue'`, não protestadas). Qualquer pendente atrasada sem o cron ter rodado aparece em "Em aberto / A receber" — comportamento consistente com toda a plataforma.
 
-### 1. Forçar revalidação do `companyBalance`
-Em `src/pages/Billing.tsx`:
-- Recarregar `companyBalance` sempre que `payments` mudar (ou em paralelo ao `loadPayments`)
-- Recarregar após qualquer ação que altere status: marcar pago, cancelar, dar baixa por perda, protestar, despromover protesto
-- Adicionar botão de refresh manual no header "Ver Resumo Financeiro" (opcional)
+## Não escopo
 
-### 2. Garantir consistência da fonte de verdade
-Hoje o card usa `companyBalance.total_overdue` (server) com fallback para `payments.filter(status='overdue')` (client, limitado a 500 registros). Vou padronizar:
-- Quando `companyBalance` carregar com sucesso, usar sempre o valor server-side
-- Quando falhar/estiver carregando, mostrar skeleton em vez de fallback inconsistente
-- Adicionar `staleTime` curto e `refetchOnWindowFocus` para evitar dados velhos
+- Não mudar a regra do Dashboard.
+- Não mexer no cron diário que faz `pending → overdue`.
+- Não alterar a aba Protestos.
+- Sem migration; só edge function.
 
-### 3. Verificar se há registros "fantasma" em outra empresa
-Se após aplicar os itens 1 e 2 o card ainda mostrar 19/1.550,90, isso indica que você está logado em uma empresa diferente da LIRA TRACKER (que é a empresa dos clientes da print da lista). Nesse caso o problema é outro (ex.: cache de `company_id` no `getCompanyId()`), e eu trato em iteração separada.
-
-## Detalhes técnicos
-
-- `src/pages/Billing.tsx` (linhas ~66, 163-172): adicionar `loadCompanyBalance()` no mesmo `useEffect` que recarrega `payments`, e chamar em `onSuccess` das mutações
-- `src/hooks/useBillingManagement.ts` (`getCompanyBalance`): manter assinatura, apenas garantir que retorna sempre dados frescos (sem cache em memória)
-- Não vou alterar a lógica do edge function `get_company_balance` — ela já está correta (conta `status='overdue'` + `status='pending' AND due_date < hoje`, exclui protestadas)
-
-## Resultado esperado
-
-- Card "Vencido" passa a mostrar **R$ 950,80 / 10 cobranças** (valor real atual)
-- Após qualquer baixa/pagamento/cancelamento, o card atualiza imediatamente
-- Lista e card sempre coerentes entre si
-
-## Fora de escopo
-
-- Mudar a regra de negócio de "vencido" (continua sendo `status='overdue'` + `pending past-due`, sem protestadas)
-- Recalcular histórico ou forçar reprocessamento do cron de status
+## Arquivo a editar
+- `supabase/functions/billing-management/index.ts` (apenas a função `get_company_balance`)
