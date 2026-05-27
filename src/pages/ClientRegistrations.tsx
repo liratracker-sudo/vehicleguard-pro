@@ -254,7 +254,7 @@ export default function ClientRegistrations() {
         let vehicleId: string
 
         if (existingVehicle) {
-          // Se o veículo pertence a outro cliente, mostrar erro
+          // Se o veículo pertence a outro cliente, pedir confirmação para transferir
           if (existingVehicle.client_id !== clientId) {
             const { data: otherClient } = await supabase
               .from('clients')
@@ -262,12 +262,31 @@ export default function ClientRegistrations() {
               .eq('id', existingVehicle.client_id)
               .maybeSingle()
 
-            throw new Error(
-              `O veículo com placa ${vehicle.vehicle_plate} já está cadastrado para outro cliente${otherClient ? ` (${otherClient.name})` : ''}. ` +
-              `Verifique se a placa está correta ou transfira o veículo primeiro.`
+            const confirmTransfer = window.confirm(
+              `O veículo com placa ${vehicle.vehicle_plate} está cadastrado para ${otherClient?.name || 'outro cliente'}.\n\n` +
+              `Deseja TRANSFERIR este veículo para ${registration.name}?\n\n` +
+              `Clique OK para transferir ou Cancelar para abortar a aprovação.`
             )
+
+            if (!confirmTransfer) {
+              throw new Error(
+                `Aprovação cancelada. O veículo ${vehicle.vehicle_plate} continua vinculado a ${otherClient?.name || 'outro cliente'}.`
+              )
+            }
+
+            const { error: transferError } = await supabase
+              .from('vehicles')
+              .update({ client_id: clientId })
+              .eq('id', existingVehicle.id)
+
+            if (transferError) {
+              console.error('Error transferring vehicle:', transferError)
+              throw new Error(`Erro ao transferir veículo ${vehicle.vehicle_plate}`)
+            }
+
+            console.log(`Veículo ${vehicle.vehicle_plate} transferido de ${otherClient?.name} para ${registration.name}`)
           }
-          // Usar veículo existente do mesmo cliente
+          // Usar veículo existente (do mesmo cliente ou recém-transferido)
           vehicleId = existingVehicle.id
           console.log('Veículo existente reutilizado:', existingVehicle.license_plate)
         } else {
