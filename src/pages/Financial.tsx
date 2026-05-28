@@ -452,37 +452,7 @@ const FinancialPage = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="accounts" className="space-y-6">
-            {accountsByGateway.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <PiggyBank className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    Nenhum pagamento recebido ainda. As contas por gateway aparecerão aqui quando houver transações.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {accountsByGateway.map((account) => (
-                  <Card key={account.id}>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{account.name}</CardTitle>
-                      <CardDescription>{account.bank}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold mb-2">
-                        R$ {account.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </div>
-                      <Badge variant="outline" className="mb-4">
-                        {account.type}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
+
 
           <TabsContent value="transactions" className="space-y-6">
             <Card>
