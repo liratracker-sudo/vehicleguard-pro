@@ -208,49 +208,139 @@ const FinancialPage = () => {
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Financeiro</h1>
             <p className="text-muted-foreground">
-              Fluxo de caixa, contas e análise financeira completa
+              Recebimentos por gateway, saídas por categoria — regime de caixa ({periodLabel})
             </p>
           </div>
+          <PeriodSelector value={period} onChange={setPeriod} />
         </div>
 
-        {/* Financial Overview */}
+        {/* Period KPIs (cash basis) */}
         <div className="grid gap-4 md:grid-cols-4">
           <ModernStatCard
-            title="Saldo Total"
-            value={`R$ ${summary.totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-            icon={<PiggyBank className="h-6 w-6" />}
-            description="Total recebido"
-            variant="info"
-          />
-          <ModernStatCard
-            title="Receita Mensal"
+            title="Total Recebido"
             value={`R$ ${summary.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             icon={<TrendingUp className="h-6 w-6" />}
-            description="Mês atual"
+            description={`${fmtPct(summary.revenueDelta)} vs período anterior`}
             variant="success"
           />
           <ModernStatCard
-            title="Despesas Mensais"
+            title="Total Pago"
             value={`R$ ${summary.monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             icon={<TrendingDown className="h-6 w-6" />}
-            description="Mês atual"
+            description={`${fmtPct(summary.expenseDelta)} vs período anterior`}
             variant="danger"
           />
           <ModernStatCard
-            title="Lucro Líquido"
+            title="Saldo Líquido"
             value={`R$ ${summary.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             icon={<BarChart3 className="h-6 w-6" />}
-            description={summary.monthlyRevenue > 0 
-              ? `Margem de ${((summary.netProfit / summary.monthlyRevenue) * 100).toFixed(1)}%`
-              : 'Sem receitas este mês'
-            }
+            description={summary.monthlyRevenue > 0
+              ? `Margem ${((summary.netProfit / summary.monthlyRevenue) * 100).toFixed(1)}%`
+              : 'Sem receitas no período'}
             variant={summary.netProfit >= 0 ? 'success' : 'danger'}
           />
+          <ModernStatCard
+            title="Ticket Médio"
+            value={`R$ ${summary.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+            icon={<Wallet className="h-6 w-6" />}
+            description={`${summary.txCount} ${summary.txCount === 1 ? 'recebimento' : 'recebimentos'}`}
+            variant="info"
+          />
         </div>
+
+        {/* Recebimentos por Gateway */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recebimentos por Gateway</CardTitle>
+            <CardDescription>
+              Quanto entrou em cada conta no período. Clique para ver as transações e conferir contra o extrato.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {accountsByGateway.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                Nenhum recebimento no período selecionado.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {accountsByGateway.map((acc) => (
+                  <button
+                    key={acc.id}
+                    onClick={() => openGatewayDrilldown(acc.id, acc.name)}
+                    className="group text-left rounded-lg border bg-card p-4 hover:border-primary/50 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="font-semibold text-foreground">{acc.name}</div>
+                        <div className="text-xs text-muted-foreground">{acc.type}</div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="text-2xl font-bold text-success mb-2">
+                      R$ {acc.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Progress value={acc.pctOfTotal} className="h-1.5" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{acc.pctOfTotal.toFixed(1)}% do total</span>
+                        <span>Médio R$ {acc.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Saídas por Categoria */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Saídas por Categoria</CardTitle>
+            <CardDescription>
+              Despesas pagas no período agrupadas por categoria. Clique para detalhar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {expensesByCategory.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                Nenhuma despesa paga no período.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {expensesByCategory.map((cat) => (
+                  <button
+                    key={cat.category}
+                    onClick={() => openCategoryDrilldown(cat.category)}
+                    className="group w-full text-left rounded-lg border bg-card p-3 hover:border-primary/50 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground">{cat.category}</span>
+                        <Badge variant="outline" className="text-xs">{cat.count}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-destructive">
+                          R$ {cat.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Progress value={cat.pctOfTotal} className="h-1.5 flex-1" />
+                      <span className="text-xs text-muted-foreground w-12 text-right">{cat.pctOfTotal.toFixed(1)}%</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
