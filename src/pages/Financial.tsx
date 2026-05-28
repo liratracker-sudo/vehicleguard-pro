@@ -607,9 +607,20 @@ const FinancialPage = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Drilldown Sheet for gateway & category */}
+        <TransactionDrilldownSheet
+          open={drilldown !== null}
+          onOpenChange={(v) => !v && setDrilldown(null)}
+          title={drilldown?.title || ''}
+          description={drilldown?.description}
+          rows={drilldown?.rows || []}
+          labelColumn={drilldown?.labelColumn || ''}
+        />
       </div>
     </AppLayout>
   )
 }
+
 
 export default FinancialPage
