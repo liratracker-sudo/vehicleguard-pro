@@ -3376,6 +3376,24 @@ export type Database = {
           }
         | { Args: { p_credential: string }; Returns: string }
       encrypt_whatsapp_token: { Args: { p_token: string }; Returns: string }
+      get_active_sellers_for_company: {
+        Args: { p_company_id: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      get_checkout_payment: { Args: { p_payment_id: string }; Returns: Json }
+      get_company_branding_by_slug: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          logo_url: string
+          name: string
+          primary_color: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
