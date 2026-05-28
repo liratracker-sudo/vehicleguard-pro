@@ -343,13 +343,13 @@ const FinancialPage = () => {
 
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="cashflow">Fluxo de Caixa</TabsTrigger>
-            <TabsTrigger value="accounts">Contas</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Tendência (6 meses)</TabsTrigger>
+            <TabsTrigger value="cashflow">Fluxo Diário</TabsTrigger>
             <TabsTrigger value="transactions">Transações</TabsTrigger>
             <TabsTrigger value="reports">Relatórios</TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-2">
