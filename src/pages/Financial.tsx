@@ -8,18 +8,17 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { 
-  DollarSign, 
-  TrendingUp, 
+import { Progress } from "@/components/ui/progress"
+import {
+  TrendingUp,
   TrendingDown,
-  Calendar,
-  CreditCard,
   PiggyBank,
   BarChart3,
   Download,
-  Filter,
   FileText,
-  Loader2
+  Loader2,
+  ArrowRight,
+  Wallet
 } from "lucide-react"
 import {
   Table,
@@ -30,13 +29,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
-import { useFinancialData } from "@/hooks/useFinancialData"
+import { useFinancialData, type PeriodRange } from "@/hooks/useFinancialData"
 import { useReportData } from "@/hooks/useReportData"
 import { DREReport } from "@/components/reports/DREReport"
 import { CashFlowReport } from "@/components/reports/CashFlowReport"
 import { BalanceSheetReport } from "@/components/reports/BalanceSheetReport"
 import { MonthlyReport } from "@/components/reports/MonthlyReport"
-import { format, subMonths } from "date-fns"
+import { PeriodSelector } from "@/components/financial/PeriodSelector"
+import { TransactionDrilldownSheet, type DrilldownRow } from "@/components/financial/TransactionDrilldownSheet"
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { toast } from "sonner"
 import html2pdf from "html2pdf.js"
@@ -49,14 +50,24 @@ const FinancialPage = () => {
   const [isExporting, setIsExporting] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
 
-  const { 
-    summary, 
-    accountsByGateway, 
-    transactions, 
-    monthlyData, 
-    cashFlowData, 
-    isLoading 
-  } = useFinancialData()
+  const [period, setPeriod] = useState<PeriodRange>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  })
+
+  const [drilldown, setDrilldown] = useState<{ title: string; description?: string; rows: DrilldownRow[]; labelColumn: string } | null>(null)
+
+  const {
+    summary,
+    accountsByGateway,
+    gatewayTransactions,
+    expensesByCategory,
+    expensesByCategoryItems,
+    transactions,
+    monthlyData,
+    cashFlowData,
+    isLoading
+  } = useFinancialData(period)
 
   const { data: reportData, isLoading: isLoadingReport } = useReportData(selectedMonth)
 
@@ -75,6 +86,29 @@ const FinancialPage = () => {
       setSelectedMonth(month.date)
     }
   }
+
+  const openGatewayDrilldown = (gatewayId: string, gatewayName: string) => {
+    const items = gatewayTransactions[gatewayId] || []
+    setDrilldown({
+      title: `Recebimentos — ${gatewayName}`,
+      description: `Lista detalhada dos pagamentos confirmados no período. Use para conferir contra o extrato do gateway.`,
+      labelColumn: "Cliente",
+      rows: items.map(i => ({ id: i.id, date: i.date, label: i.clientName, amount: i.amount })),
+    })
+  }
+
+  const openCategoryDrilldown = (category: string) => {
+    const items = expensesByCategoryItems[category] || []
+    setDrilldown({
+      title: `Saídas — ${category}`,
+      description: `Despesas pagas no período nesta categoria.`,
+      labelColumn: "Descrição",
+      rows: items.map(i => ({ id: i.id, date: i.date, label: i.description, amount: i.amount })),
+    })
+  }
+
+  const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
+  const periodLabel = `${format(period.from, "dd/MM", { locale: ptBR })} a ${format(period.to, "dd/MM", { locale: ptBR })}`
 
   const handleExportPDF = async () => {
     if (!reportRef.current) return
