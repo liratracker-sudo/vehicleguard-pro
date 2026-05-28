@@ -106,31 +106,13 @@ export default function Checkout() {
         return;
       }
 
-      // Buscar dados do pagamento (acesso público via RPC ou política RLS relaxada)
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payment_transactions')
-        .select(`
-          id,
-          amount,
-          due_date,
-          status,
-          company_id,
-          payment_url,
-          pix_code,
-          barcode,
-          original_amount,
-          fine_amount,
-          interest_amount,
-          days_overdue,
-          cancellation_reason,
-          external_id,
-          clients!inner(name, email, phone, document),
-          companies!inner(name, logo_url)
-        `)
-        .eq('id', payment_id)
-        .single();
+      // Buscar dados do checkout via RPC pública segura (não expõe outras transações/clientes)
+      const { data: rpcData, error: paymentError } = await supabase
+        .rpc('get_checkout_payment', { p_payment_id: payment_id });
 
       if (paymentError) throw paymentError;
+
+      const paymentData = rpcData as any;
 
       if (!paymentData) {
         throw new Error('Pagamento não encontrado');
@@ -146,16 +128,12 @@ export default function Checkout() {
           barcode: paymentData.barcode
         });
         
-        // Gerar QR Code se tiver chave PIX
         if (paymentData.pix_code) {
           try {
             const qrDataUrl = await QRCode.toDataURL(paymentData.pix_code, {
               width: 300,
               margin: 2,
-              color: {
-                dark: '#000000',
-                light: '#FFFFFF'
-              }
+              color: { dark: '#000000', light: '#FFFFFF' }
             });
             setQrCodeDataUrl(qrDataUrl);
           } catch (err) {
@@ -166,13 +144,8 @@ export default function Checkout() {
       }
 
       if (paymentData.status === 'cancelled') {
-        // Verificar se foi cancelado por expiração (pode regenerar) ou manualmente (bloquear)
         const cancellationReason = paymentData.cancellation_reason;
         const hasExternalId = !!paymentData.external_id;
-        
-        // Pode regenerar se:
-        // 1. cancellation_reason é 'expired' OU
-        // 2. Tem external_id E cancellation_reason NÃO é 'manual'
         const canRegenerate = cancellationReason === 'expired' || 
                               (hasExternalId && cancellationReason !== 'manual');
         
@@ -181,7 +154,6 @@ export default function Checkout() {
         if (canRegenerate) {
           console.log('Payment expired or regenerable, allowing regeneration');
           setIsExpiredPayment(true);
-          // Continuar carregamento normal em vez de bloquear
         } else {
           console.log('Payment manually cancelled, blocking');
           setPaymentResult({ success: false, error: 'Pagamento cancelado' });
@@ -189,7 +161,6 @@ export default function Checkout() {
         }
       }
 
-      // Check if payment is overdue
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const dueDate = new Date(paymentData.due_date);
@@ -209,48 +180,26 @@ export default function Checkout() {
         days_overdue: daysOverdue,
         isOverdue,
         client: {
-          name: paymentData.clients.name,
-          email: paymentData.clients.email,
-          phone: paymentData.clients.phone,
-          document: paymentData.clients.document,
+          name: paymentData.client?.name,
+          email: paymentData.client?.email,
+          phone: paymentData.client?.phone,
+          document: paymentData.client?.document,
         },
         company: {
-          name: paymentData.companies.name,
-          logo_url: paymentData.companies.logo_url,
+          name: paymentData.company?.name,
+          logo_url: paymentData.company?.logo_url,
         }
       });
 
-      // Buscar métodos de pagamento disponíveis
-      const { data: methods, error: methodsError } = await supabase
-        .from('payment_gateway_methods')
-        .select('payment_method, gateway_type')
-        .eq('company_id', paymentData.company_id)
-        .eq('is_active', true);
+      // Métodos e regras vêm na mesma RPC
+      const methods = (paymentData.gateway_methods || []) as Array<{ payment_method: string; gateway_type: string }>;
+      const gatewayRules = (paymentData.gateway_rules || []) as any[];
 
-      if (methodsError) throw methodsError;
-
-      // Buscar regras de gateway baseadas no valor
-      const { data: gatewayRules, error: rulesError } = await supabase
-        .from('payment_gateway_rules')
-        .select('*')
-        .eq('company_id', paymentData.company_id)
-        .eq('is_active', true)
-        .lte('min_amount', paymentData.amount)
-        .order('priority', { ascending: true });
-
-      // Log de erro se houver problema na busca de regras
-      if (rulesError) {
-        console.error('Error fetching gateway rules:', rulesError);
-      }
-
-      // Filtrar regras que se aplicam ao valor (max_amount null ou >= amount)
-      const applicableRules = (gatewayRules || []).filter(rule => 
-        rule.max_amount === null || rule.max_amount >= paymentData.amount
-      );
+      // Filtrar regras que se aplicam ao valor (a RPC já filtra por min/max_amount)
+      const applicableRules = gatewayRules;
       
       const activeRule = applicableRules.length > 0 ? applicableRules[0] : null;
       
-      // Log detalhado das regras para debug
       console.log('=== GATEWAY RULES DEBUG ===');
       console.log('Payment amount:', paymentData.amount);
       console.log('All rules from DB:', gatewayRules);

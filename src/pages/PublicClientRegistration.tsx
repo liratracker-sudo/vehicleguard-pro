@@ -181,10 +181,8 @@ export default function PublicClientRegistration() {
 
   const loadCompanyInfo = async () => {
     const { data, error } = await supabase
-      .from('companies')
-      .select('id, name, logo_url, primary_color')
-      .eq('slug', company_slug)
-      .single()
+      .rpc('get_company_branding_by_slug', { p_slug: company_slug as string })
+      .maybeSingle()
 
     if (error || !data) {
       toast({
@@ -199,19 +197,15 @@ export default function PublicClientRegistration() {
 
     // Carregar vendedores ativos da empresa
     const { data: sellersData } = await supabase
-      .from('sellers')
-      .select('id, name, code')
-      .eq('company_id', data.id)
-      .eq('is_active', true)
+      .rpc('get_active_sellers_for_company', { p_company_id: data.id })
 
     if (sellersData) {
       setSellers(sellersData)
 
-      // Verificar se o parâmetro ref corresponde a um vendedor
       const ref = searchParams.get('ref')
       if (ref) {
         const matchedSeller = sellersData.find(
-          s => s.code.toLowerCase() === ref.toLowerCase()
+          (s: { code: string }) => s.code.toLowerCase() === ref.toLowerCase()
         )
         if (matchedSeller) {
           setDetectedSeller(matchedSeller)
