@@ -342,6 +342,31 @@ export function useBillingManagement() {
     }
   };
 
+  const confirmManualPix = async (
+    paymentId: string,
+    payload: { paid_at: string; amount: number; note?: string }
+  ) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-management', {
+        body: {
+          action: 'confirm_manual_pix',
+          payment_id: paymentId,
+          data: payload,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao confirmar PIX manual.');
+      toast({ title: 'Pagamento confirmado', description: 'Cobrança marcada como paga via PIX manual.' });
+      return true;
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     updatePaymentStatus,
@@ -353,6 +378,7 @@ export function useBillingManagement() {
     generateAutomaticCharges,
     protestPayment,
     undoProtest,
-    updateDueDate
+    updateDueDate,
+    confirmManualPix,
   };
 }
