@@ -67,6 +67,7 @@ export default function Checkout() {
   const [cpfError, setCpfError] = useState('');
   const [lateFees, setLateFees] = useState<LateFeeData | null>(null);
   const [isExpiredPayment, setIsExpiredPayment] = useState(false);
+  const [manualPix, setManualPix] = useState<any>(null);
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
     payment_url?: string;
@@ -264,6 +265,21 @@ export default function Checkout() {
       const available = Array.from(uniqueMethods.values());
 
       setAvailableMethods(available);
+
+      // Se não houver gateway ativo, tentar buscar config de PIX manual
+      if (available.length === 0) {
+        try {
+          const { data: pixData } = await supabase.rpc('get_manual_pix_checkout' as any, {
+            p_payment_id: payment_id,
+          });
+          if (pixData && (pixData as any).enabled) {
+            setManualPix(pixData);
+          }
+        } catch (err) {
+          console.warn('manual pix lookup failed', err);
+        }
+      }
+
 
     } catch (error) {
       console.error('Error loading payment:', error);
@@ -736,10 +752,78 @@ export default function Checkout() {
               <h3 className="font-semibold text-base">Escolha a forma de pagamento</h3>
               
               {availableMethods.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground text-sm">
-                  <p>Nenhum método de pagamento disponível no momento.</p>
-                  <p className="text-xs mt-1">Entre em contato com {payment.company.name}</p>
-                </div>
+                manualPix?.enabled ? (
+                  <div className="space-y-3 rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
+                    <div className="flex items-center gap-2">
+                      <QrCode className="h-5 w-5 text-primary" />
+                      <span className="font-semibold">Pagamento via PIX direto</span>
+                    </div>
+
+                    {/* Resumo do valor */}
+                    <div className="space-y-1 text-sm">
+                      {Number(manualPix.discount_applied) > 0 && !manualPix.is_overdue && (
+                        <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                          <span>Desconto até o vencimento:</span>
+                          <span>- R$ {Number(manualPix.discount_applied).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {Number(manualPix.surcharge_applied) > 0 && manualPix.is_overdue && (
+                        <div className="flex justify-between text-orange-700 dark:text-orange-400">
+                          <span>Acréscimo por atraso:</span>
+                          <span>+ R$ {Number(manualPix.surcharge_applied).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">Total a pagar:</span>
+                        <span className="text-2xl font-bold text-primary">
+                          R$ {Number(manualPix.amount_due).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Beneficiário</Label>
+                      <p className="text-sm font-medium">{manualPix.beneficiary_name}</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Chave PIX ({manualPix.pix_key_type})</Label>
+                      <div className="flex gap-2">
+                        <Input value={manualPix.pix_key} readOnly className="font-mono text-xs" />
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(manualPix.pix_key);
+                            toast({ title: 'Copiado!', description: 'Chave PIX copiada' });
+                          }}
+                        >
+                          Copiar
+                        </Button>
+                      </div>
+                    </div>
+
+                    {manualPix.instructions && (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs whitespace-pre-line">
+                          {manualPix.instructions}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <p className="text-xs text-muted-foreground text-center">
+                      Após o pagamento, envie o comprovante ao atendente de {payment.company.name}.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                    <p>Nenhum método de pagamento disponível no momento.</p>
+                    <p className="text-xs mt-1">Entre em contato com {payment.company.name}</p>
+                  </div>
+                )
               ) : (
                 <RadioGroup value={selectedMethod || ''} onValueChange={handleMethodChange}>
                   <div className="grid grid-cols-2 gap-2">

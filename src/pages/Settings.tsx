@@ -9,6 +9,7 @@ import { IntegrationsGrid } from "@/components/settings/IntegrationsGrid"
 import { BillingNotifications } from "@/components/settings/BillingNotifications"
 import { AICollectionSettings } from "@/components/settings/AICollectionSettings"
 import { LateFeeSettings } from "@/components/settings/LateFeeSettings"
+import { ManualPixSettings } from "@/components/settings/ManualPixSettings"
 import { WhatsAppDiagnostic } from "@/components/settings/WhatsAppDiagnostic"
 import { ApiKeysManagement } from "@/components/settings/ApiKeysManagement"
 import { ExpenseNotifications } from "@/components/settings/ExpenseNotifications"
@@ -60,6 +61,7 @@ const SettingsPage = () => {
             <TabsContent value="billing" className="space-y-6">
               <BillingNotifications />
               <LateFeeSettings />
+              <ManualPixSettings />
             </TabsContent>
 
             <TabsContent value="expenses" className="space-y-6">

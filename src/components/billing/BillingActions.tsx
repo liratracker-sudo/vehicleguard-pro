@@ -42,9 +42,11 @@ import {
   ExternalLink,
   Scale,
   Undo2,
-  CalendarDays
+  CalendarDays,
+  QrCode
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import { ConfirmManualPixDialog } from "@/components/billing/ConfirmManualPixDialog";
 import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
 import { useToast } from "@/hooks/use-toast";
@@ -75,6 +77,7 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   const { toast } = useToast();
   const [showProtestDialog, setShowProtestDialog] = useState(false);
   const [showUndoProtestDialog, setShowUndoProtestDialog] = useState(false);
+  const [showManualPixDialog, setShowManualPixDialog] = useState(false);
   const { 
     loading,
     updatePaymentStatus,
@@ -322,6 +325,25 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
           </Tooltip>
         )}
 
+        {/* Confirmar PIX manual */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900/30"
+                onClick={() => setShowManualPixDialog(true)}
+                disabled={loading}
+              >
+                <QrCode className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Confirmar PIX manual</TooltipContent>
+          </Tooltip>
+        )}
+
+
         {/* Reenviar notificação - apenas se pendente/vencido */}
         {payment.status !== 'paid' && payment.status !== 'cancelled' && (
           <Tooltip>
@@ -418,6 +440,14 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
         )}
 
         {/* Dialog de confirmação - Marcar como pago */}
+        <ConfirmManualPixDialog
+          open={showManualPixDialog}
+          onOpenChange={setShowManualPixDialog}
+          paymentId={payment.id}
+          defaultAmount={Number(payment.amount)}
+          onConfirmed={onUpdate}
+        />
+
         <AlertDialog open={showPaidDialog} onOpenChange={setShowPaidDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>

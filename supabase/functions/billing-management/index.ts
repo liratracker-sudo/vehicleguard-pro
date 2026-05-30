@@ -57,6 +57,52 @@ serve(async (req) => {
     console.log(`Billing management action: ${action} by user ${user.id}`);
 
     switch (action) {
+      case 'confirm_manual_pix': {
+        if (!payment_id) throw new Error('Payment ID is required');
+        const { paid_at, amount, note } = data || {};
+        if (!paid_at || !amount || amount <= 0) {
+          throw new Error('paid_at e amount são obrigatórios');
+        }
+
+        // Status lock: não regredir se já pago
+        const { data: current, error: curErr } = await supabase
+          .from('payment_transactions')
+          .select('id, status')
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId)
+          .single();
+        if (curErr || !current) throw new Error('Cobrança não encontrada');
+        if (current.status === 'paid') {
+          return new Response(
+            JSON.stringify({ success: true, message: 'Já estava paga', skipped: true }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const paidAtIso = new Date(`${paid_at}T12:00:00`).toISOString();
+        const { error } = await supabase
+          .from('payment_transactions')
+          .update({
+            status: 'paid',
+            paid_at: paidAtIso,
+            amount,
+            payment_gateway: 'manual_pix',
+            manual_pix_confirmed_at: new Date().toISOString(),
+            manual_pix_confirmed_by: user.id,
+            description: note ? note : undefined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId);
+        if (error) throw error;
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Manual PIX confirmed' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+
       case 'update_status': {
         const { status, paid_at } = data;
         
