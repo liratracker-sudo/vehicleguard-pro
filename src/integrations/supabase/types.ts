@@ -2098,6 +2098,54 @@ export type Database = {
           },
         ]
       }
+      manual_pix_settings: {
+        Row: {
+          beneficiary_name: string
+          company_id: string
+          created_at: string
+          discount_type: string
+          discount_value: number
+          id: string
+          instructions: string | null
+          is_active: boolean
+          pix_key: string
+          pix_key_type: string
+          surcharge_type: string
+          surcharge_value: number
+          updated_at: string
+        }
+        Insert: {
+          beneficiary_name: string
+          company_id: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          pix_key: string
+          pix_key_type: string
+          surcharge_type?: string
+          surcharge_value?: number
+          updated_at?: string
+        }
+        Update: {
+          beneficiary_name?: string
+          company_id?: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          pix_key?: string
+          pix_key_type?: string
+          surcharge_type?: string
+          surcharge_value?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mercadopago_logs: {
         Row: {
           company_id: string
@@ -2500,6 +2548,9 @@ export type Database = {
           id: string
           interest_amount: number | null
           invoice_id: string | null
+          manual_pix_confirmed_at: string | null
+          manual_pix_confirmed_by: string | null
+          manual_pix_proof_url: string | null
           original_amount: number | null
           paid_at: string | null
           payment_gateway: string | null
@@ -2529,6 +2580,9 @@ export type Database = {
           id?: string
           interest_amount?: number | null
           invoice_id?: string | null
+          manual_pix_confirmed_at?: string | null
+          manual_pix_confirmed_by?: string | null
+          manual_pix_proof_url?: string | null
           original_amount?: number | null
           paid_at?: string | null
           payment_gateway?: string | null
@@ -2558,6 +2612,9 @@ export type Database = {
           id?: string
           interest_amount?: number | null
           invoice_id?: string | null
+          manual_pix_confirmed_at?: string | null
+          manual_pix_confirmed_by?: string | null
+          manual_pix_proof_url?: string | null
           original_amount?: number | null
           paid_at?: string | null
           payment_gateway?: string | null
@@ -3394,6 +3451,7 @@ export type Database = {
           primary_color: string
         }[]
       }
+      get_manual_pix_checkout: { Args: { p_payment_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
