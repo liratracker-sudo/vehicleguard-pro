@@ -67,6 +67,7 @@ export default function Checkout() {
   const [cpfError, setCpfError] = useState('');
   const [lateFees, setLateFees] = useState<LateFeeData | null>(null);
   const [isExpiredPayment, setIsExpiredPayment] = useState(false);
+  const [manualPix, setManualPix] = useState<any>(null);
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
     payment_url?: string;
@@ -264,6 +265,21 @@ export default function Checkout() {
       const available = Array.from(uniqueMethods.values());
 
       setAvailableMethods(available);
+
+      // Se não houver gateway ativo, tentar buscar config de PIX manual
+      if (available.length === 0) {
+        try {
+          const { data: pixData } = await supabase.rpc('get_manual_pix_checkout' as any, {
+            p_payment_id: payment_id,
+          });
+          if (pixData && (pixData as any).enabled) {
+            setManualPix(pixData);
+          }
+        } catch (err) {
+          console.warn('manual pix lookup failed', err);
+        }
+      }
+
 
     } catch (error) {
       console.error('Error loading payment:', error);
