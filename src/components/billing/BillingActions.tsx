@@ -440,6 +440,14 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
         )}
 
         {/* Dialog de confirmação - Marcar como pago */}
+        <ConfirmManualPixDialog
+          open={showManualPixDialog}
+          onOpenChange={setShowManualPixDialog}
+          paymentId={payment.id}
+          defaultAmount={Number(payment.amount)}
+          onConfirmed={onUpdate}
+        />
+
         <AlertDialog open={showPaidDialog} onOpenChange={setShowPaidDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
