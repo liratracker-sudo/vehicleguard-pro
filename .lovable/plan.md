@@ -1,87 +1,74 @@
-## Objetivo
 
-Permitir cobrar via **chave PIX direta** (sem API/gateway) com:
-- Chave PIX única por empresa
-- Valor com **desconto** se pago até o vencimento
-- Valor com **acréscimo** se pago depois
-- Confirmação manual pelo admin
-- Exibida no checkout público apenas quando nenhum gateway estiver ativo
+## Por que o Supabase está reclamando
 
-## 1. Banco de dados (migration)
+O aviso "exhausting multiple resources" é causado por **alto volume de queries repetitivas** sem índice ideal. As 5 piores responsáveis pelo gasto de CPU/IO são:
 
-Nova tabela `manual_pix_settings`:
-- `company_id` (unique)
-- `is_active` (bool)
-- `pix_key`, `pix_key_type` (cpf/cnpj/email/phone/aleatoria)
-- `beneficiary_name`
-- `discount_type` ('percentage' | 'fixed'), `discount_value` (numérico)
-- `surcharge_type` ('percentage' | 'fixed'), `surcharge_value`
-- `instructions` (texto opcional exibido ao cliente)
-- RLS: membros da empresa gerenciam; leitura pública apenas via RPC (não direta)
-- GRANTs padrão (authenticated CRUD, service_role ALL)
+| # | Query (tabela) | Chamadas | Tempo total | Causa |
+|---|---|---|---|---|
+| 1 | UPDATE `whatsapp_sessions` por (company_id, instance_name) | 24.905 | **940s** | Polling do QR/Evolution salvando estado a cada poucos segundos |
+| 2 | UPDATE `contracts` por `assinafy_document_id` | 27.598 | 242s | Webhook Assinafy — falta índice nessa coluna |
+| 3 | SELECT `payment_notifications` por (payment_id, status) | 100.837 | 184s | Cron de notificações lê várias vezes por pagamento |
+| 4 | SELECT `whatsapp_settings` por `instance_name` | 32.658 | 91s | Webhook Evolution resolvendo empresa por instância |
+| 5 | SELECT `scheduled_reminders` por (status, scheduled_for) | 93.492 | 55s | Cron de lembretes roda muito frequente |
 
-Em `payment_transactions`, adicionar:
-- `manual_pix_confirmed_at` (timestamp)
-- `manual_pix_confirmed_by` (uuid, profile do admin)
-- `manual_pix_proof_url` (text, opcional para futuro)
+## Plano de ação (2 frentes)
 
-Atualizar `payment_gateway` para aceitar valor `'manual_pix'`.
+### 1) Migration: índices que matam ~70% do custo
 
-## 2. RPC pública
+```sql
+-- 1. whatsapp_sessions: UPDATE filtra por (company_id, instance_name)
+CREATE INDEX IF NOT EXISTS idx_whatsapp_sessions_company_instance
+  ON public.whatsapp_sessions (company_id, instance_name);
 
-`get_manual_pix_checkout(p_transaction_id uuid)` — SECURITY DEFINER:
-- Retorna `{ enabled, pix_key, pix_key_type, beneficiary_name, instructions, amount_due, original_amount, discount_applied, surcharge_applied, is_overdue, due_date }`
-- Calcula valor final baseado em `due_date` vs hoje (timezone BR) e config da empresa
-- Só retorna `enabled=true` se a empresa **não tiver nenhum gateway ativo** (mercadopago/asaas/inter/gerencianet)
+-- 2. contracts: webhook Assinafy busca por assinafy_document_id
+CREATE INDEX IF NOT EXISTS idx_contracts_assinafy_document_id
+  ON public.contracts (assinafy_document_id)
+  WHERE assinafy_document_id IS NOT NULL;
 
-## 3. Configurações (Settings)
+-- 3. payment_notifications: várias queries por payment_id + status/event_type
+CREATE INDEX IF NOT EXISTS idx_payment_notifications_payment_status
+  ON public.payment_notifications (payment_id, status);
+CREATE INDEX IF NOT EXISTS idx_payment_notifications_payment_event_status_sent
+  ON public.payment_notifications (payment_id, event_type, status, sent_at DESC);
 
-Nova aba/card **"PIX Manual"** em `src/components/settings/`:
-- Toggle ativar
-- Tipo + chave PIX
-- Nome do beneficiário
-- Desconto (%/R$) e acréscimo (%/R$)
-- Instruções
-- Hook `useManualPixSettings`
+-- 4. whatsapp_settings: webhook resolve empresa por instance_name
+CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_instance_active
+  ON public.whatsapp_settings (instance_name)
+  WHERE is_active = true;
 
-## 4. Checkout público
+-- 5. scheduled_reminders: cron lê pendentes prontos para envio
+CREATE INDEX IF NOT EXISTS idx_scheduled_reminders_status_scheduled
+  ON public.scheduled_reminders (status, scheduled_for)
+  WHERE status = 'pending';
 
-Em `src/pages/Checkout.tsx`:
-- Chamar RPC `get_manual_pix_checkout` quando `availableGateways` estiver vazio
-- Renderizar card com: chave (botão copiar), nome do beneficiário, valor exibido (com badge "desconto até DD/MM" ou "valor atualizado"), instruções
-- Aviso: "Após o pagamento, envie o comprovante ao atendente."
+-- 6. clients: lookup por telefone no webhook WhatsApp
+CREATE INDEX IF NOT EXISTS idx_clients_company_phone
+  ON public.clients (company_id, phone);
 
-## 5. Painel admin
+-- 7. payment_transactions: dashboard lista por company+status+due_date
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_company_status_due
+  ON public.payment_transactions (company_id, status, due_date);
+```
 
-Em `src/pages/Billing.tsx` / `BillingActions.tsx`:
-- Novo botão **"Confirmar PIX manual"** quando `status='pending'|'overdue'` e empresa tem manual PIX habilitado
-- Dialog: data do pagamento + valor recebido (pré-preenchido com valor calculado) + observação opcional
-- Ao confirmar: edge function `billing-management` recebe nova action `confirm_manual_pix` → grava `paid_at`, `amount` (valor efetivo), `payment_gateway='manual_pix'`, campos de auditoria, e respeita o **Status Lock** (não regredir 'paid')
+Tradeoff: leituras dessas queries caem de seq/bitmap scan para index scan (10–100x mais rápido); writes ficam marginalmente mais lentos (~5%) e ocupa ~poucos MB. Vale muito.
 
-## 6. Relatórios financeiros
+### 2) Reduzir frequência de polling (sem perder funcionalidade)
 
-`useFinancialData.ts` e `GatewayBreakdownCard`:
-- Incluir `'manual_pix'` na lista de gateways exibidos (rótulo "PIX Manual")
+A query #1 (whatsapp_sessions UPDATE) chama 24 mil vezes — isso é polling do status WhatsApp. Vou:
 
-## 7. Arquivos
+- Aumentar intervalo de polling do `WhatsAppStatus` / `useWhatsAppSession` de ~5–10s para 30s quando o status já está `connected`, mantendo 5s só durante a fase de QR code.
+- No cron de `scheduled_reminders` (#5), trocar leitura "todos pendentes" por leitura paginada (LIMIT 200) já filtrada por `scheduled_for <= now()`, evitando varrer a tabela inteira quando há fila grande.
+- No webhook do MercadoPago/Assinafy, dedupe por evento já processado para evitar UPDATEs repetidos do mesmo documento (a query #2 fica em ~1/10).
 
-**Criar:**
-- `supabase/migrations/<timestamp>_manual_pix.sql`
-- `src/hooks/useManualPixSettings.ts`
-- `src/components/settings/ManualPixSettings.tsx`
-- `src/components/billing/ConfirmManualPixDialog.tsx`
+Não vou mexer em nenhuma regra de negócio nem em UI; só intervalos de polling e o ORDER/LIMIT das leituras.
 
-**Editar:**
-- `src/pages/Settings.tsx` (registrar nova aba/card)
-- `src/pages/Checkout.tsx` (renderizar bloco PIX manual quando aplicável)
-- `src/components/billing/BillingActions.tsx` (novo botão)
-- `supabase/functions/billing-management/index.ts` (action `confirm_manual_pix`)
-- `src/hooks/useBillingManagement.ts` (método `confirmManualPix`)
-- `src/hooks/useFinancialData.ts` (label gateway)
+## Validação
 
-## Fora de escopo (nesta entrega)
+Depois das mudanças, rodo `EXPLAIN ANALYZE` nas 3 queries piores para confirmar uso de index, e em 24h o banner do Supabase deve sumir conforme o `pg_stat_statements` reseta.
 
-- Upload de comprovante pelo cliente
-- Múltiplas chaves PIX
-- Override por contrato
-- Webhook/conciliação automática
+## O que não está incluído
+
+- Não vou apagar logs antigos (`whatsapp_logs`, `ai_collection_logs`) nesta etapa. Se quiser, posso adicionar depois um cron de retenção (ex.: manter só 30 dias) — me avise.
+- Não mexo no plano do Supabase — isso é decisão sua.
+
+Posso seguir?
