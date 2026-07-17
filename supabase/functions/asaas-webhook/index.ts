@@ -195,15 +195,9 @@ serve(async (req) => {
 
       console.log(`Updated payment ${transaction.id} status from ${transaction.status} to ${newStatus}`);
 
-      // If payment was confirmed, check if company should be unblocked
-      if (newStatus === 'paid') {
-        await handlePaymentConfirmation(transaction);
-      }
-      
-      // If payment is overdue, check if company should be blocked
-      if (newStatus === 'overdue') {
-        await handlePaymentOverdue(transaction);
-      }
+      // NOTE: Company activation/deactivation intentionally NOT performed here.
+      // payment_transactions holds end-client charges (multi-tenant), not SaaS subscription state.
+      // Toggling companies.is_active from here caused false deactivations.
     }
 
     // Log webhook event
