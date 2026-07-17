@@ -195,15 +195,9 @@ serve(async (req) => {
 
       console.log(`Updated payment ${transaction.id} status from ${transaction.status} to ${newStatus}`);
 
-      // If payment was confirmed, check if company should be unblocked
-      if (newStatus === 'paid') {
-        await handlePaymentConfirmation(transaction);
-      }
-      
-      // If payment is overdue, check if company should be blocked
-      if (newStatus === 'overdue') {
-        await handlePaymentOverdue(transaction);
-      }
+      // NOTE: Company activation/deactivation intentionally NOT performed here.
+      // payment_transactions holds end-client charges (multi-tenant), not SaaS subscription state.
+      // Toggling companies.is_active from here caused false deactivations.
     }
 
     // Log webhook event
@@ -260,57 +254,3 @@ serve(async (req) => {
     );
   }
 });
-
-async function handlePaymentConfirmation(transaction: any) {
-  try {
-    // Check if this clears all overdue payments for the company
-    const { data: overduePayments } = await supabase
-      .from('payment_transactions')
-      .select('id')
-      .eq('company_id', transaction.company_id)
-      .eq('status', 'overdue');
-
-    if (!overduePayments || overduePayments.length === 0) {
-      // No overdue payments, ensure company is active
-      await supabase
-        .from('companies')
-        .update({ is_active: true })
-        .eq('id', transaction.company_id);
-
-      console.log(`Company ${transaction.company_id} reactivated - all payments up to date`);
-    }
-  } catch (error) {
-    console.error('Error handling payment confirmation:', error);
-  }
-}
-
-async function handlePaymentOverdue(transaction: any) {
-  try {
-    // Check company's payment history and overdue policy
-    const { data: overduePayments } = await supabase
-      .from('payment_transactions')
-      .select('*')
-      .eq('company_id', transaction.company_id)
-      .eq('status', 'overdue')
-      .order('due_date', { ascending: true });
-
-    if (overduePayments && overduePayments.length > 0) {
-      const oldestOverdue = overduePayments[0];
-      const daysSinceOverdue = Math.floor(
-        (Date.now() - new Date(oldestOverdue.due_date).getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // Block company if overdue for more than 15 days
-      if (daysSinceOverdue > 15) {
-        await supabase
-          .from('companies')
-          .update({ is_active: false })
-          .eq('id', transaction.company_id);
-
-        console.log(`Company ${transaction.company_id} blocked - overdue for ${daysSinceOverdue} days`);
-      }
-    }
-  } catch (error) {
-    console.error('Error handling payment overdue:', error);
-  }
-}

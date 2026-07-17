@@ -1,74 +1,44 @@
+# Fix: empresa sendo desativada automaticamente sem ação do usuário
 
-## Por que o Supabase está reclamando
+## Causa raiz (confirmada nos logs)
 
-O aviso "exhausting multiple resources" é causado por **alto volume de queries repetitivas** sem índice ideal. As 5 piores responsáveis pelo gasto de CPU/IO são:
+O webhook `supabase/functions/asaas-webhook/index.ts` foi escrito assumindo que **todo pagamento no Asaas é uma mensalidade do SaaS** (assinatura da empresa na plataforma). Mas na sua aplicação o mesmo webhook/tabela `payment_transactions` recebe também **as cobranças que a empresa (LIRA TRACKER) emite para os clientes finais dela** via Asaas.
 
-| # | Query (tabela) | Chamadas | Tempo total | Causa |
-|---|---|---|---|---|
-| 1 | UPDATE `whatsapp_sessions` por (company_id, instance_name) | 24.905 | **940s** | Polling do QR/Evolution salvando estado a cada poucos segundos |
-| 2 | UPDATE `contracts` por `assinafy_document_id` | 27.598 | 242s | Webhook Assinafy — falta índice nessa coluna |
-| 3 | SELECT `payment_notifications` por (payment_id, status) | 100.837 | 184s | Cron de notificações lê várias vezes por pagamento |
-| 4 | SELECT `whatsapp_settings` por `instance_name` | 32.658 | 91s | Webhook Evolution resolvendo empresa por instância |
-| 5 | SELECT `scheduled_reminders` por (status, scheduled_for) | 93.492 | 55s | Cron de lembretes roda muito frequente |
+Fluxo do bug:
+1. Um cliente final da LIRA TRACKER fica com boleto Asaas vencido há +15 dias.
+2. Asaas dispara `PAYMENT_OVERDUE` no webhook.
+3. `handlePaymentOverdue()` faz `SELECT ... FROM payment_transactions WHERE company_id = <LIRA> AND status='overdue' ORDER BY due_date ASC` — pega o mais antigo (que é do cliente final).
+4. Como esse pagamento passou de 15 dias vencido, executa `UPDATE companies SET is_active=false WHERE id=<LIRA>`.
 
-## Plano de ação (2 frentes)
+Ou seja: **qualquer cliente final inadimplente há +15 dias derruba a empresa toda.**
 
-### 1) Migration: índices que matam ~70% do custo
+Os logs confirmam eventos `PAYMENT_OVERDUE` recorrentes chegando (07/16, etc.), e não há nenhuma entrada em `audit_logs` para a mudança em `companies` — bate exatamente com o `UPDATE` sendo feito pelo service_role dentro do webhook (sem trigger de auditoria em `companies`).
 
-```sql
--- 1. whatsapp_sessions: UPDATE filtra por (company_id, instance_name)
-CREATE INDEX IF NOT EXISTS idx_whatsapp_sessions_company_instance
-  ON public.whatsapp_sessions (company_id, instance_name);
+`handlePaymentConfirmation()` sofre do mesmo problema no sentido oposto: ao receber `PAYMENT_RECEIVED` de qualquer cliente final, reativa a empresa. Isso mascarou o problema em alguns momentos, mas o ciclo desativa/reativa continua.
 
--- 2. contracts: webhook Assinafy busca por assinafy_document_id
-CREATE INDEX IF NOT EXISTS idx_contracts_assinafy_document_id
-  ON public.contracts (assinafy_document_id)
-  WHERE assinafy_document_id IS NOT NULL;
+## Correção
 
--- 3. payment_notifications: várias queries por payment_id + status/event_type
-CREATE INDEX IF NOT EXISTS idx_payment_notifications_payment_status
-  ON public.payment_notifications (payment_id, status);
-CREATE INDEX IF NOT EXISTS idx_payment_notifications_payment_event_status_sent
-  ON public.payment_notifications (payment_id, event_type, status, sent_at DESC);
+Remover a lógica de ativar/desativar empresa a partir do webhook Asaas de cobranças de clientes finais. O gate de assinatura do SaaS não deve depender de `payment_transactions` (que é multi-uso). A ativação/bloqueio por inadimplência da assinatura, se existir, precisa vir de uma fonte dedicada (`company_subscriptions` / `invoices`) — não deste webhook.
 
--- 4. whatsapp_settings: webhook resolve empresa por instance_name
-CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_instance_active
-  ON public.whatsapp_settings (instance_name)
-  WHERE is_active = true;
+### Alterações em `supabase/functions/asaas-webhook/index.ts`
 
--- 5. scheduled_reminders: cron lê pendentes prontos para envio
-CREATE INDEX IF NOT EXISTS idx_scheduled_reminders_status_scheduled
-  ON public.scheduled_reminders (status, scheduled_for)
-  WHERE status = 'pending';
+1. **Remover a chamada** a `handlePaymentOverdue(transaction)` no bloco de mudança para `overdue`.
+2. **Remover a chamada** a `handlePaymentConfirmation(transaction)` no bloco de `paid`.
+3. **Remover as funções** `handlePaymentOverdue` e `handlePaymentConfirmation` (não usadas em mais nenhum lugar).
+4. Manter todo o resto (atualização de status da transação, logs, status lock de pagos, etc.).
 
--- 6. clients: lookup por telefone no webhook WhatsApp
-CREATE INDEX IF NOT EXISTS idx_clients_company_phone
-  ON public.clients (company_id, phone);
+### Reativar a empresa agora
 
--- 7. payment_transactions: dashboard lista por company+status+due_date
-CREATE INDEX IF NOT EXISTS idx_payment_transactions_company_status_due
-  ON public.payment_transactions (company_id, status, due_date);
-```
+`UPDATE companies SET is_active = true, updated_at = now() WHERE id = '3f86782c-a67f-498c-8913-d001dcba7dcf' AND is_active = false;` — só executa se estiver desativada no momento do fix (pelos dados atuais está `true`, então essa etapa vira no-op segura).
 
-Tradeoff: leituras dessas queries caem de seq/bitmap scan para index scan (10–100x mais rápido); writes ficam marginalmente mais lentos (~5%) e ocupa ~poucos MB. Vale muito.
+## O que NÃO muda
 
-### 2) Reduzir frequência de polling (sem perder funcionalidade)
+- Nenhuma outra edge function.
+- Nenhuma tabela / RLS.
+- Frontend intocado.
+- Regras de status lock de pagamento continuam iguais.
 
-A query #1 (whatsapp_sessions UPDATE) chama 24 mil vezes — isso é polling do status WhatsApp. Vou:
+## Efeito
 
-- Aumentar intervalo de polling do `WhatsAppStatus` / `useWhatsAppSession` de ~5–10s para 30s quando o status já está `connected`, mantendo 5s só durante a fase de QR code.
-- No cron de `scheduled_reminders` (#5), trocar leitura "todos pendentes" por leitura paginada (LIMIT 200) já filtrada por `scheduled_for <= now()`, evitando varrer a tabela inteira quando há fila grande.
-- No webhook do MercadoPago/Assinafy, dedupe por evento já processado para evitar UPDATEs repetidos do mesmo documento (a query #2 fica em ~1/10).
-
-Não vou mexer em nenhuma regra de negócio nem em UI; só intervalos de polling e o ORDER/LIMIT das leituras.
-
-## Validação
-
-Depois das mudanças, rodo `EXPLAIN ANALYZE` nas 3 queries piores para confirmar uso de index, e em 24h o banner do Supabase deve sumir conforme o `pg_stat_statements` reseta.
-
-## O que não está incluído
-
-- Não vou apagar logs antigos (`whatsapp_logs`, `ai_collection_logs`) nesta etapa. Se quiser, posso adicionar depois um cron de retenção (ex.: manter só 30 dias) — me avise.
-- Não mexo no plano do Supabase — isso é decisão sua.
-
-Posso seguir?
+- A partir do deploy, nenhum `PAYMENT_OVERDUE` do Asaas vai mais desativar a empresa.
+- Se futuramente você quiser um bloqueio automático por inadimplência **da assinatura do SaaS**, criamos um fluxo separado ligado a `company_subscriptions` — posso planejar isso depois se você pedir.
