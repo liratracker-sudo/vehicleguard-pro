@@ -453,6 +453,12 @@ const VehiclesPage = () => {
           </CardContent>
         </Card>
       </div>
+      <TransferVehicleDialog
+        open={!!transferVehicle}
+        onOpenChange={(o) => { if (!o) setTransferVehicle(null) }}
+        vehicle={transferVehicle}
+        onSuccess={loadVehicles}
+      />
     </AppLayout>
   )
 }
