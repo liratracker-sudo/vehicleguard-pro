@@ -379,6 +379,10 @@ const VehiclesPage = () => {
                                 <Edit className="mr-2 h-4 w-4" />
                                 Editar
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setTransferVehicle(vehicle)}>
+                                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                Transferir
+                              </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => handleDelete(vehicle.id)}
                                 className="text-destructive"
