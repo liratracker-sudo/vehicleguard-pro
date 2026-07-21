@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Car, MapPin, Shield, Search, Filter, MoreHorizontal, Edit, Trash, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Car, MapPin, Shield, Search, Filter, MoreHorizontal, Edit, Trash, X, ChevronLeft, ChevronRight, ArrowRightLeft } from "lucide-react"
+import { TransferVehicleDialog } from "@/components/vehicles/TransferVehicleDialog"
 import {
   Table,
   TableBody,
