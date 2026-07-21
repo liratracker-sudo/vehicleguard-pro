@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Car, MapPin, Shield, Search, Filter, MoreHorizontal, Edit, Trash, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Car, MapPin, Shield, Search, Filter, MoreHorizontal, Edit, Trash, X, ChevronLeft, ChevronRight, ArrowRightLeft } from "lucide-react"
+import { TransferVehicleDialog } from "@/components/vehicles/TransferVehicleDialog"
 import {
   Table,
   TableBody,
@@ -48,6 +49,7 @@ const VehiclesPage = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<string | null>(null)
+  const [transferVehicle, setTransferVehicle] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
@@ -377,6 +379,10 @@ const VehiclesPage = () => {
                                 <Edit className="mr-2 h-4 w-4" />
                                 Editar
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setTransferVehicle(vehicle)}>
+                                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                Transferir
+                              </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => handleDelete(vehicle.id)}
                                 className="text-destructive"
@@ -447,6 +453,12 @@ const VehiclesPage = () => {
           </CardContent>
         </Card>
       </div>
+      <TransferVehicleDialog
+        open={!!transferVehicle}
+        onOpenChange={(o) => { if (!o) setTransferVehicle(null) }}
+        vehicle={transferVehicle}
+        onSuccess={loadVehicles}
+      />
     </AppLayout>
   )
 }
