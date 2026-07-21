@@ -49,6 +49,7 @@ const VehiclesPage = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<string | null>(null)
+  const [transferVehicle, setTransferVehicle] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
