@@ -112,7 +112,7 @@ export function useDashboardStats() {
           .lt("paid_at", lastMonthEnd.toISOString()),
         supabase
           .from("payment_transactions")
-          .select("amount")
+          .select("amount, client_id")
           .eq("company_id", companyId!)
           .eq("status", "overdue")
           .is("protested_at", null),
@@ -148,9 +148,11 @@ export function useDashboardStats() {
       const lastMonthRevenue = lastMonthRevenueResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const overdueAmount = overdueResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const overdueCount = overdueResult.data?.length || 0;
+      const overdueClientIds = new Set((overdueResult.data || []).map((p: any) => p.client_id));
+      const overdueClientsCount = overdueClientIds.size;
       const upcomingCount = upcomingResult.count || 0;
       const totalPayments = totalPaymentsResult.count || 0;
-      const defaultRate = totalPayments > 0 ? (overdueCount / totalPayments) * 100 : 0;
+      const defaultRate = activeClients > 0 ? (overdueClientsCount / activeClients) * 100 : 0;
       const receivableThisMonth = receivableThisMonthResult.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const receivableThisMonthCount = receivableThisMonthResult.data?.length || 0;
 
