@@ -112,7 +112,7 @@ export function useDashboardStats() {
           .lt("paid_at", lastMonthEnd.toISOString()),
         supabase
           .from("payment_transactions")
-          .select("amount")
+          .select("amount, client_id")
           .eq("company_id", companyId!)
           .eq("status", "overdue")
           .is("protested_at", null),
