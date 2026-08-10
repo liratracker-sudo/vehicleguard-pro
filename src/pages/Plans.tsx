@@ -49,6 +49,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { usePlans, Plan } from "@/hooks/usePlans"
 import { useToast } from "@/hooks/use-toast"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 const PlansPage = () => {
   const { plans, loading, contractCounts, createPlan, updatePlan, deletePlan, deactivatePlan } = usePlans()
@@ -249,6 +250,7 @@ const PlansPage = () => {
                     id="price"
                     name="price"
                     type="number"
+                    onWheel={preventWheelChange}
                     step="0.01"
                     min="0"
                     value={formData.price}
@@ -369,6 +371,7 @@ const PlansPage = () => {
                     id="edit-price"
                     name="price"
                     type="number"
+                    onWheel={preventWheelChange}
                     step="0.01"
                     min="0"
                     value={formData.price}

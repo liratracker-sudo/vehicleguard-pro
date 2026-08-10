@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface CompanyLimitsDialogProps {
   open: boolean
@@ -113,6 +114,7 @@ export function CompanyLimitsDialog({
             <Input
               id="max_vehicles"
               type="number"
+                    onWheel={preventWheelChange}
               value={formData.max_vehicles}
               onChange={(e) => setFormData(prev => ({ 
                 ...prev, 
@@ -127,6 +129,7 @@ export function CompanyLimitsDialog({
             <Input
               id="max_users"
               type="number"
+                    onWheel={preventWheelChange}
               value={formData.max_users}
               onChange={(e) => setFormData(prev => ({ 
                 ...prev, 
@@ -141,6 +144,7 @@ export function CompanyLimitsDialog({
             <Input
               id="max_messages_per_month"
               type="number"
+                    onWheel={preventWheelChange}
               value={formData.max_messages_per_month}
               onChange={(e) => setFormData(prev => ({ 
                 ...prev, 
@@ -155,6 +159,7 @@ export function CompanyLimitsDialog({
             <Input
               id="max_api_calls_per_day"
               type="number"
+                    onWheel={preventWheelChange}
               value={formData.max_api_calls_per_day}
               onChange={(e) => setFormData(prev => ({ 
                 ...prev, 
@@ -169,6 +174,7 @@ export function CompanyLimitsDialog({
             <Input
               id="max_storage_mb"
               type="number"
+                    onWheel={preventWheelChange}
               value={formData.max_storage_mb}
               onChange={(e) => setFormData(prev => ({ 
                 ...prev, 

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Percent, DollarSign, AlertTriangle } from "lucide-react";
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface LateFeeSettingsData {
   id?: string;
@@ -216,6 +217,7 @@ export function LateFeeSettings() {
                 </Label>
                 <Input
                   type="number"
+                    onWheel={preventWheelChange}
                   step={settings.fine_type === 'PERCENTAGE' ? '0.01' : '0.01'}
                   value={settings.fine_value}
                   onChange={(e) => setSettings({ ...settings, fine_value: parseFloat(e.target.value) || 0 })}
@@ -275,6 +277,7 @@ export function LateFeeSettings() {
                 </Label>
                 <Input
                   type="number"
+                    onWheel={preventWheelChange}
                   step="0.001"
                   value={settings.interest_value}
                   onChange={(e) => setSettings({ ...settings, interest_value: parseFloat(e.target.value) || 0 })}
@@ -293,6 +296,7 @@ export function LateFeeSettings() {
           </p>
           <Input
             type="number"
+                    onWheel={preventWheelChange}
             min="0"
             value={settings.grace_days}
             onChange={(e) => setSettings({ ...settings, grace_days: parseInt(e.target.value) || 0 })}

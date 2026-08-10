@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Handshake, Calculator } from "lucide-react"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface NegotiationDialogProps {
   open: boolean
@@ -171,6 +172,7 @@ export function NegotiationDialog({
                 <Input
                   id="discount"
                   type="number"
+                    onWheel={preventWheelChange}
                   min={0}
                   max={100}
                   value={discountPercent}
@@ -184,6 +186,7 @@ export function NegotiationDialog({
                 <Input
                   id="installments"
                   type="number"
+                    onWheel={preventWheelChange}
                   min={1}
                   max={24}
                   value={installments}

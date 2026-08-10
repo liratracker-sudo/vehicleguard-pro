@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useContractTemplates } from "@/hooks/useContractTemplates"
 import { ContractPreview } from "./ContractPreview"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface ContractFormProps {
   onSuccess?: () => void
@@ -857,10 +858,17 @@ Contratada`
                   <Input
                     id="monthly_value"
                     type="number"
+                    onWheel={preventWheelChange}
                     step="0.01"
                     min="0"
                     value={formData.monthly_value || ''}
                     onChange={(e) => setFormData({...formData, monthly_value: parseFloat(e.target.value) || 0})}
+                    onBlur={(e) => {
+                      const rounded = Math.round((parseFloat(e.target.value) || 0) * 100) / 100
+                      if (rounded !== formData.monthly_value) {
+                        setFormData({...formData, monthly_value: rounded})
+                      }
+                    }}
                     className={errors.monthly_value ? "border-destructive" : ""}
                     required
                   />
@@ -869,6 +877,13 @@ Contratada`
                       Sugerido: R$ {suggestedValue.toFixed(2)} ({vehicleCount} veículo(s) × R$ {selectedPlan.price.toFixed(2)})
                     </p>
                   )}
+                  {selectedPlan && formData.vehicle_ids.length > 0 && formData.monthly_value > 0 &&
+                    Math.abs(formData.monthly_value - suggestedValue) > 0.001 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Atenção: valor digitado difere do sugerido em R$ {Math.abs(formData.monthly_value - suggestedValue).toFixed(2)}. Confirme se está correto antes de salvar.
+                    </p>
+                  )}
+
                   {errors.monthly_value && (
                     <p className="text-sm text-destructive mt-1">{errors.monthly_value}</p>
                   )}

@@ -18,6 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns"
 import { CalendarIcon, Filter as FilterIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 export interface BillingFiltersState {
   search: string;
@@ -184,6 +185,7 @@ export function BillingFilters({
             <Input
               id="amountMin"
               type="number"
+                    onWheel={preventWheelChange}
               placeholder="0,00"
               value={filters.amountMin}
               onChange={(e) => updateFilter('amountMin', e.target.value)}
@@ -195,6 +197,7 @@ export function BillingFilters({
             <Input
               id="amountMax"
               type="number"
+                    onWheel={preventWheelChange}
               placeholder="999999,99"
               value={filters.amountMax}
               onChange={(e) => updateFilter('amountMax', e.target.value)}

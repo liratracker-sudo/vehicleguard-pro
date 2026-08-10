@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toISODateBR } from "@/lib/timezone";
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface ExpenseFormProps {
   open: boolean;
@@ -132,6 +133,7 @@ export function ExpenseForm({ open, onOpenChange, expense }: ExpenseFormProps) {
                     <FormControl>
                       <Input
                         type="number"
+                    onWheel={preventWheelChange}
                         step="0.01"
                         placeholder="0.00"
                         {...field}

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Plus, Edit2, Trash2, Copy, Check, QrCode, UserPlus, Link2, Users } from "lucide-react"
 import QRCode from "qrcode"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface Seller {
   id: string
@@ -516,6 +517,7 @@ export default function SellersPage() {
               <Label>Comissão (%)</Label>
               <Input
                 type="number"
+                    onWheel={preventWheelChange}
                 min="0"
                 max="100"
                 step="0.5"

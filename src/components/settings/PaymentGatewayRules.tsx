@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { usePaymentGatewayRules, CreateRuleData } from "@/hooks/usePaymentGatewayRules";
 import { Plus, Pencil, Trash2, Filter, Loader2 } from "lucide-react";
+import { preventWheelChange } from "@/lib/no-wheel";
 
 const GATEWAYS = [
   { id: 'asaas', name: 'Asaas' },
@@ -96,6 +97,7 @@ function RuleForm({ initialData, onSubmit, onCancel, loading }: RuleFormProps) {
           <Input
             id="min_amount"
             type="number"
+                    onWheel={preventWheelChange}
             step="0.01"
             min="0"
             value={formData.min_amount}
@@ -107,6 +109,7 @@ function RuleForm({ initialData, onSubmit, onCancel, loading }: RuleFormProps) {
           <Input
             id="max_amount"
             type="number"
+                    onWheel={preventWheelChange}
             step="0.01"
             min="0"
             placeholder="Sem limite"
@@ -158,6 +161,7 @@ function RuleForm({ initialData, onSubmit, onCancel, loading }: RuleFormProps) {
         <Input
           id="priority"
           type="number"
+                    onWheel={preventWheelChange}
           min="1"
           value={formData.priority}
           onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })}
