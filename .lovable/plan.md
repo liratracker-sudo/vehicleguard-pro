@@ -2,11 +2,16 @@
 
 ## O que os dados mostram
 
-- Cobrança de agosto (venc. 15/08), criada em 05/08 às 17:41: **R$ 74,90** — paga corretamente, é a do print.
-- Edição do contrato registrada na auditoria em 05/08 às 17:43: valor gravado **74,88** (antes 147,80).
-- Cobrança seguinte (venc. 15/09), gerada automaticamente a partir do contrato: **R$ 74,88**, ainda sem PIX.
+Nenhum PIX de 74,88 foi gerado. A linha do tempo real:
 
-Ou seja, o PIX não alterou nada — a geração de cobrança copia o `monthly_value` do contrato, e o contrato foi salvo com 74,88.
+- 05/08 17:41 — cobrança de agosto (venc. 15/08) criada com **R$ 74,90**.
+- 05/08 17:43 — contrato editado e salvo com **74,88** (antes 147,80), conforme a auditoria.
+- 10/08 11:33 — lembrete enviado no WhatsApp: **R$ 74,90** (cobrança de agosto).
+- 10/08 12:42 — pagamento confirmado no Mercado Pago: **R$ 74,90**. É o print que você mandou.
+- 10/08 12:42 — logo após a confirmação, o sistema gerou automaticamente a **próxima** cobrança (venc. 15/09) usando o `monthly_value` do contrato: **R$ 74,88**. Ela ainda não tem PIX gerado.
+
+Ou seja, o valor cobrado e pago hoje foi 74,90 corretamente. O 74,88 que você viu é a cobrança do mês que vem, criada a partir do contrato — que está com 74,88 desde 05/08.
+
 
 ## Causa provável do 74,88
 
