@@ -1,44 +1,32 @@
-# Fix: empresa sendo desativada automaticamente sem ação do usuário
+# Divergência de valor: cobrança 74,90 x PIX 74,88 (Daniel Resende)
 
-## Causa raiz (confirmada nos logs)
+## O que os dados mostram
 
-O webhook `supabase/functions/asaas-webhook/index.ts` foi escrito assumindo que **todo pagamento no Asaas é uma mensalidade do SaaS** (assinatura da empresa na plataforma). Mas na sua aplicação o mesmo webhook/tabela `payment_transactions` recebe também **as cobranças que a empresa (LIRA TRACKER) emite para os clientes finais dela** via Asaas.
+Não houve arredondamento nem erro na geração do PIX. Os valores conferidos no banco:
 
-Fluxo do bug:
-1. Um cliente final da LIRA TRACKER fica com boleto Asaas vencido há +15 dias.
-2. Asaas dispara `PAYMENT_OVERDUE` no webhook.
-3. `handlePaymentOverdue()` faz `SELECT ... FROM payment_transactions WHERE company_id = <LIRA> AND status='overdue' ORDER BY due_date ASC` — pega o mais antigo (que é do cliente final).
-4. Como esse pagamento passou de 15 dias vencido, executa `UPDATE companies SET is_active=false WHERE id=<LIRA>`.
+- Cobrança paga em 10/08 (vencimento 15/08): **R$ 74,90** — paga via Mercado Pago, valor correto.
+- Nova cobrança gerada em 10/08 (vencimento 15/09): **R$ 74,88** — ainda sem PIX gerado.
+- O contrato do cliente está com `monthly_value` = **74,88**.
+- O log de auditoria registra uma edição manual do contrato em **05/08/2026 17:43**, alterando o valor de 147,80 para **74,88** (feita por um usuário do sistema, provavelmente erro de digitação: 74,88 em vez de 74,90).
 
-Ou seja: **qualquer cliente final inadimplente há +15 dias derruba a empresa toda.**
+A geração da próxima cobrança usa o `monthly_value` do contrato como fonte da verdade, então ela apenas copiou o 74,88 digitado. O PIX, quando gerado, usa exatamente o valor da cobrança — sem conversão ou perda de centavos.
 
-Os logs confirmam eventos `PAYMENT_OVERDUE` recorrentes chegando (07/16, etc.), e não há nenhuma entrada em `audit_logs` para a mudança em `companies` — bate exatamente com o `UPDATE` sendo feito pelo service_role dentro do webhook (sem trigger de auditoria em `companies`).
+## Correção pontual
 
-`handlePaymentConfirmation()` sofre do mesmo problema no sentido oposto: ao receber `PAYMENT_RECEIVED` de qualquer cliente final, reativa a empresa. Isso mascarou o problema em alguns momentos, mas o ciclo desativa/reativa continua.
+1. Corrigir o `monthly_value` do contrato do Daniel Resende para **74,90**.
+2. Corrigir a cobrança em aberto (venc. 15/09) de 74,88 para **74,90**. Como ela ainda não tem PIX gerado, basta atualizar o valor — nada precisa ser cancelado no gateway.
 
-## Correção
+## Prevenção (evitar novos erros de digitação)
 
-Remover a lógica de ativar/desativar empresa a partir do webhook Asaas de cobranças de clientes finais. O gate de assinatura do SaaS não deve depender de `payment_transactions` (que é multi-uso). A ativação/bloqueio por inadimplência da assinatura, se existir, precisa vir de uma fonte dedicada (`company_subscriptions` / `invoices`) — não deste webhook.
+No formulário de contrato (campo "Valor Mensal"):
 
-### Alterações em `supabase/functions/asaas-webhook/index.ts`
+- Arredondar o valor para 2 casas no `onChange`/`blur`, evitando valores com centavos inesperados vindos de digitação/colagem.
+- Quando um plano estiver selecionado e o valor digitado divergir do sugerido (preço do plano x nº de veículos), exibir um aviso visível antes de salvar, com a diferença em reais, pedindo confirmação.
 
-1. **Remover a chamada** a `handlePaymentOverdue(transaction)` no bloco de mudança para `overdue`.
-2. **Remover a chamada** a `handlePaymentConfirmation(transaction)` no bloco de `paid`.
-3. **Remover as funções** `handlePaymentOverdue` e `handlePaymentConfirmation` (não usadas em mais nenhum lugar).
-4. Manter todo o resto (atualização de status da transação, logs, status lock de pagos, etc.).
+Opcional, se você quiser: uma verificação de sanidade na tela de cobranças que sinaliza cobranças cujo valor difere do `monthly_value` do contrato de origem.
 
-### Reativar a empresa agora
+## Detalhes técnicos
 
-`UPDATE companies SET is_active = true, updated_at = now() WHERE id = '3f86782c-a67f-498c-8913-d001dcba7dcf' AND is_active = false;` — só executa se estiver desativada no momento do fix (pelos dados atuais está `true`, então essa etapa vira no-op segura).
-
-## O que NÃO muda
-
-- Nenhuma outra edge function.
-- Nenhuma tabela / RLS.
-- Frontend intocado.
-- Regras de status lock de pagamento continuam iguais.
-
-## Efeito
-
-- A partir do deploy, nenhum `PAYMENT_OVERDUE` do Asaas vai mais desativar a empresa.
-- Se futuramente você quiser um bloqueio automático por inadimplência **da assinatura do SaaS**, criamos um fluxo separado ligado a `company_subscriptions` — posso planejar isso depois se você pedir.
+- Dados: `contracts.monthly_value` (contrato `7dcf9fed…`) e `payment_transactions` (`eab4231f…`).
+- Código: `src/components/contracts/ContractForm.tsx` (normalização + aviso de divergência).
+- `supabase/functions/generate-next-charge/index.ts` permanece inalterado — o comportamento atual (contrato como fonte da verdade) está correto.
