@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { toISODateBR } from "@/lib/timezone"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface VehicleFormProps {
   onSuccess?: () => void
@@ -254,6 +255,7 @@ export function VehicleForm({ onSuccess, onCancel, vehicleId }: VehicleFormProps
               <Input
                 id="year"
                 type="number"
+                    onWheel={preventWheelChange}
                 min="1900"
                 max={new Date().getFullYear() + 1}
                 value={formData.year}

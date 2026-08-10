@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface NotificationSettings {
   id: string;
@@ -283,6 +284,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                   <div className="flex gap-2">
                     <Input
                       type="number"
+                    onWheel={preventWheelChange}
                       min="1"
                       max="30"
                       placeholder="Dias"
@@ -367,6 +369,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                   <div className="flex gap-2">
                     <Input
                       type="number"
+                    onWheel={preventWheelChange}
                       min="1"
                       max="30"
                       placeholder="Dias"
@@ -451,6 +454,7 @@ export function BillingNotificationsModal({ settings, onSave, saving }: BillingN
                   <Label>Suspender após</Label>
                   <Input
                     type="number"
+                    onWheel={preventWheelChange}
                     min="7"
                     max="90"
                     value={localSettings.suspension_after_days}

@@ -11,6 +11,7 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface PaymentFormProps {
   onSuccess?: () => void
@@ -223,6 +224,7 @@ export function PaymentForm({ onSuccess, onCancel }: PaymentFormProps) {
             <Input
               id="amount"
               type="number"
+                    onWheel={preventWheelChange}
               step="0.01"
               value={formData.amount}
               onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})}

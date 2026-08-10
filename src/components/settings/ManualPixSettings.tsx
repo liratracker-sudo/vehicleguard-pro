@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useManualPixSettings } from "@/hooks/useManualPixSettings";
 import { QrCode, Save, Loader2 } from "lucide-react";
+import { preventWheelChange } from "@/lib/no-wheel";
 
 export function ManualPixSettings() {
   const { settings, setSettings, loading, saving, save } = useManualPixSettings();
@@ -95,6 +96,7 @@ export function ManualPixSettings() {
               </Select>
               <Input
                 type="number"
+                    onWheel={preventWheelChange}
                 step="0.01"
                 min="0"
                 value={settings.discount_value}
@@ -118,6 +120,7 @@ export function ManualPixSettings() {
               </Select>
               <Input
                 type="number"
+                    onWheel={preventWheelChange}
                 step="0.01"
                 min="0"
                 value={settings.surcharge_value}

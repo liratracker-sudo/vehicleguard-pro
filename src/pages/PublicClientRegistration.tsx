@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { CheckCircle2, Plus, Trash2, Car, UserPlus } from "lucide-react"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface Vehicle {
   id: string
@@ -770,6 +771,7 @@ export default function PublicClientRegistration() {
                       <Label>Ano *</Label>
                       <Input
                         type="number"
+                    onWheel={preventWheelChange}
                         value={vehicle.year}
                         onChange={(e) => updateVehicle(vehicle.id, 'year', e.target.value)}
                         min="1900"

@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Plus, Settings, Trash2, CreditCard, Users, Car, Database, Zap, Star, Crown, Sparkles, MessageSquare, Check, Loader2 } from "lucide-react"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface SubscriptionPlan {
   id: string
@@ -484,6 +485,7 @@ export function SubscriptionPlansManagement() {
                       <Input
                         id="max_vehicles"
                         type="number"
+                    onWheel={preventWheelChange}
                         value={formData.max_vehicles}
                         onChange={(e) => setFormData(prev => ({ ...prev, max_vehicles: parseInt(e.target.value) || 0 }))}
                         className="text-lg font-bold"
@@ -532,6 +534,7 @@ export function SubscriptionPlansManagement() {
                         <Input
                           id="price_monthly"
                           type="number"
+                    onWheel={preventWheelChange}
                           step="0.01"
                           value={formData.price_monthly}
                           onChange={(e) => setFormData(prev => ({ ...prev, price_monthly: parseFloat(e.target.value) || 0 }))}
@@ -549,6 +552,7 @@ export function SubscriptionPlansManagement() {
                         <Input
                           id="price_yearly"
                           type="number"
+                    onWheel={preventWheelChange}
                           step="0.01"
                           value={formData.price_yearly}
                           onChange={(e) => setFormData(prev => ({ ...prev, price_yearly: parseFloat(e.target.value) || 0 }))}
@@ -569,6 +573,7 @@ export function SubscriptionPlansManagement() {
                         <Input
                           id="max_users"
                           type="number"
+                    onWheel={preventWheelChange}
                           value={formData.max_users}
                           onChange={(e) => setFormData(prev => ({ ...prev, max_users: parseInt(e.target.value) || 0 }))}
                         />
@@ -578,6 +583,7 @@ export function SubscriptionPlansManagement() {
                         <Input
                           id="max_messages_per_month"
                           type="number"
+                    onWheel={preventWheelChange}
                           value={formData.max_messages_per_month}
                           onChange={(e) => setFormData(prev => ({ ...prev, max_messages_per_month: parseInt(e.target.value) || 0 }))}
                         />
@@ -590,6 +596,7 @@ export function SubscriptionPlansManagement() {
                         <Input
                           id="max_api_calls_per_day"
                           type="number"
+                    onWheel={preventWheelChange}
                           value={formData.max_api_calls_per_day}
                           onChange={(e) => setFormData(prev => ({ ...prev, max_api_calls_per_day: parseInt(e.target.value) || 0 }))}
                         />
@@ -599,6 +606,7 @@ export function SubscriptionPlansManagement() {
                         <Input
                           id="max_storage_mb"
                           type="number"
+                    onWheel={preventWheelChange}
                           value={formData.max_storage_mb}
                           onChange={(e) => setFormData(prev => ({ ...prev, max_storage_mb: parseInt(e.target.value) || 0 }))}
                         />

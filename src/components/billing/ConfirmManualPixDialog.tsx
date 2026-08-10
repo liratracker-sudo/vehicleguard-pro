@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface Props {
   open: boolean;
@@ -50,6 +51,7 @@ export function ConfirmManualPixDialog({ open, onOpenChange, paymentId, defaultA
             <Label>Valor recebido (R$)</Label>
             <Input
               type="number"
+                    onWheel={preventWheelChange}
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}

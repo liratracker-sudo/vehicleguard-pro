@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Palette, Globe, Mail, FileText, Upload, Save, X } from "lucide-react"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface WhiteLabelConfig {
   id?: string
@@ -449,6 +450,7 @@ export function WhiteLabelConfig({ companyId, companyName, onClose }: WhiteLabel
                   <Input
                     id="smtp_port"
                     type="number"
+                    onWheel={preventWheelChange}
                     value={config.smtp_port || ''}
                     onChange={(e) => updateConfig('smtp_port', parseInt(e.target.value) || undefined)}
                     placeholder="587"

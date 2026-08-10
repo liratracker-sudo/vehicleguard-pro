@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useContractTemplates } from "@/hooks/useContractTemplates"
 import { ContractPreview } from "./ContractPreview"
+import { preventWheelChange } from "@/lib/no-wheel";
 
 interface ContractFormProps {
   onSuccess?: () => void
@@ -857,6 +858,7 @@ Contratada`
                   <Input
                     id="monthly_value"
                     type="number"
+                    onWheel={preventWheelChange}
                     step="0.01"
                     min="0"
                     value={formData.monthly_value || ''}
