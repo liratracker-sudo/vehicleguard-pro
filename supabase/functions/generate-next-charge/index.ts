@@ -199,7 +199,7 @@ serve(async (req) => {
       .single();
 
     // Sanitizar domínio e APP_URL e construir URL correta (evitar barra dupla)
-    const appUrl = (Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app').replace(/\/+$/, '');
+    const appUrl = (Deno.env.get('APP_URL') || 'https://appliratracker.lovable.app').replace(/\/+$/, '');
     const sanitizedDomain = company?.domain 
       ? company.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
       : null;

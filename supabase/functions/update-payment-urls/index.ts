@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const appUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+const appUrl = Deno.env.get('APP_URL') || 'https://appliratracker.lovable.app';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
@@ -57,7 +57,7 @@ serve(async (req) => {
       if (payment.payment_url?.includes('gestaotracker.lovable.app')) {
         newUrl = payment.payment_url.replace(
           'gestaotracker.lovable.app', 
-          'vehicleguard-pro.lovable.app'
+          'appliratracker.lovable.app'
         );
         needsUpdate = true;
       }

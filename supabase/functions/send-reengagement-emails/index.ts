@@ -228,7 +228,7 @@ serve(async (req) => {
       details: [] as any[]
     };
 
-    const appUrl = Deno.env.get("APP_URL") || "https://vehicleguard-pro.lovable.app";
+    const appUrl = Deno.env.get("APP_URL") || "https://appliratracker.lovable.app";
     
     // Buscar configurações do WhatsApp global (se necessário)
     let whatsappSettings: any = null;
