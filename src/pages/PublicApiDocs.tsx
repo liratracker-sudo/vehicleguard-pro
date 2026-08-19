@@ -848,13 +848,13 @@ console.log('Bloqueio registrado:', result);`}
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <code className="bg-slate-800 text-blue-300 px-2 py-1 rounded text-sm flex-1 overflow-x-auto">
-                  https://vehicleguard-pro.lovable.app/docs/api
+                  https://appliratracker.lovable.app/docs/api
                 </code>
                 <Button 
                   size="sm" 
                   variant="outline" 
                   className="border-blue-500 text-blue-300"
-                  onClick={() => copyToClipboard('https://vehicleguard-pro.lovable.app/docs/api', 'docs-url')}
+                  onClick={() => copyToClipboard('https://appliratracker.lovable.app/docs/api', 'docs-url')}
                 >
                   {copiedCode === 'docs-url' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>

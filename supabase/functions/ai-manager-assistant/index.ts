@@ -104,7 +104,7 @@ serve(async (req) => {
                 .single();
               
               // Sanitiza APP_URL: remove trailing slashes para evitar barra dupla no checkout
-              const defaultAppUrl = (Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app').replace(/\/+$/, '');
+              const defaultAppUrl = (Deno.env.get('APP_URL') || 'https://appliratracker.lovable.app').replace(/\/+$/, '');
               // Sanitiza domínio: remove protocolo (http/https) e trailing slashes para evitar URLs duplicadas
               const sanitizedDomain = companyDomain?.domain 
                 ? companyDomain.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
@@ -850,7 +850,7 @@ Responda *SIM* para confirmar ou *NÃO* para cancelar.`;
             .eq('id', company_id)
             .single();
           
-          const defaultAppUrl = Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app';
+          const defaultAppUrl = Deno.env.get('APP_URL') || 'https://appliratracker.lovable.app';
           const baseUrl = companyInfo?.domain 
             ? `https://${companyInfo.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')}` 
             : defaultAppUrl;

@@ -199,7 +199,7 @@ serve(async (req) => {
 
         // Use company domain if configured, otherwise fallback (remove protocol and trailing slashes)
         // Sanitiza APP_URL: remove trailing slashes para evitar barra dupla no checkout
-        const appUrl = (Deno.env.get('APP_URL') || 'https://vehicleguard-pro.lovable.app').replace(/\/+$/, '');
+        const appUrl = (Deno.env.get('APP_URL') || 'https://appliratracker.lovable.app').replace(/\/+$/, '');
         // Sanitiza domínio: remove protocolo (http/https) e trailing slashes para evitar URLs duplicadas
         const sanitizedDomain = company?.domain 
           ? company.domain.replace(/^https?:\/+/i, '').replace(/\/+$/, '')
