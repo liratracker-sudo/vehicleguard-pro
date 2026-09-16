@@ -177,11 +177,11 @@ ${payment.description ? `\n📝 Referência: ${payment.description}` : ''}`;
     });
 
     if (sendError) {
-      console.error('❌ Error sending WhatsApp:', sendError);
-      throw sendError;
+      console.error('❌ Error sending WhatsApp (cobrança já foi gerada):', sendError);
     }
 
-    const success = sendResult?.success ?? true;
+    const success = sendError ? false : (sendResult?.success ?? true);
+
 
     // Registrar notificação no histórico
     await supabase.from('payment_notifications').insert({
