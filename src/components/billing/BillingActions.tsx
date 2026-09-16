@@ -82,6 +82,10 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   const [showProtestDialog, setShowProtestDialog] = useState(false);
   const [showUndoProtestDialog, setShowUndoProtestDialog] = useState(false);
   const [showManualPixDialog, setShowManualPixDialog] = useState(false);
+  const [showAmountDialog, setShowAmountDialog] = useState(false);
+  const [newAmount, setNewAmount] = useState<string>("");
+  const [amountReason, setAmountReason] = useState("");
+  const [applyToContract, setApplyToContract] = useState(false);
   const { 
     loading,
     updatePaymentStatus,
@@ -91,7 +95,9 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     protestPayment,
     undoProtest,
     updateDueDate,
+    updateAmount,
   } = useBillingManagement();
+
 
   // Calcular dias de atraso
   const getDaysOverdue = () => {
