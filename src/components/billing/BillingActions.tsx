@@ -235,6 +235,40 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     setNewDueDate(undefined);
   };
 
+  const openAmountDialog = () => {
+    setNewAmount(String(Number(payment.amount).toFixed(2)));
+    setAmountReason("");
+    setApplyToContract(false);
+    setShowAmountDialog(true);
+  };
+
+  const handleUpdateAmount = async () => {
+    const parsed = parseFloat(String(newAmount).replace(',', '.'));
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast({
+        title: "Erro",
+        description: "Informe um valor válido maior que zero",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await updateAmount(payment.id, {
+        amount: parsed,
+        reason: amountReason.trim() || undefined,
+        apply_to_contract: applyToContract,
+      });
+      setShowAmountDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating amount:', error);
+    }
+  };
+
+
+
   // Para cobranças canceladas, mostrar apenas excluir permanentemente
   if (showDeletePermanently) {
     return (
