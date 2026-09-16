@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { preventWheelChange } from "@/lib/no-wheel";
 import { 
   CheckCircle, 
   XCircle, 
@@ -43,7 +45,8 @@ import {
   Scale,
   Undo2,
   CalendarDays,
-  QrCode
+  QrCode,
+  DollarSign
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { ConfirmManualPixDialog } from "@/components/billing/ConfirmManualPixDialog";
@@ -51,6 +54,7 @@ import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateBR } from "@/lib/timezone";
+
 
 interface BillingActionsProps {
   payment: PaymentTransaction;
