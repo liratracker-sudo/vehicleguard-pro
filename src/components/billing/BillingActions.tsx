@@ -429,6 +429,26 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
           </Tooltip>
         )}
 
+        {/* Alterar valor - apenas se não estiver paga/cancelada */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                onClick={openAmountDialog}
+                disabled={loading}
+              >
+                <DollarSign className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Alterar valor</TooltipContent>
+          </Tooltip>
+        )}
+
+
+
         {/* Protestar cobrança - apenas se overdue com 15+ dias e não protestada */}
         {canProtest && (
           <Tooltip>
