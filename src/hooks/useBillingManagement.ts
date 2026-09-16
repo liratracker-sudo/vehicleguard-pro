@@ -424,6 +424,7 @@ export function useBillingManagement() {
     protestPayment,
     undoProtest,
     updateDueDate,
-    confirmManualPix,
+    updateAmount,
+
   };
 }
