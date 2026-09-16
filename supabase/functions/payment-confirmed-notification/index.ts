@@ -172,23 +172,7 @@ ${payment.description ? `\n📝 Referência: ${payment.description}` : ''}`;
 
     console.log('✅ Payment confirmation notification sent successfully');
 
-    // Gerar próxima cobrança automaticamente (se tiver contrato)
-    console.log('🔄 Verificando se deve gerar próxima cobrança...');
-    try {
-      const { data: nextChargeResult, error: nextChargeError } = await supabase.functions.invoke('generate-next-charge', {
-        body: { payment_id: payment.id }
-      });
 
-      if (nextChargeError) {
-        console.error('❌ Erro ao gerar próxima cobrança:', nextChargeError);
-      } else if (nextChargeResult?.created) {
-        console.log('✅ Próxima cobrança gerada:', nextChargeResult.new_payment_id);
-      } else {
-        console.log('ℹ️ Próxima cobrança não gerada:', nextChargeResult?.message);
-      }
-    } catch (nextChargeErr) {
-      console.error('❌ Exceção ao gerar próxima cobrança:', nextChargeErr);
-    }
 
     return new Response(
       JSON.stringify({ 
