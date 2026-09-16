@@ -21,6 +21,29 @@ function normalizeBrazilPhone(phone: string): string | null {
   return p;
 }
 
+// Gera a próxima cobrança do contrato. Nunca lança erro: falhas aqui não devem
+// interromper o restante do fluxo.
+async function generateNextCharge(supabase: any, paymentId: string) {
+  console.log('🔄 Verificando se deve gerar próxima cobrança...');
+  try {
+    const { data: result, error } = await supabase.functions.invoke('generate-next-charge', {
+      body: { payment_id: paymentId }
+    });
+
+    if (error) {
+      console.error('❌ Erro ao gerar próxima cobrança:', error);
+    } else if (result?.created) {
+      console.log('✅ Próxima cobrança gerada:', result.new_payment_id);
+    } else {
+      console.log('ℹ️ Próxima cobrança não gerada:', result?.message);
+    }
+  } catch (err) {
+    console.error('❌ Exceção ao gerar próxima cobrança:', err);
+  }
+}
+
+
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -62,8 +85,13 @@ serve(async (req) => {
       );
     }
 
+    // IMPORTANTE: gerar a próxima cobrança ANTES de qualquer envio de mensagem,
+    // para que falhas de WhatsApp nunca impeçam a criação da cobrança.
+    await generateNextCharge(supabase, payment.id);
+
     const client = payment.clients;
     const company = payment.companies;
+
 
     // Verificar se cliente tem telefone
     if (!client?.phone) {
