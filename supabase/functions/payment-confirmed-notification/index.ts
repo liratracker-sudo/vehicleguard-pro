@@ -21,6 +21,29 @@ function normalizeBrazilPhone(phone: string): string | null {
   return p;
 }
 
+// Gera a próxima cobrança do contrato. Nunca lança erro: falhas aqui não devem
+// interromper o restante do fluxo.
+async function generateNextCharge(supabase: any, paymentId: string) {
+  console.log('🔄 Verificando se deve gerar próxima cobrança...');
+  try {
+    const { data: result, error } = await supabase.functions.invoke('generate-next-charge', {
+      body: { payment_id: paymentId }
+    });
+
+    if (error) {
+      console.error('❌ Erro ao gerar próxima cobrança:', error);
+    } else if (result?.created) {
+      console.log('✅ Próxima cobrança gerada:', result.new_payment_id);
+    } else {
+      console.log('ℹ️ Próxima cobrança não gerada:', result?.message);
+    }
+  } catch (err) {
+    console.error('❌ Exceção ao gerar próxima cobrança:', err);
+  }
+}
+
+
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -62,8 +85,13 @@ serve(async (req) => {
       );
     }
 
+    // IMPORTANTE: gerar a próxima cobrança ANTES de qualquer envio de mensagem,
+    // para que falhas de WhatsApp nunca impeçam a criação da cobrança.
+    await generateNextCharge(supabase, payment.id);
+
     const client = payment.clients;
     const company = payment.companies;
+
 
     // Verificar se cliente tem telefone
     if (!client?.phone) {
@@ -149,11 +177,11 @@ ${payment.description ? `\n📝 Referência: ${payment.description}` : ''}`;
     });
 
     if (sendError) {
-      console.error('❌ Error sending WhatsApp:', sendError);
-      throw sendError;
+      console.error('❌ Error sending WhatsApp (cobrança já foi gerada):', sendError);
     }
 
-    const success = sendResult?.success ?? true;
+    const success = sendError ? false : (sendResult?.success ?? true);
+
 
     // Registrar notificação no histórico
     await supabase.from('payment_notifications').insert({
@@ -172,23 +200,7 @@ ${payment.description ? `\n📝 Referência: ${payment.description}` : ''}`;
 
     console.log('✅ Payment confirmation notification sent successfully');
 
-    // Gerar próxima cobrança automaticamente (se tiver contrato)
-    console.log('🔄 Verificando se deve gerar próxima cobrança...');
-    try {
-      const { data: nextChargeResult, error: nextChargeError } = await supabase.functions.invoke('generate-next-charge', {
-        body: { payment_id: payment.id }
-      });
 
-      if (nextChargeError) {
-        console.error('❌ Erro ao gerar próxima cobrança:', nextChargeError);
-      } else if (nextChargeResult?.created) {
-        console.log('✅ Próxima cobrança gerada:', nextChargeResult.new_payment_id);
-      } else {
-        console.log('ℹ️ Próxima cobrança não gerada:', nextChargeResult?.message);
-      }
-    } catch (nextChargeErr) {
-      console.error('❌ Exceção ao gerar próxima cobrança:', nextChargeErr);
-    }
 
     return new Response(
       JSON.stringify({ 
