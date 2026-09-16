@@ -342,7 +342,52 @@ export function useBillingManagement() {
     }
   };
 
+  const updateAmount = async (
+    paymentId: string,
+    payload: { amount: number; reason?: string; apply_to_contract?: boolean }
+  ) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('billing-management', {
+        body: {
+          action: 'update_amount',
+          payment_id: paymentId,
+          data: payload,
+        },
+      });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.message || data?.error || 'Falha ao alterar o valor.');
+      }
+
+      const extras: string[] = [];
+      if (data.contract_updated) extras.push('valor mensal do contrato atualizado');
+      if (data.pix_reset) extras.push('novo código PIX será gerado no link de pagamento');
+
+      toast({
+        title: 'Valor atualizado',
+        description: extras.length
+          ? `Cobrança atualizada — ${extras.join(' e ')}.`
+          : 'Valor da cobrança atualizado com sucesso!',
+      });
+
+      return data;
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message,
+        variant: 'destructive',
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmManualPix = async (
+
     paymentId: string,
     payload: { paid_at: string; amount: number; note?: string }
   ) => {
@@ -379,6 +424,9 @@ export function useBillingManagement() {
     protestPayment,
     undoProtest,
     updateDueDate,
+    updateAmount,
     confirmManualPix,
+
+
   };
 }

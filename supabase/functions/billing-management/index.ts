@@ -759,6 +759,121 @@ serve(async (req) => {
         );
       }
 
+      case 'update_amount': {
+        const { amount: newAmountRaw, reason, apply_to_contract } = data || {};
+        const newAmount = Number(newAmountRaw);
+
+        if (!payment_id || !Number.isFinite(newAmount) || newAmount <= 0) {
+          throw new Error('Informe um valor válido maior que zero');
+        }
+
+        const { data: payment, error: paymentError } = await supabase
+          .from('payment_transactions')
+          .select('id, amount, status, external_id, payment_gateway, pix_code, contract_id, description')
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId)
+          .single();
+
+        if (paymentError || !payment) {
+          throw new Error('Cobrança não encontrada');
+        }
+
+        if (payment.status === 'paid') {
+          throw new Error('Não é possível alterar o valor de cobranças pagas');
+        }
+        if (payment.status === 'cancelled') {
+          throw new Error('Não é possível alterar o valor de cobranças canceladas');
+        }
+
+        const roundedAmount = Math.round(newAmount * 100) / 100;
+
+        const updatePayload: Record<string, any> = {
+          amount: roundedAmount,
+          updated_at: new Date().toISOString(),
+        };
+
+        // Um código PIX já emitido é imutável: descartar para que um novo
+        // seja gerado no checkout com o valor correto.
+        let pixReset = false;
+        if (payment.pix_code) {
+          updatePayload.pix_code = null;
+          updatePayload.barcode = null;
+          pixReset = true;
+          // Para gateways que criam um pagamento por código (Mercado Pago),
+          // o pagamento externo antigo não pode ser reaproveitado.
+          if (payment.payment_gateway && payment.payment_gateway !== 'asaas') {
+            updatePayload.external_id = null;
+          }
+        }
+
+        const { error: updateError } = await supabase
+          .from('payment_transactions')
+          .update(updatePayload)
+          .eq('id', payment_id)
+          .eq('company_id', userCompanyId);
+
+        if (updateError) throw updateError;
+
+        // Sincronizar com o Asaas quando a cobrança existir lá
+        let gatewaySynced: boolean | null = null;
+        if (payment.external_id && (!payment.payment_gateway || payment.payment_gateway === 'asaas')) {
+          try {
+            const asaasResponse = await supabaseService.functions.invoke('asaas-integration', {
+              body: {
+                action: 'update_charge',
+                company_id: userCompanyId,
+                data: {
+                  chargeId: payment.external_id,
+                  value: roundedAmount,
+                },
+              },
+            });
+            gatewaySynced = !asaasResponse.error;
+            if (asaasResponse.error) {
+              console.error('Erro ao atualizar valor no Asaas:', asaasResponse.error);
+            }
+          } catch (asaasError) {
+            gatewaySynced = false;
+            console.error('Erro na chamada ao Asaas (update_amount):', asaasError);
+          }
+        }
+
+        // Opcionalmente aplicar o novo valor às próximas cobranças (contrato)
+        let contractUpdated = false;
+        if (apply_to_contract && payment.contract_id) {
+          const { error: contractError } = await supabase
+            .from('contracts')
+            .update({ monthly_value: roundedAmount, updated_at: new Date().toISOString() })
+            .eq('id', payment.contract_id)
+            .eq('company_id', userCompanyId);
+
+          if (contractError) {
+            console.error('Erro ao atualizar valor do contrato:', contractError);
+          } else {
+            contractUpdated = true;
+          }
+        }
+
+        console.log(
+          `Payment ${payment_id} amount ${payment.amount} -> ${roundedAmount} by user ${user.id}. ` +
+          `Reason: ${reason || 'não informado'} | contract: ${contractUpdated} | pixReset: ${pixReset}`
+        );
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Valor da cobrança atualizado com sucesso',
+            amount: roundedAmount,
+            pix_reset: pixReset,
+            contract_updated: contractUpdated,
+            gateway_synced: gatewaySynced,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

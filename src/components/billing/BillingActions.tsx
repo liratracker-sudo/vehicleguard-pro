@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { preventWheelChange } from "@/lib/no-wheel";
 import { 
   CheckCircle, 
   XCircle, 
@@ -43,7 +45,8 @@ import {
   Scale,
   Undo2,
   CalendarDays,
-  QrCode
+  QrCode,
+  DollarSign
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { ConfirmManualPixDialog } from "@/components/billing/ConfirmManualPixDialog";
@@ -51,6 +54,7 @@ import { PaymentTransaction } from "@/hooks/usePayments";
 import { useBillingManagement } from "@/hooks/useBillingManagement";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateBR } from "@/lib/timezone";
+
 
 interface BillingActionsProps {
   payment: PaymentTransaction;
@@ -78,6 +82,10 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
   const [showProtestDialog, setShowProtestDialog] = useState(false);
   const [showUndoProtestDialog, setShowUndoProtestDialog] = useState(false);
   const [showManualPixDialog, setShowManualPixDialog] = useState(false);
+  const [showAmountDialog, setShowAmountDialog] = useState(false);
+  const [newAmount, setNewAmount] = useState<string>("");
+  const [amountReason, setAmountReason] = useState("");
+  const [applyToContract, setApplyToContract] = useState(false);
   const { 
     loading,
     updatePaymentStatus,
@@ -87,7 +95,9 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     protestPayment,
     undoProtest,
     updateDueDate,
+    updateAmount,
   } = useBillingManagement();
+
 
   // Calcular dias de atraso
   const getDaysOverdue = () => {
@@ -224,6 +234,40 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
     setShowDueDateDialog(false);
     setNewDueDate(undefined);
   };
+
+  const openAmountDialog = () => {
+    setNewAmount(String(Number(payment.amount).toFixed(2)));
+    setAmountReason("");
+    setApplyToContract(false);
+    setShowAmountDialog(true);
+  };
+
+  const handleUpdateAmount = async () => {
+    const parsed = parseFloat(String(newAmount).replace(',', '.'));
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast({
+        title: "Erro",
+        description: "Informe um valor válido maior que zero",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await updateAmount(payment.id, {
+        amount: parsed,
+        reason: amountReason.trim() || undefined,
+        apply_to_contract: applyToContract,
+      });
+      setShowAmountDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating amount:', error);
+    }
+  };
+
+
 
   // Para cobranças canceladas, mostrar apenas excluir permanentemente
   if (showDeletePermanently) {
@@ -384,6 +428,26 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
             <TooltipContent side="bottom">Alterar vencimento</TooltipContent>
           </Tooltip>
         )}
+
+        {/* Alterar valor - apenas se não estiver paga/cancelada */}
+        {payment.status !== 'paid' && payment.status !== 'cancelled' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                onClick={openAmountDialog}
+                disabled={loading}
+              >
+                <DollarSign className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Alterar valor</TooltipContent>
+          </Tooltip>
+        )}
+
+
 
         {/* Protestar cobrança - apenas se overdue com 15+ dias e não protestada */}
         {canProtest && (
@@ -674,7 +738,95 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog para alterar valor */}
+        <Dialog open={showAmountDialog} onOpenChange={setShowAmountDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-indigo-600" />
+                Alterar Valor
+              </DialogTitle>
+              <DialogDescription>
+                Ajuste o valor desta cobrança sem precisar cancelá-la.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                <p className="text-sm font-medium">{payment.clients?.name || 'Cliente'}</p>
+                <p className="text-sm text-muted-foreground">
+                  Valor atual: R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Vencimento: {payment.due_date ? formatDateBR(payment.due_date) : '-'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-amount">Novo valor (R$) *</Label>
+                <Input
+                  id="new-amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  onWheel={preventWheelChange}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amount-reason">Motivo (opcional)</Label>
+                <Textarea
+                  id="amount-reason"
+                  placeholder="Ex.: desconto negociado com o cliente"
+                  value={amountReason}
+                  onChange={(e) => setAmountReason(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              {payment.contract_id && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <Label className="text-sm">Aplicar em</Label>
+                  <Select
+                    value={applyToContract ? 'contract' : 'single'}
+                    onValueChange={(v) => setApplyToContract(v === 'contract')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Somente nesta cobrança</SelectItem>
+                      <SelectItem value="contract">Nesta e nas próximas (atualiza o contrato)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {payment.pix_code && (
+                <p className="text-xs text-muted-foreground">
+                  O código PIX já gerado será descartado. Um novo código com o valor
+                  correto é criado automaticamente quando o cliente abrir o link de pagamento.
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setShowAmountDialog(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleUpdateAmount}
+                disabled={loading || !newAmount}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                Salvar valor
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+
     </TooltipProvider>
   );
 }
