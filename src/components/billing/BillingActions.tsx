@@ -738,7 +738,95 @@ export function BillingActions({ payment, onUpdate, showDeletePermanently = fals
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog para alterar valor */}
+        <Dialog open={showAmountDialog} onOpenChange={setShowAmountDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-indigo-600" />
+                Alterar Valor
+              </DialogTitle>
+              <DialogDescription>
+                Ajuste o valor desta cobrança sem precisar cancelá-la.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                <p className="text-sm font-medium">{payment.clients?.name || 'Cliente'}</p>
+                <p className="text-sm text-muted-foreground">
+                  Valor atual: R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Vencimento: {payment.due_date ? formatDateBR(payment.due_date) : '-'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-amount">Novo valor (R$) *</Label>
+                <Input
+                  id="new-amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  onWheel={preventWheelChange}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amount-reason">Motivo (opcional)</Label>
+                <Textarea
+                  id="amount-reason"
+                  placeholder="Ex.: desconto negociado com o cliente"
+                  value={amountReason}
+                  onChange={(e) => setAmountReason(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              {payment.contract_id && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <Label className="text-sm">Aplicar em</Label>
+                  <Select
+                    value={applyToContract ? 'contract' : 'single'}
+                    onValueChange={(v) => setApplyToContract(v === 'contract')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Somente nesta cobrança</SelectItem>
+                      <SelectItem value="contract">Nesta e nas próximas (atualiza o contrato)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {payment.pix_code && (
+                <p className="text-xs text-muted-foreground">
+                  O código PIX já gerado será descartado. Um novo código com o valor
+                  correto é criado automaticamente quando o cliente abrir o link de pagamento.
+                </p>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setShowAmountDialog(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleUpdateAmount}
+                disabled={loading || !newAmount}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                Salvar valor
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+
     </TooltipProvider>
   );
 }
