@@ -177,10 +177,12 @@ serve(async (req) => {
     await supabase.from('cron_execution_logs').insert({
       job_name: 'reconcile-next-charges',
       started_at: startedAt,
-      completed_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
       status: results.errors.length > 0 ? 'partial' : 'success',
-      details: results,
+      response_body: JSON.stringify(results),
+      error_message: results.errors.length > 0 ? results.errors.join(' | ').slice(0, 2000) : null,
     });
+
 
     console.log('📊 Resultado:', results);
 
@@ -196,10 +198,12 @@ serve(async (req) => {
     await supabase.from('cron_execution_logs').insert({
       job_name: 'reconcile-next-charges',
       started_at: startedAt,
-      completed_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
       status: 'error',
-      details: { error: msg, ...results },
+      response_body: JSON.stringify(results),
+      error_message: msg.slice(0, 2000),
     }).then(() => {}, () => {});
+
 
     return new Response(
       JSON.stringify({ success: false, error: msg }),
